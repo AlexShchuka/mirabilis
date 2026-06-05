@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SERVICE_PREFIX="mirabilis"
+ACCOUNT="${MIRABILIS_KEYCHAIN_ACCOUNT:-${USER:-mirabilis}}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SECRETS_DIR="${REPO_ROOT}/secrets"
+NAMES="gh claude context7"
+
+svc()  { printf '%s-%s-token' "$SERVICE_PREFIX" "$1"; }
+file() { printf '%s/%s_token' "$SECRETS_DIR" "$1"; }
+envv() {
+  case "$1" in
+    gh)       echo GITHUB_TOKEN ;;
+    claude)   echo CLAUDE_CODE_OAUTH_TOKEN ;;
+    context7) echo CONTEXT7_API_KEY ;;
+    *)        echo "" ;;
+  esac
+}
+
+is_macos()   { [[ "$(uname -s)" == "Darwin" ]]; }
+die()        { printf 'token.sh: %s\n' "$1" >&2; exit 1; }
+valid_name() { case "$1" in gh|claude|context7) ;; *) die "unknown secret '$1' (use: gh | claude | context7)";; esac; }
+kc_has()     { security find-generic-password -a "$ACCOUNT" -s "$(svc "$1")" -w >/dev/null 2>&1; }
+
+cmd_set() {
+  local name="${1:-}"; valid_name "$name"
+  is_macos || die "set targets the macOS Keychain; on another OS write $(file "$name") instead"
+  local token=""
+  printf 'Paste %s token (input hidden), then press Enter: ' "$name" >&2
+  if ! IFS= read -rs token < /dev/tty; then printf '\n' >&2; die "no terminal available to read token (run interactively)"; fi
+  printf '\n' >&2
+  [[ -n "$token" ]] || die "empty input — nothing stored"
+  security add-generic-password -a "$ACCOUNT" -s "$(svc "$name")" -w "$token" -U >/dev/null
+  printf 'stored %s token in login Keychain (service=%s)\n' "$name" "$(svc "$name")" >&2
+}
+
+cmd_get() {
+  local name="${1:-}"; valid_name "$name"
+  if is_macos && kc_has "$name"; then
+    security find-generic-password -a "$ACCOUNT" -s "$(svc "$name")" -w
+    return 0
+  fi
+  local ev; ev="$(envv "$name")"
+  if [[ -n "$ev" && -n "${!ev:-}" ]]; then printf '%s\n' "${!ev}"; return 0; fi
+  local f; f="$(file "$name")"
+  if [[ -r "$f" ]]; then
+    if ! is_macos; then
+      local mode; mode="$(stat -c '%a' "$f" 2>/dev/null || echo 600)"
+      [[ "${mode: -2}" == "00" ]] || printf 'token.sh: WARNING: %s is mode %s (should be 600)\n' "$f" "$mode" >&2
+    fi
+    cat "$f"; return 0
+  fi
+  die "no $name token found (run: ./scripts/token.sh set $name)"
+}
+
+cmd_rm() {
+  local name="${1:-}"; valid_name "$name"
+  is_macos || die "rm targets the macOS Keychain only"
+  if security delete-generic-password -a "$ACCOUNT" -s "$(svc "$name")" >/dev/null 2>&1; then
+    printf 'removed %s token from Keychain\n' "$name" >&2
+  else
+    printf 'no %s token in Keychain\n' "$name" >&2
+  fi
+}
+
+cmd_check() {
+  local name ev val present
+  for name in $NAMES; do
+    ev="$(envv "$name")"; val=""; [[ -n "$ev" ]] && val="${!ev:-}"
+    if   is_macos && kc_has "$name"; then present="keychain"
+    elif [[ -n "$val" ]];            then present="env ($ev)"
+    elif [[ -r "$(file "$name")" ]]; then present="file ($(file "$name"))"
+    else                                  present="MISSING (run: token.sh set $name)"
+    fi
+    printf '%-9s %s\n' "$name" "$present"
+  done
+}
+
+main() {
+  local action="${1:-}"; shift || true
+  case "$action" in
+    set)   cmd_set   "${1:-}" ;;
+    get)   cmd_get   "${1:-}" ;;
+    rm)    cmd_rm    "${1:-}" ;;
+    check) cmd_check ;;
+    *) die "usage: token.sh {set|get|rm} {gh|claude|context7} | token.sh check" ;;
+  esac
+}
+
+main "$@"
