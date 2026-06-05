@@ -8,10 +8,10 @@ ARG CODER_GID=1000
 ENV DEBIAN_FRONTEND=noninteractive \
     DISABLE_AUTOUPDATER=1 \
     LANG=C.UTF-8 \
-    PATH=/home/coder/.local/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/home/coder/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git jq less sudo gosu tini \
+      ca-certificates curl git jq less sudo gosu tini passwd \
       iptables ipset iproute2 dnsutils \
       ripgrep unzip tzdata \
     && rm -rf /var/lib/apt/lists/* \
