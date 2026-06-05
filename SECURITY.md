@@ -17,11 +17,9 @@ stronger isolation boundary (microVM) than a container provides.
 ## Secrets
 
 - The **macOS Keychain is the single source of truth** for tokens
-  (`scripts/token.sh set gh|claude`).
+  (`scripts/token.sh set gh|claude|context7`).
 - Tokens are injected as **environment variables at run time** and are never
-  written to the repository. `.env`, `secrets/`, and token files are gitignored.
-- The GitHub MCP token is resolved from the environment at start; the Claude
-  OAuth token authenticates inference only.
+  written to the repository. `.env` and token files are gitignored.
 - Because tokens are delivered as container **environment variables**, anyone
   with access to the Docker socket (or host root) can read them via
   `docker inspect mirabilis` or `/proc/1/environ`. The Docker socket is part of

@@ -17,10 +17,10 @@ plugin through a self-owned Claude Code marketplace.
    in Markdown docs. This applies to shell, Dockerfile, Makefile, YAML, `.env`,
    `.gitignore` — everything except `.md` files.
 2. **Never commit secrets.** Tokens live in the macOS Keychain (`scripts/token.sh`)
-   and are injected as environment variables at run time. `secrets/` and `.env`
+   and are injected as environment variables at run time. `.env` and token files
    are gitignored. If you ever see a token in a diff, stop.
-3. **Branch, don't push to `main`.** Open PRs with `gh`. `gh` will not push to
-   `main` without confirmation.
+3. **Branch, never push to `main`.** All work lands via a **squash-merged PR**
+   into `main`; the source branch is deleted after merge.
 4. **Work inside `/workspace`.** That bind-mount is the single source of truth,
    shared with the host IDE. Avoid editing a file the human is editing; prefer a
    git worktree or your own branch.
@@ -29,14 +29,17 @@ plugin through a self-owned Claude Code marketplace.
 
 ## Commands
 
+Daily use is the single `mirabilis` command (installed with `make install`):
+
 ```
-make build        build the image (pinned Claude Code CLI)
-make up           start the workspace
-make doctor       diagnose docker / tokens / VPN-exit / claude / plugin / MCP
-make claude       launch the autonomous agent
-make agent P=...  one headless prompt
-make shell        shell into the workspace as coder
+mirabilis                  start the workspace and open Claude (first run self-configures)
+mirabilis agent "<task>"   run one prompt non-interactively
+mirabilis shell            a shell in the workspace as coder
+mirabilis doctor           health check
+mirabilis down | restart   stop / recreate the workspace
 ```
+
+The `make` targets remain for power users / CI.
 
 ## How it fits together
 
@@ -53,4 +56,4 @@ make shell        shell into the workspace as coder
 - **MCP:** GitHub MCP (hosted HTTP) is registered declaratively in
   `scripts/provision-mcp.sh`; the token is read from the environment.
 
-See `docs/adr/` for the decisions and `README.md` for setup.
+See `README.md` for setup.

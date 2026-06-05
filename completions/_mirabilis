@@ -1,0 +1,27 @@
+#compdef mirabilis
+_mirabilis() {
+  local line state
+  _arguments -C "1: :->cmds" "*::arg:->args"
+  case "$state" in
+    cmds)
+      _values "mirabilis command" \
+        "agent[run one prompt non-interactively]" \
+        "shell[shell as coder]" \
+        "doctor[health check]" \
+        "down[stop the workspace]" \
+        "restart[recreate the container]" \
+        "logs[tail logs]" \
+        "token[replace a secret: gh|claude|context7]" \
+        "check[show configured secrets]" \
+        "completion[print the completion script]" \
+        "version[print version]"
+      ;;
+    args)
+      case "$line[1]" in
+        token)      _values "secret" "gh" "claude" "context7" ;;
+        completion) _values "shell" "zsh" ;;
+      esac
+      ;;
+  esac
+}
+_mirabilis "$@"

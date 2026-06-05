@@ -1,9 +1,6 @@
 .env
 .env.*
 !.env.example
-secrets/*
-!secrets/.gitkeep
-!secrets/README.md
 *.token
 *_token
 *.pem
