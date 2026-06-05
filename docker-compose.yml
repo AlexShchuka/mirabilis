@@ -10,6 +10,8 @@ services:
     image: mirabilis:local
     container_name: mirabilis
     hostname: mirabilis
+    security_opt:
+      - seccomp=unconfined
     environment:
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
