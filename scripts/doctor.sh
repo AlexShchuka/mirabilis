@@ -6,7 +6,7 @@ g=$'\033[32m'; r=$'\033[31m'; y=$'\033[33m'; z=$'\033[0m'
 ok()   { printf '  %s\xe2\x9c\x93%s %s\n' "$g" "$z" "$*"; }
 no()   { printf '  %s\xe2\x9c\x97%s %s\n' "$r" "$z" "$*"; }
 warn() { printf '  %s!%s %s\n'           "$y" "$z" "$*"; }
-DX()   { ./scripts/dc.sh exec --workspace-folder "$PWD" "$@" 2>/dev/null; }
+DX()   { ./scripts/dc.sh exec --workspace-folder "$PWD" "$@" </dev/null 2>/dev/null; }
 
 printf 'mirabilis doctor\n\nhost\n'
 command -v docker >/dev/null 2>&1 && ok "docker present" || { no "docker missing (make bootstrap)"; exit 1; }

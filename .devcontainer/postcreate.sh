@@ -8,7 +8,7 @@ DEST="$HOME/.claude/settings.json"
 if [ -f "$SEED" ]; then
   if [ -f "$DEST" ]; then
     tmp="$(mktemp)"
-    jq -s '.[0] * .[1]' "$DEST" "$SEED" > "$tmp" 2>/dev/null && mv "$tmp" "$DEST" || cp "$SEED" "$DEST"
+    jq -s '.[0] * .[1]' "$DEST" "$SEED" > "$tmp" && mv "$tmp" "$DEST" || cp "$SEED" "$DEST"
   else
     cp "$SEED" "$DEST"
   fi

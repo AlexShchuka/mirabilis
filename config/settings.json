@@ -3,7 +3,6 @@
   "env": {
     "DISABLE_AUTOUPDATER": "1"
   },
-  "enableAllProjectMcpServers": true,
   "enabledPlugins": {
     "neuro-matrix@mirabilis": true
   },

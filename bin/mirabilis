@@ -50,6 +50,7 @@ First run — Claude needs a one-time login on your subscription.
 A URL/code appears: open it (VPN to a supported region ON), approve, paste the token back.
 EOF
   dx claude setup-token || die "Claude login failed — make sure the VPN is on, then run 'mirabilis' again."
+  echo "mirabilis: now paste that same token here so it persists across container rebuilds." >&2
   "$TOKEN" set claude
   recreate
 }
@@ -94,9 +95,9 @@ main() {
   case "$c" in
     ""|claude|run|up)     launch ;;
     agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
-                          ensure_docker; up
+                          ensure_docker; ensure_github; up; ensure_claude
                           exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions ;;
-    shell)                ensure_docker; up
+    shell)                ensure_docker; ensure_github; up
                           exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;
     down)                 lifecycle down ;;

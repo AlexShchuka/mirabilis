@@ -6,11 +6,10 @@ _mirabilis() {
     cmds)
       _values "mirabilis command" \
         "agent[run one prompt non-interactively]" \
-        "shell[shell as coder]" \
+        "shell[shell as node]" \
         "doctor[health check]" \
         "down[stop the workspace]" \
         "restart[recreate the container]" \
-        "logs[tail logs]" \
         "token[replace a secret: gh|claude|context7]" \
         "check[show configured secrets]" \
         "completion[print the completion script]" \
