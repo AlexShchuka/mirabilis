@@ -13,7 +13,7 @@
     "DISABLE_AUTOUPDATER": "1"
   },
   "initializeCommand": "bash .devcontainer/initialize.sh",
-  "postCreateCommand": "bash /opt/mirabilis/postcreate.sh",
+  "postStartCommand": "bash /opt/mirabilis/refresh.sh",
   "customizations": {
     "vscode": {
       "extensions": ["anthropic.claude-code"]

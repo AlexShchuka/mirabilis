@@ -49,10 +49,17 @@ The `make` targets cover install/lifecycle for power users / CI.
   comes from `docker/Dockerfile` (minimal: node base + bubblewrap/socat + a
   marketplace seed), and the Claude Code CLI + `gh` are added as official
   **Features**. `docker-compose.yml` provides the volumes and the `/workspace`
-  mount; `.devcontainer/postcreate.sh` seeds settings, installs the plugin, and
-  registers MCP.
+  mount. `.devcontainer/refresh.sh` runs on **every start** (`postStartCommand`):
+  it re-seeds settings, refreshes the plugin (`claude plugin update`), and
+  registers MCP — so re-running `mirabilis` **updates** the sandbox in place
+  rather than from scratch, while the persistent volumes keep memory and auth.
 - **Filesystem:** persistent (`~/.claude` auth+memory+plugins, `~/.config/gh`,
-  `/workspace`) vs ephemeral (`/tmp`). State that must live is persistent.
+  `/workspace`) survives rebuilds; ephemeral (`/tmp`, the refreshed plugin) is
+  renewed each start.
+- **System prompt:** layered and deliberately thin — neuro-matrix injects its
+  protocol via a SessionStart hook, and `mirabilis` appends a short sandbox note
+  (`config/sandbox-context.md`) via `--append-system-prompt-file`. Both stack;
+  neither replaces the other.
 - **Egress:** Claude Code's native sandbox confines the agent's Bash commands to
   `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). Geo-exit is the
   host VPN. WebSearch/WebFetch ride the Anthropic API, so the allowlist never

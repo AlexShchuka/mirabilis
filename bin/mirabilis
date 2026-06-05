@@ -6,6 +6,7 @@ DC="$REPO/scripts/dc.sh"
 TOKEN="$REPO/scripts/token.sh"
 DOCTOR="$REPO/scripts/doctor.sh"
 VERSION="0.2.0"
+SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
 
 die() { echo "mirabilis: $*" >&2; exit 1; }
 missing() { "$TOKEN" check 2>/dev/null | grep -qE "^$1 .*MISSING"; }
@@ -60,7 +61,7 @@ launch() {
   ensure_github
   up
   ensure_claude
-  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions
+  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT"
 }
 
 print_completion() {
@@ -96,7 +97,7 @@ main() {
     ""|claude|run|up)     launch ;;
     agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
                           ensure_docker; ensure_github; up; ensure_claude
-                          exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions ;;
+                          exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT" ;;
     shell)                ensure_docker; ensure_github; up
                           exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;
