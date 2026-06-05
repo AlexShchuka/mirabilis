@@ -21,5 +21,8 @@ COPY scripts/provision-mcp.sh   /usr/local/bin/provision-mcp.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
 RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/refresh.sh
 
+RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
+    && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"
+
 USER node
 WORKDIR /workspace

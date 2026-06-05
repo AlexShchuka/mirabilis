@@ -22,8 +22,10 @@ fi
 if command -v claude >/dev/null 2>&1 && [ -f /opt/mirabilis/marketplace/.claude-plugin/marketplace.json ]; then
   claude plugin marketplace add /opt/mirabilis/marketplace >/dev/null 2>&1 \
     || claude plugin marketplace update mirabilis >/dev/null 2>&1 || true
-  claude plugin install neuro-matrix@mirabilis --scope user >/dev/null 2>&1 || true
+  claude plugin install neuro-matrix@mirabilis --scope user 2>&1 || true
   claude plugin update neuro-matrix >/dev/null 2>&1 || true
+  claude plugin list 2>/dev/null | grep -q neuro-matrix \
+    || echo "[refresh] WARN: neuro-matrix not installed — check git/network" >&2
 fi
 
 /usr/local/bin/provision-mcp.sh || true

@@ -9,6 +9,13 @@ container is the security boundary, and the design assumes **trusted code only**
 - The agent's Bash egress is a **default-deny allowlist** via Claude Code's native
   sandbox (`sandbox.network.allowedDomains`) — configurable, no iptables, no
   elevated capabilities.
+- The native sandbox uses **bubblewrap**, which must create user namespaces.
+  Docker blocks that by default, so the container runs with `seccomp=unconfined`
+  (`docker-compose.yml`). This relaxes the **outer** container's syscall
+  filtering — acceptable under the trusted-code model above, since the inner
+  sandbox still enforces the egress allowlist and filesystem confinement, and no
+  Linux capabilities are added. For untrusted code, pair it with a stronger
+  boundary (microVM).
 - The geo-exit is the **host VPN**.
 - The sandbox confines spawned Bash commands (the main exfiltration vector). The
   Claude process and MCP traffic go to known hosts but are not themselves
