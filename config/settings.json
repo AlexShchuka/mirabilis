@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledPlugins": {
+    "neuro-matrix@mirabilis": true
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "sh /opt/mirabilis/config/statusline.sh",
+    "padding": 0
+  },
+  "includeCoAuthoredBy": true
+}
