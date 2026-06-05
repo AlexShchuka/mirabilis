@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 DC := ./scripts/dc.sh
-PREFIX ?= /usr/local
+PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 BINDIR ?= $(PREFIX)/bin
 
 .PHONY: help bootstrap install uninstall up down doctor clean
@@ -21,6 +21,7 @@ bootstrap:
 	npm install -g @devcontainers/cli
 
 install:
+	@test -w "$(BINDIR)" || test -w "$(dir $(BINDIR))" || { printf 'mirabilis: %s is not writable — retry with a writable PATH dir, e.g. "make install PREFIX=$$(brew --prefix)", or run "sudo make install"\n' "$(BINDIR)" >&2; exit 1; }
 	@mkdir -p $(BINDIR)
 	@printf '#!/usr/bin/env bash\nexec "%s/bin/mirabilis" "$$@"\n' "$(CURDIR)" > $(BINDIR)/mirabilis
 	@chmod 0755 $(BINDIR)/mirabilis
