@@ -6,10 +6,15 @@ mirabilis runs an autonomous agent with `--dangerously-skip-permissions`. The
 container is the security boundary, and the design assumes **trusted code only**:
 
 - The agent runs as a **non-root** user; the container confines command execution.
-- Egress is **default-deny** with a tight allowlist (`docker/init-firewall.sh`).
-- The geo-exit is the **host VPN**; the in-container firewall is defence-in-depth.
-- The firewall does **not** perform TLS inspection, so domain-fronting to an
-  allowlisted host is theoretically possible — acceptable for trusted repos only.
+- The agent's Bash egress is a **default-deny allowlist** via Claude Code's native
+  sandbox (`sandbox.network.allowedDomains`) — configurable, no iptables, no
+  elevated capabilities.
+- The geo-exit is the **host VPN**.
+- The sandbox confines spawned Bash commands (the main exfiltration vector). The
+  Claude process and MCP traffic go to known hosts but are not themselves
+  allowlist-confined. The sandbox does **not** perform TLS inspection, so
+  domain-fronting to an allowlisted host is theoretically possible — acceptable
+  for trusted repos only.
 
 Do not point mirabilis at untrusted code. For untrusted workloads you need a
 stronger isolation boundary (microVM) than a container provides.
