@@ -12,5 +12,29 @@
     "command": "sh /opt/mirabilis/config/statusline.sh",
     "padding": 0
   },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "enableWeakerNestedSandbox": true,
+    "network": {
+      "allowedDomains": [
+        "api.anthropic.com",
+        "claude.ai",
+        "console.anthropic.com",
+        "statsig.anthropic.com",
+        "sentry.io",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "api.githubcopilot.com",
+        "registry.npmjs.org",
+        "mcp.context7.com",
+        "context7.com"
+      ]
+    }
+  },
   "includeCoAuthoredBy": true
 }

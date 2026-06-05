@@ -2,16 +2,17 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-COMPOSE="$REPO/scripts/compose.sh"
+DC="$REPO/scripts/dc.sh"
 TOKEN="$REPO/scripts/token.sh"
 DOCTOR="$REPO/scripts/doctor.sh"
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 die() { echo "mirabilis: $*" >&2; exit 1; }
 missing() { "$TOKEN" check 2>/dev/null | grep -qE "^$1 .*MISSING"; }
 
-start_docker() {
-  command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap' once."
+ensure_docker() {
+  command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
+  command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI is missing — run 'make bootstrap'."
   docker info >/dev/null 2>&1 && return 0
   [ -d /Applications/Docker.app ] || die "Docker daemon is not running — start Docker Desktop."
   echo "mirabilis: starting Docker Desktop…" >&2
@@ -20,17 +21,22 @@ start_docker() {
   die "Docker did not come up — open Docker Desktop and run 'mirabilis' again."
 }
 
-ensure_image() {
-  docker image inspect mirabilis:local >/dev/null 2>&1 && return 0
-  echo "mirabilis: building the workspace image (first run, a few minutes)…" >&2
-  "$COMPOSE" build
+up()      { "$DC" up --workspace-folder "$REPO" >/dev/null; }
+recreate(){ "$DC" up --workspace-folder "$REPO" --remove-existing-container >/dev/null; }
+dx()      { "$DC" exec --workspace-folder "$REPO" "$@"; }
+
+lifecycle() {
+  cd "$REPO"
+  set -a; [[ -f .env ]] && . ./.env; set +a
+  : "${WORKSPACE_DIR:=$HOME/mirabilis-workspace}"; export WORKSPACE_DIR
+  docker compose -p mirabilis -f docker-compose.yml "$@"
 }
 
 ensure_github() {
   missing gh || return 0
   cat >&2 <<'EOF'
 
-First run — I need a GitHub token (for your private repos + the GitHub MCP).
+First run — I need a GitHub token (private repos + the GitHub MCP).
 Create one at https://github.com/settings/tokens (scope: repo), then paste it.
 EOF
   "$TOKEN" set gh
@@ -41,22 +47,19 @@ ensure_claude() {
   cat >&2 <<'EOF'
 
 First run — Claude needs a one-time login on your subscription.
-A URL/code will appear: open it in your browser (VPN to a supported region must be ON),
-approve, then paste the printed token back here.
+A URL/code appears: open it (VPN to a supported region ON), approve, paste the token back.
 EOF
-  "$COMPOSE" exec -it --user coder mirabilis claude setup-token \
-    || die "Claude login failed — make sure the VPN is on, then run 'mirabilis' again."
+  dx claude setup-token || die "Claude login failed — make sure the VPN is on, then run 'mirabilis' again."
   "$TOKEN" set claude
-  "$COMPOSE" up -d --force-recreate >/dev/null
+  recreate
 }
 
 launch() {
-  start_docker
-  ensure_image
+  ensure_docker
   ensure_github
-  "$COMPOSE" up -d --no-recreate >/dev/null
+  up
   ensure_claude
-  exec "$COMPOSE" exec -it --user coder -w /workspace mirabilis claude --dangerously-skip-permissions
+  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions
 }
 
 print_completion() {
@@ -76,10 +79,9 @@ mirabilis — autonomous Claude Code workspace
 
 Optional, only if you ever want them:
   mirabilis agent "<task>"   run one prompt non-interactively and exit
-  mirabilis shell            a shell in the workspace as coder
+  mirabilis shell            a shell in the workspace as node
   mirabilis doctor           health check
   mirabilis down|restart     stop / recreate the workspace
-  mirabilis logs             tail logs
   mirabilis token gh|claude|context7   replace a stored secret
   mirabilis check            show which secrets are set
   mirabilis completion zsh   print the zsh completion script
@@ -92,14 +94,13 @@ main() {
   case "$c" in
     ""|claude|run|up)     launch ;;
     agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
-                          start_docker; ensure_image; "$COMPOSE" up -d --no-recreate >/dev/null
-                          exec "$COMPOSE" exec -T --user coder -w /workspace mirabilis claude -p "$1" --dangerously-skip-permissions ;;
-    shell)                start_docker; "$COMPOSE" up -d --no-recreate >/dev/null
-                          exec "$COMPOSE" exec -it --user coder -w /workspace mirabilis bash ;;
+                          ensure_docker; up
+                          exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions ;;
+    shell)                ensure_docker; up
+                          exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;
-    down)                 "$COMPOSE" down ;;
-    restart)              start_docker; "$COMPOSE" up -d --force-recreate >/dev/null; echo "restarted." >&2 ;;
-    logs)                 "$COMPOSE" logs -f --tail=120 ;;
+    down)                 lifecycle down ;;
+    restart)              ensure_docker; recreate; echo "restarted." >&2 ;;
     token)                "$TOKEN" set "${1:-}" ;;
     check)                "$TOKEN" check ;;
     completion)           print_completion "${1:-zsh}" ;;

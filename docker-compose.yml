@@ -6,30 +6,27 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       args:
-        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.89}
-        INSTALL_NODE: ${INSTALL_NODE:-false}
+        TZ: ${TZ:-Etc/UTC}
     image: mirabilis:local
     container_name: mirabilis
     hostname: mirabilis
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
     environment:
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GH_TOKEN: ${GITHUB_TOKEN:-}
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
-      ALLOWLIST_EXTRA: ${ALLOWLIST_EXTRA:-}
       TZ: ${TZ:-Etc/UTC}
       DISABLE_AUTOUPDATER: "1"
     volumes:
       - type: bind
         source: ${WORKSPACE_DIR:-${HOME}/mirabilis-workspace}
         target: /workspace
-      - claude-home:/home/coder/.claude
-      - gh-config:/home/coder/.config/gh
+      - claude-home:/home/node/.claude
+      - gh-config:/home/node/.config/gh
     tmpfs:
       - /tmp
+    entrypoint: ["/usr/bin/tini", "--"]
+    command: ["sleep", "infinity"]
     stdin_open: true
     tty: true
     restart: unless-stopped

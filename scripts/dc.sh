@@ -18,4 +18,4 @@ export GH_TOKEN="$GITHUB_TOKEN"
 export CLAUDE_CODE_OAUTH_TOKEN
 export CONTEXT7_API_KEY
 
-exec docker compose "$@"
+exec devcontainer "$@"
