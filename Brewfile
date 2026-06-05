@@ -1,2 +1,2 @@
-cask "docker"
+cask "docker-desktop"
 brew "node"

@@ -29,6 +29,10 @@ stronger isolation boundary (microVM) than a container provides.
   with access to the Docker socket (or host root) can read them via
   `docker inspect mirabilis` or `/proc/1/environ`. The Docker socket is part of
   the secret trust boundary — do not expose it to untrusted users or containers.
+- The GitHub and Context7 MCP servers receive their tokens as resolved request
+  headers, so those values also persist in the container's per-user config
+  (`~/.claude.json`) on the `claude-home` volume — inside the container, never in
+  the repo. Treat that volume as part of the secret trust boundary.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately
   (https://github.com/settings/tokens for GitHub).

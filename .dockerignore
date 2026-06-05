@@ -1,0 +1,17 @@
+.git
+.gitignore
+node_modules/
+*.log
+.cache/
+tmp/
+.DS_Store
+.AppleDouble
+.localized
+.env
+.env.*
+*.token
+*_token
+*.pem
+*.key
+.credentials.json
+*.credentials
