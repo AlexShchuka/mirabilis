@@ -47,7 +47,7 @@ ensure_docker() {
 }
 
 dc_up() {
-  echo "mirabilis: building / starting the workspace — first run can take a few minutes (log: $BUILD_LOG)…" >&2
+  echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
   if ! "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1; then
     echo "mirabilis: workspace failed to start — last 40 log lines:" >&2
     tail -n 40 "$BUILD_LOG" >&2
@@ -122,7 +122,8 @@ rebuild_image() {
 confirm() {
   local reply
   [ -t 0 ] || return 1
-  read -r -p "$1 [y/N] " reply </dev/tty 2>/dev/null || return 1
+  printf '%s [y/N] ' "$1" >/dev/tty 2>/dev/null || return 1
+  read -r reply </dev/tty 2>/dev/null || return 1
   case "$reply" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
