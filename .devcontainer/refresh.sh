@@ -39,6 +39,9 @@ if command -v claude >/dev/null 2>&1 && [ -f /opt/mirabilis/marketplace/.claude-
   claude plugin install github@claude-plugins-official --scope user >/dev/null 2>&1 || true
 fi
 
+NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
+[ -n "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"
+
 /usr/local/bin/provision-mcp.sh || true
 
 if command -v rtk >/dev/null 2>&1; then
