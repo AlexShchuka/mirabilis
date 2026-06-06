@@ -45,11 +45,15 @@ mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
-On launch `mirabilis` warns (but still starts) when the checkout is behind the
-remote or the container is behind the checkout: the image is stamped with the
-source git revision (`MIRABILIS_VERSION`, threaded build arg → env) so staleness
-is detectable, and `mirabilis update` rebuilds. The `make` targets still cover
-install/lifecycle for power users / CI.
+Launching is idempotent. When the container's version matches your checkout it is
+reused as-is — `mirabilis` just starts it and opens Claude, nothing is recreated.
+When the container is **behind your checkout** it asks `rebuild it now? [y/N]`:
+yes rebuilds in place, no keeps the existing container. When your **checkout is
+behind the remote** it notes a newer version is available (`mirabilis update`).
+Staleness is detectable because the image is stamped with the source git revision
+(`MIRABILIS_VERSION`, threaded build arg → env), read back via `docker inspect`
+(no `exec`, so the check works even on a wedged container). The `make` targets
+still cover install/lifecycle for power users / CI.
 
 ## How it fits together
 
