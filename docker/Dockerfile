@@ -36,8 +36,9 @@ COPY config/                    /opt/mirabilis/config/
 COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY scripts/provision-mcp.sh   /usr/local/bin/provision-mcp.sh
 COPY scripts/container-open.sh  /usr/local/bin/mirabilis-open
+COPY scripts/protect-critical.sh /opt/mirabilis/protect-critical.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/mirabilis-open /opt/mirabilis/refresh.sh
+RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/mirabilis-open /opt/mirabilis/protect-critical.sh /opt/mirabilis/refresh.sh
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

@@ -28,6 +28,7 @@ open_host_url() {
 repo_version()      { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
 container_version() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mirabilis 2>/dev/null | sed -n 's/^MIRABILIS_VERSION=//p' | tr -d '[:space:]'; }
 container_exists()  { docker container inspect mirabilis >/dev/null 2>&1; }
+container_running() { [ "$(docker container inspect -f '{{.State.Running}}' mirabilis 2>/dev/null)" = "true" ]; }
 
 ensure_tools() {
   if ! command -v docker >/dev/null 2>&1 || ! command -v devcontainer >/dev/null 2>&1; then
@@ -248,13 +249,22 @@ launch() {
   ensure_extras
   ensure_docker
   prompt_if_outdated
-  if [ -n "${MIRABILIS_REBUILD:-}" ]; then rebuild_image; else prompt_if_stale; fi
+  local fresh=1
+  if [ -n "${MIRABILIS_REBUILD:-}" ]; then
+    rebuild_image
+  elif container_running && ! is_stale; then
+    fresh=0
+  else
+    prompt_if_stale
+  fi
   ensure_proxy
   ensure_opener
-  up
-  ensure_github
-  ensure_claude
-  preflight
+  if [ "$fresh" = 1 ]; then
+    up
+    ensure_github
+    ensure_claude
+    preflight
+  fi
   local ght; ght="$(dxq gh auth token || true)"
   exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" BROWSER=/usr/local/bin/mirabilis-open MIRABILIS_OPENER_PORT="$OPENER_PORT" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
