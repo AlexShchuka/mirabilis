@@ -6,12 +6,16 @@
   },
   "enabledPlugins": {
     "neuro-matrix@mirabilis": true,
-    "github@claude-plugins-official": true
+    "github@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true
   },
   "statusLine": {
     "type": "command",
-    "command": "sh /opt/mirabilis/config/statusline.sh",
-    "padding": 0
+    "command": "ccstatusline",
+    "padding": 0,
+    "refreshInterval": 10
   },
   "sandbox": {
     "enabled": true,
@@ -19,7 +23,17 @@
     "allowUnsandboxedCommands": false,
     "enableWeakerNestedSandbox": true,
     "filesystem": {
-      "allowWrite": ["~/.claude/xdg-data"]
+      "allowWrite": ["~/"],
+      "denyWrite": [
+        "~/.neuro-matrix",
+        "~/.claude/plugins",
+        "~/.claude/settings.json",
+        "~/.claude/.credentials.json",
+        "~/.config/gh",
+        "/etc",
+        "/usr",
+        "/opt/mirabilis"
+      ]
     },
     "network": {
       "allowedDomains": [

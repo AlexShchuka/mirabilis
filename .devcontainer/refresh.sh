@@ -36,7 +36,10 @@ if command -v claude >/dev/null 2>&1 && [ -f /opt/mirabilis/marketplace/.claude-
   claude plugin list 2>/dev/null | grep -q neuro-matrix \
     || echo "[refresh] WARN: neuro-matrix not installed — check git/network" >&2
   claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
-  claude plugin install github@claude-plugins-official --scope user >/dev/null 2>&1 || true
+  for p in github claude-code-setup claude-md-management chrome-devtools-mcp; do
+    claude plugin list 2>/dev/null | grep -q "$p" \
+      || claude plugin install "$p@claude-plugins-official" --scope user >/dev/null 2>&1 || true
+  done
 fi
 
 NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
@@ -47,4 +50,10 @@ NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | s
 if command -v rtk >/dev/null 2>&1; then
   jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "rtk hook claude")' "$DEST" >/dev/null 2>&1 \
     || rtk init -g --auto-patch >/dev/null 2>&1 || true
+fi
+
+if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1 \
+   && ! jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "bash /opt/mirabilis/protect-critical.sh")' "$DEST" >/dev/null 2>&1; then
+  tmp="$(mktemp)"
+  jq '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Write|Edit|MultiEdit|NotebookEdit","hooks":[{"type":"command","command":"bash /opt/mirabilis/protect-critical.sh"}]}])' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
 fi

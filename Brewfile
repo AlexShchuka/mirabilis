@@ -1,3 +1,5 @@
 cask "docker-desktop"
+brew "gum"
 brew "node"
+brew "socat"
 brew "tinyproxy"
