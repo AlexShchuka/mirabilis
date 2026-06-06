@@ -18,6 +18,9 @@
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
     "enableWeakerNestedSandbox": true,
+    "filesystem": {
+      "allowWrite": ["~/.claude/xdg-data"]
+    },
     "network": {
       "allowedDomains": [
         "host.docker.internal",

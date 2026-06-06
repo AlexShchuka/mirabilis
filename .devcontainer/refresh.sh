@@ -2,7 +2,7 @@
 set -uo pipefail
 export HOME=/home/node
 
-mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude" "$HOME/.claude/xdg-data"
 SEED=/opt/mirabilis/config/settings.json
 DEST="$HOME/.claude/settings.json"
 if [ -f "$SEED" ]; then
@@ -38,6 +38,9 @@ if command -v claude >/dev/null 2>&1 && [ -f /opt/mirabilis/marketplace/.claude-
   claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
   claude plugin install github@claude-plugins-official --scope user >/dev/null 2>&1 || true
 fi
+
+NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
+[ -n "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"
 
 /usr/local/bin/provision-mcp.sh || true
 

@@ -11,6 +11,7 @@ PROXY_RUN="${TMPDIR:-/tmp}/mirabilis-proxy"
 PROXY_PID="$PROXY_RUN.pid"
 PROXY_CONF="$PROXY_RUN.conf"
 PROXY_LOG="$PROXY_RUN.log"
+BUILD_LOG="${TMPDIR:-/tmp}/mirabilis-build.log"
 
 die() { echo "mirabilis: $*" >&2; exit 1; }
 open_host_url() {
@@ -45,8 +46,16 @@ ensure_docker() {
   die "Docker did not come up — open Docker Desktop and run 'mirabilis' again."
 }
 
-up()      { "$DC" up --workspace-folder "$REPO" >/dev/null; }
-recreate(){ "$DC" up --workspace-folder "$REPO" --remove-existing-container >/dev/null; }
+dc_up() {
+  echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
+  if ! "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1; then
+    echo "mirabilis: workspace failed to start — last 40 log lines:" >&2
+    tail -n 40 "$BUILD_LOG" >&2
+    die "full build log: $BUILD_LOG"
+  fi
+}
+up()      { dc_up; }
+recreate(){ dc_up --remove-existing-container; }
 dx()      { "$DC" exec --workspace-folder "$REPO" "$@"; }
 dxq()     { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
 
@@ -113,7 +122,8 @@ rebuild_image() {
 confirm() {
   local reply
   [ -t 0 ] || return 1
-  read -r -p "$1 [y/N] " reply </dev/tty 2>/dev/null || return 1
+  printf '%s [y/N] ' "$1" >/dev/tty 2>/dev/null || return 1
+  read -r reply </dev/tty 2>/dev/null || return 1
   case "$reply" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
@@ -197,7 +207,7 @@ launch() {
   ensure_claude
   preflight
   local ght; ght="$(dxq gh auth token || true)"
-  exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
+  exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
 update() {

@@ -10,4 +10,6 @@ You are running autonomously inside **mirabilis**, an isolated Claude Code dev c
   - `/tmp` and everything else is **ephemeral**: wiped on restart/update. Use it for scratch only; never keep anything you need there.
 - **Identity:** non-root user `node`, already signed in to `git`/`gh`. Use `git`/`gh` for version control; open PRs, never push to `main`.
 
-The **neuro-matrix** protocol below governs *how* you work. This note states *where* you are and what you may do.
+- **Harness:** the **neuro-matrix** protocol below is your core operating harness — injected as the base layer of this sandbox, not an optional add-on. When installed, the harness is rooted at `~/.neuro-matrix` (a stable symlink to it); the protocol's relative self-references (`references/…`, `invariants.txt`, `scripts/…`, `agents/…`) resolve there (e.g. `~/.neuro-matrix/invariants.txt`). If `~/.neuro-matrix` is absent the harness failed to install — surface that, don't guess.
+
+The **neuro-matrix** protocol below governs *how* you work; this note states *where* you are. They are one coherent system.
