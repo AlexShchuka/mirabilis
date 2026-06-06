@@ -13,14 +13,13 @@
 ## Quick start
 
 ```sh
-git clone https://github.com/AlexShchuka/mirabilis.git
-cd mirabilis
-./mirabilis
+git clone https://github.com/AlexShchuka/mirabilis.git && mirabilis/mirabilis
 ```
 
-The first run does everything: installs any missing prerequisites, puts the
-`mirabilis` command on your PATH, builds the container, sets up your GitHub token
-and Claude login, and opens the agent. From then on, from anywhere:
+That one line is the whole setup — no `cd`, nothing else to copy. The first run
+installs any missing prerequisites, **puts `mirabilis` on your PATH globally**,
+builds the container, and sets up your GitHub token and Claude login. From then
+on, run it from anywhere in the terminal:
 
 ```sh
 mirabilis
@@ -36,8 +35,8 @@ Container* attaches to the same workspace.
 mirabilis update
 ```
 
-Pulls the latest version and rebuilds the image and container from scratch — your
-memory, auth, and `/workspace` are kept. `mirabilis` also **warns you on launch**
+Runs `git pull` and rebuilds the image and container from scratch — your memory,
+auth, and `/workspace` are kept. `mirabilis` also **warns you on launch**
 when your checkout is behind the remote, or your running container is behind your
 checkout; it still starts, so you can update when it suits you.
 

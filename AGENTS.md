@@ -31,10 +31,10 @@ via a self-owned marketplace, MCP servers, and a configurable egress allowlist.
 
 ## Commands
 
-Onboarding is two commands — `git clone`, then `./mirabilis`. The first run
-self-bootstraps (installs Docker Desktop + the devcontainer CLI if missing), puts
-`mirabilis` on PATH, builds the container, and configures tokens/login. After
-that, daily use is the single `mirabilis` command:
+Onboarding is one line — `git clone … && mirabilis/mirabilis` (no `cd`). The first
+run self-bootstraps (installs Docker Desktop + the devcontainer CLI if missing),
+installs `mirabilis` on PATH globally, builds the container, and configures
+tokens/login. After that, run `mirabilis` from anywhere:
 
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
