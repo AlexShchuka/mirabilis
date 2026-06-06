@@ -23,8 +23,8 @@ RUN arch="$(dpkg --print-architecture)" \
          *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
        esac \
     && base="https://github.com/rtk-ai/rtk/releases/latest/download" \
-    && curl -fsSL -o "/tmp/rtk-${target}.tar.gz" "${base}/rtk-${target}.tar.gz" \
-    && curl -fsSL -o /tmp/rtk-checksums.txt "${base}/checksums.txt" \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o "/tmp/rtk-${target}.tar.gz" "${base}/rtk-${target}.tar.gz" \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/rtk-checksums.txt "${base}/checksums.txt" \
     && (cd /tmp && sha256sum --ignore-missing -c rtk-checksums.txt) \
     && tar -xzf "/tmp/rtk-${target}.tar.gz" -C /usr/local/bin rtk \
     && rm -f "/tmp/rtk-${target}.tar.gz" /tmp/rtk-checksums.txt \

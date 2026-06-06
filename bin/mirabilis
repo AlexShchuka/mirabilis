@@ -65,10 +65,22 @@ ensure_docker() {
 
 dc_up() {
   local rc=0
-  if have_gum && [ -t 2 ]; then
-    gum spin --spinner dot --title "building / starting the workspace…" -- \
-      env BUILD_LOG="$BUILD_LOG" bash -c '"$@" >"$BUILD_LOG" 2>&1' _ \
-      "$DC" up --workspace-folder "$REPO" "$@" || rc=$?
+  if [ -t 2 ]; then
+    : > "$BUILD_LOG"
+    printf 'mirabilis: building the workspace… (full log: %s)\n' "$BUILD_LOG" >&2
+    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 </dev/null &
+    local pid=$! n=0 cols line
+    local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+    cols="$(tput cols 2>/dev/null || echo 80)"
+    while kill -0 "$pid" 2>/dev/null; do
+      line="$(tail -n1 "$BUILD_LOG" 2>/dev/null | tr -d '\r' | sed -E 's/^\[[0-9T:.Z+-]+\] *//; s/^#[0-9]+ [0-9.]+ +//')"
+      printf '\r\033[2K\033[36m%s\033[0m \033[2m%.*s\033[0m' \
+        "${frames[n % 10]}" "$(( cols > 12 ? cols - 4 : 8 ))" "${line:-starting…}" >&2
+      n=$((n + 1))
+      sleep 0.2
+    done
+    wait "$pid" || rc=$?
+    printf '\r\033[2K' >&2
   else
     echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
     "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 || rc=$?
