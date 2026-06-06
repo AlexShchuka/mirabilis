@@ -16,12 +16,6 @@ reg() {
   fi
 }
 
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  reg github http "https://api.githubcopilot.com/mcp/" "Authorization: Bearer ${GITHUB_TOKEN}"
-else
-  log "GITHUB_TOKEN unset — skipping GitHub MCP"
-fi
-
 if [[ -n "${CONTEXT7_API_KEY:-}" ]]; then
   reg context7 http "https://mcp.context7.com/mcp" "CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}"
 else

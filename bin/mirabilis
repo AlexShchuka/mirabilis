@@ -196,7 +196,8 @@ launch() {
   ensure_github
   ensure_claude
   preflight
-  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
+  local ght; ght="$(dxq gh auth token || true)"
+  exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
 update() {

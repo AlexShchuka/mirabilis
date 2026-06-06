@@ -44,7 +44,10 @@ checkout; it still starts, so you can update when it suits you.
 
 - Built on Anthropic's official dev-container **Feature** for the Claude Code CLI
   (consumed, not vendored) — with a thin mirabilis layer on top.
-- **neuro-matrix** plugin, **GitHub** + **Context7** MCP, and a native status line — preinstalled.
+- Preinstalled: the **neuro-matrix** harness, the official **GitHub** plugin
+  (bundles the GitHub MCP), **Context7** MCP, **RTK** (a token-saver that
+  compresses command output 60–90% via a transparent Bash hook), and a native
+  status line.
 - **All container egress is routed through your Mac.** On launch `mirabilis`
   starts a small forward proxy as a host process and points the container at it
   (`HTTPS_PROXY` → `host.docker.internal`), so the workspace reaches the internet
@@ -54,7 +57,7 @@ checkout; it still starts, so you can update when it suits you.
   (`sandbox.network.allowedDomains`) — no iptables, no elevated capabilities. To
   let the agent's shell reach a new host, add it to that list in
   `config/settings.json`.
-- Sign-in is native and saved **inside the sandbox** (`gh auth login` + Claude's first-run login → persistent volumes), never in the repo. The agent runs **non-root**.
+- Sign-in is native and saved **inside the sandbox** (`gh auth login` + Claude's first-run login → persistent volumes), never in the repo. The agent runs **non-root**. The `/workspace` folder is trusted automatically — no repeated "trust this folder" prompt.
 
 ## Troubleshooting
 
