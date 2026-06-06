@@ -61,7 +61,7 @@ flowchart TD
   WIZ --> GO[exec claude внутри]
 ```
 
-### Day-1 (новый пользователь) [И-решение, [ИИ]-детализация]
+### Day-1 (новый пользователь) — [ВЛАДЕЛЕЦ] (решение) + [ИИ] (детализация)
 ```mermaid
 sequenceDiagram
   participant U as Ты
