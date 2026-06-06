@@ -31,17 +31,25 @@ via a self-owned marketplace, MCP servers, and a configurable egress allowlist.
 
 ## Commands
 
-Daily use is the single `mirabilis` command (installed with `make install`):
+Onboarding is two commands — `git clone`, then `./mirabilis`. The first run
+self-bootstraps (installs Docker Desktop + the devcontainer CLI if missing), puts
+`mirabilis` on PATH, builds the container, and configures tokens/login. After
+that, daily use is the single `mirabilis` command:
 
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
+mirabilis update           pull the latest version and rebuild (memory + auth kept)
 mirabilis agent "<task>"   run one prompt non-interactively
 mirabilis shell            a shell in the workspace as node
 mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
-The `make` targets cover install/lifecycle for power users / CI.
+On launch `mirabilis` warns (but still starts) when the checkout is behind the
+remote or the container is behind the checkout: the image is stamped with the
+source git revision (`MIRABILIS_VERSION`, threaded build arg → env) so staleness
+is detectable, and `mirabilis update` rebuilds. The `make` targets still cover
+install/lifecycle for power users / CI.
 
 ## How it fits together
 

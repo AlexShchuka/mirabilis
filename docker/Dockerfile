@@ -24,5 +24,8 @@ RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/refresh.sh
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"
 
+ARG MIRABILIS_VERSION=unknown
+ENV MIRABILIS_VERSION=$MIRABILIS_VERSION
+
 USER node
 WORKDIR /workspace

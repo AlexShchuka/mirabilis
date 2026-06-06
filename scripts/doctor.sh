@@ -16,6 +16,8 @@ docker info >/dev/null 2>&1 && ok "Docker daemon running" || { no "Docker daemon
 
 printf '\ncontainer\n'
 if v="$(DX claude --version)"; then ok "claude $v"; else no "container not up (run: mirabilis)"; exit 0; fi
+verc="$(DX bash -lc 'printf %s "${MIRABILIS_VERSION:-}"' | tr -d '[:space:]')"; vers="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [ -n "$verc" ] && [ "$verc" != unknown ] && [ "$vers" != unknown ] && [ "$verc" != "$vers" ]; then warn "container $verc behind source $vers (run: mirabilis update)"; else ok "version ${verc:-unknown}"; fi
 sb="$(DX bash -lc 'jq -r ".sandbox.enabled" ~/.claude/settings.json 2>/dev/null')"
 [ "$sb" = "true" ] && ok "sandbox egress allowlist active" || warn "sandbox not enabled in settings"
 DX bash -lc 'jq -e ".enabledPlugins[\"neuro-matrix@mirabilis\"]" ~/.claude/settings.json >/dev/null 2>&1' \

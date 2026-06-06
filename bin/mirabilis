@@ -11,6 +11,20 @@ SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
 die() { echo "mirabilis: $*" >&2; exit 1; }
 missing() { "$TOKEN" check 2>/dev/null | grep -qE "^$1 .*MISSING"; }
 
+repo_version()      { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
+container_version() { "$DC" exec --workspace-folder "$REPO" bash -lc 'printf %s "${MIRABILIS_VERSION:-}"' 2>/dev/null | tr -d '[:space:]'; }
+
+ensure_tools() {
+  if ! command -v docker >/dev/null 2>&1 || ! command -v devcontainer >/dev/null 2>&1; then
+    echo "mirabilis: installing prerequisites (make bootstrap)…" >&2
+    make -C "$REPO" bootstrap || die "bootstrap failed — see the output above"
+  fi
+  command -v mirabilis >/dev/null 2>&1 || {
+    echo "mirabilis: putting the 'mirabilis' command on your PATH (make install)…" >&2
+    make -C "$REPO" install || true
+  }
+}
+
 ensure_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
   command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI is missing — run 'make bootstrap'."
@@ -31,6 +45,22 @@ lifecycle() {
   set -a; [[ -f .env ]] && . ./.env; set +a
   : "${WORKSPACE_DIR:=$HOME/mirabilis-workspace}"; export WORKSPACE_DIR
   docker compose -p mirabilis -f docker-compose.yml "$@"
+}
+
+warn_if_stale() {
+  local src cont here there
+  src="$(repo_version)"; cont="$(container_version)"
+  if [ -n "$cont" ] && [ "$cont" != unknown ] && [ "$src" != unknown ] && [ "$cont" != "$src" ]; then
+    echo "mirabilis: WARNING — container ($cont) is older than your checkout ($src); run 'mirabilis update'." >&2
+  fi
+  here="$(git -C "$REPO" rev-parse @ 2>/dev/null || true)"
+  there="$(git -C "$REPO" rev-parse '@{upstream}' 2>/dev/null || true)"
+  if [ -n "$here" ] && [ -n "$there" ] && [ "$here" != "$there" ] \
+     && [ -n "$(git -C "$REPO" rev-list "$there" --not "$here" 2>/dev/null | head -1)" ]; then
+    echo "mirabilis: WARNING — a newer version is available; run 'mirabilis update'." >&2
+  fi
+  ( GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q & ) >/dev/null 2>&1 || true
+  return 0
 }
 
 ensure_github() {
@@ -57,11 +87,25 @@ EOF
 }
 
 launch() {
+  ensure_tools
   ensure_docker
   ensure_github
   up
+  warn_if_stale
   ensure_claude
   exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT"
+}
+
+update() {
+  ensure_tools
+  ensure_docker
+  echo "mirabilis: updating source (git pull)…" >&2
+  git -C "$REPO" pull --ff-only || echo "mirabilis: could not pull (offline or diverged) — rebuilding current source." >&2
+  echo "mirabilis: rebuilding image + container — memory, auth and /workspace are kept…" >&2
+  lifecycle down >/dev/null 2>&1 || true
+  docker image rm mirabilis:local >/dev/null 2>&1 || true
+  up
+  echo "mirabilis: updated to $(repo_version) — run 'mirabilis' to start." >&2
 }
 
 print_completion() {
@@ -76,10 +120,12 @@ usage() {
 mirabilis — autonomous Claude Code workspace
 
   mirabilis            start the workspace and open Claude
-                       (the first run sets up tokens + login automatically;
-                        every run after, this is the only command you need)
+                       (first run self-installs + builds; after that this is
+                        the only command you need)
+  mirabilis update     pull the latest version and rebuild from scratch
+                       (your memory, auth and /workspace are kept)
 
-Optional, only if you ever want them:
+Other commands:
   mirabilis agent "<task>"   run one prompt non-interactively and exit
   mirabilis shell            a shell in the workspace as node
   mirabilis doctor           health check
@@ -95,10 +141,11 @@ main() {
   local c="${1:-}"; [ $# -gt 0 ] && shift || true
   case "$c" in
     ""|claude|run|up)     launch ;;
+    update|upgrade)       update ;;
     agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
-                          ensure_docker; ensure_github; up; ensure_claude
+                          ensure_tools; ensure_docker; ensure_github; up; warn_if_stale; ensure_claude
                           exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT" ;;
-    shell)                ensure_docker; ensure_github; up
+    shell)                ensure_tools; ensure_docker; ensure_github; up; warn_if_stale
                           exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;
     down)                 lifecycle down ;;
@@ -106,7 +153,7 @@ main() {
     token)                "$TOKEN" set "${1:-}" ;;
     check)                "$TOKEN" check ;;
     completion)           print_completion "${1:-zsh}" ;;
-    version|-v|--version) echo "mirabilis $VERSION" ;;
+    version|-v|--version) echo "mirabilis $VERSION ($(repo_version))" ;;
     help|-h|--help)       usage ;;
     *)                    die "unknown command '$c' (run 'mirabilis help')" ;;
   esac

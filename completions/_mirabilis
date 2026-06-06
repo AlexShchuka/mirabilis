@@ -5,6 +5,7 @@ _mirabilis() {
   case "$state" in
     cmds)
       _values "mirabilis command" \
+        "update[pull latest and rebuild, keeping memory]" \
         "agent[run one prompt non-interactively]" \
         "shell[shell as node]" \
         "doctor[health check]" \
