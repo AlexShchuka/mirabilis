@@ -1,54 +1,44 @@
 # mirabilis
 
-> An autonomous Claude Code workspace on macOS. One command starts an isolated
-> dev container with the [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix)
-> plugin preinstalled, persistent memory, and a configurable egress allowlist.
+> An autonomous Claude Code workspace on macOS. Clone it, run one command, and
+> you get an isolated dev container with the
+> [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) plugin
+> preinstalled, persistent memory, and a configurable egress allowlist.
 
 ## Requirements
 
 - macOS on Apple Silicon or Intel, with [Homebrew](https://brew.sh) installed.
-  Installing Homebrew also installs the Xcode Command Line Tools that the
-  bootstrap step relies on.
-- Everything else — Docker Desktop and the devcontainer CLI — is installed by
-  `make bootstrap`.
+  Docker Desktop and the devcontainer CLI are installed for you on first run.
 
-## Install (once)
-
-Clone the repository and install the prerequisites:
+## Quick start
 
 ```sh
-git clone https://github.com/AlexShchuka/mirabilis.git
-cd mirabilis
-make bootstrap
+git clone https://github.com/AlexShchuka/mirabilis.git && mirabilis/mirabilis
 ```
 
-Then put the `mirabilis` command on your PATH:
-
-```sh
-make install
-```
-
-`make install` writes the launcher into your Homebrew prefix's `bin`
-(`brew --prefix`, e.g. `/opt/homebrew/bin` on Apple Silicon), which is already on
-your PATH — no `sudo`, no shell-config edits. To install elsewhere, override the
-prefix and make sure its `bin` is on your PATH:
-
-```sh
-make install PREFIX="$HOME/.local"
-```
-
-## Use
+That one line is the whole setup — no `cd`, nothing else to copy. The first run
+installs any missing prerequisites, **puts `mirabilis` on your PATH globally**,
+builds the container, and signs you in to GitHub and Claude (native flows, saved
+in the sandbox). From then on, run it from anywhere in the terminal:
 
 ```sh
 mirabilis
 ```
 
-That is the whole daily workflow. The **first** run sets up your GitHub token and
-Claude login automatically; every run after just opens the agent. Put the repos
-you want it to work on in `~/mirabilis-workspace` (mounted at `/workspace`).
+Put the repos you want it to work on in `~/mirabilis-workspace` (mounted at
+`/workspace`). The runtime is a standard `.devcontainer`, so an IDE's *Reopen in
+Container* attaches to the same workspace.
 
-Other commands — `mirabilis help`. The runtime is a standard `.devcontainer`, so
-an IDE's *Reopen in Container* attaches to the same workspace.
+## Updating
+
+```sh
+mirabilis update
+```
+
+Runs `git pull` and rebuilds the image and container from scratch — your memory,
+auth, and `/workspace` are kept. `mirabilis` also **warns you on launch**
+when your checkout is behind the remote, or your running container is behind your
+checkout; it still starts, so you can update when it suits you.
 
 ## What's inside
 
@@ -59,25 +49,26 @@ an IDE's *Reopen in Container* attaches to the same workspace.
   (`sandbox.network.allowedDomains`) — no iptables, no elevated capabilities. To
   let the agent's shell reach a new host, add it to that list in
   `config/settings.json`.
-- Secrets live in the **macOS Keychain**, never in the repo. The agent runs **non-root**.
+- Sign-in is native and saved **inside the sandbox** (`gh auth login` + Claude's first-run login → persistent volumes), never in the repo. The agent runs **non-root**.
 
 ## Troubleshooting
 
 - Run `mirabilis doctor` for a health check (Docker, secrets, sandbox, plugin,
-  MCP, and egress).
+  MCP, version, and egress).
 - Docker Desktop must be running; `mirabilis` tries to start it, but launch it
   yourself if it does not come up.
-- The first-run Claude login is geo-restricted — connect your VPN to a supported
-  region before it runs.
+- On first run you sign in to GitHub and Claude — a code and URL appear; open the
+  URL in your browser, approve, and paste the code back. It is saved in the
+  sandbox volumes, so you are not asked again.
+- `mirabilis help` lists every command.
 
-## Uninstall
+## Power users / CI
 
-```sh
-make uninstall
-```
-
-This removes the `mirabilis` command from your PATH. `make clean` additionally
-removes the container and image (the persistent volumes are kept).
+The `make` targets expose the lifecycle directly: `make bootstrap`
+(prerequisites), `make install` / `make uninstall` (the PATH launcher),
+`make doctor`, and `make clean` (remove the container and image; volumes are
+kept). `make install PREFIX=…` overrides where the launcher is written (the
+default is your Homebrew prefix's `bin`, which is already on PATH).
 
 ## License
 

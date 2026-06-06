@@ -17,9 +17,10 @@ via a self-owned marketplace, MCP servers, and a configurable egress allowlist.
 1. **No comments in code or config.** Code describes itself. All prose belongs
    in Markdown docs. This applies to shell, Dockerfile, Makefile, JSON, YAML,
    `.env` — everything except `.md` files.
-2. **Never commit secrets.** Tokens live in the macOS Keychain (`scripts/token.sh`)
-   and are injected as environment variables at run time. `.env` and token files
-   are gitignored. If you ever see a token in a diff, stop.
+2. **Never commit secrets.** GitHub and Claude sign-in are native (`gh auth login`,
+   Claude's first-run login) and persist in the sandbox volumes; the Context7 key
+   lives in the macOS Keychain (`scripts/token.sh`). `.env` and token files are
+   gitignored. If you ever see a token in a diff, stop.
 3. **Branch, never push to `main`.** All work lands via a **squash-merged PR**
    into `main`; the source branch is deleted after merge.
 4. **Work inside `/workspace`.** That bind-mount is the single source of truth,
@@ -31,17 +32,24 @@ via a self-owned marketplace, MCP servers, and a configurable egress allowlist.
 
 ## Commands
 
-Daily use is the single `mirabilis` command (installed with `make install`):
+Onboarding is one line — `git clone … && mirabilis/mirabilis` (no `cd`). The first
+run self-bootstraps (installs Docker Desktop + the devcontainer CLI if missing),
+installs `mirabilis` on PATH globally, builds the container, and signs you in to
+GitHub and Claude (native flows, saved in the volumes). After that, run
+`mirabilis` from anywhere:
 
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
-mirabilis agent "<task>"   run one prompt non-interactively
-mirabilis shell            a shell in the workspace as node
+mirabilis update           pull the latest version and rebuild (memory + auth kept)
 mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
-The `make` targets cover install/lifecycle for power users / CI.
+On launch `mirabilis` warns (but still starts) when the checkout is behind the
+remote or the container is behind the checkout: the image is stamped with the
+source git revision (`MIRABILIS_VERSION`, threaded build arg → env) so staleness
+is detectable, and `mirabilis update` rebuilds. The `make` targets still cover
+install/lifecycle for power users / CI.
 
 ## How it fits together
 
@@ -53,22 +61,27 @@ The `make` targets cover install/lifecycle for power users / CI.
   it re-seeds settings, refreshes the plugin (`claude plugin update`), and
   registers MCP — so re-running `mirabilis` **updates** the sandbox in place
   rather than from scratch, while the persistent volumes keep memory and auth.
-- **Filesystem:** persistent (`~/.claude` auth+memory+plugins, `~/.config/gh`,
-  `/workspace`) survives rebuilds; ephemeral (`/tmp`, the refreshed plugin) is
-  renewed each start.
-- **System prompt:** layered and deliberately thin — neuro-matrix injects its
-  protocol via a SessionStart hook, and `mirabilis` appends a short sandbox note
-  (`config/sandbox-context.md`) via `--append-system-prompt-file`. Both stack;
-  neither replaces the other.
+- **Filesystem (three tiers):** persistent **volumes** inside the sandbox —
+  `~/.claude` (memory + Claude credentials + plugins) and `~/.config/gh` (GitHub
+  credentials) — survive `mirabilis update`; the **workspace** `/workspace`
+  (repos + code) is bind-mounted from the host and shared with the editor;
+  everything else, including `/tmp`, is **ephemeral** and wiped on restart/update.
+- **System prompt:** at launch `mirabilis` builds the append-system-prompt file
+  by concatenating `config/sandbox-context.md` with the neuro-matrix plugin's
+  `CLAUDE.md` (the agent protocol), located by globbing the versioned plugin
+  cache; if the plugin file is absent it falls back to the sandbox note and
+  warns. It is passed via `--append-system-prompt-file`. (neuro-matrix's hooks
+  add invariant and verification gates — they do not inject the protocol.)
 - **Egress:** Claude Code's native sandbox confines the agent's Bash commands to
-  `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). Geo-exit is the
-  host VPN. WebSearch/WebFetch ride the Anthropic API, so the allowlist never
-  blocks them.
+  `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). WebSearch and
+  WebFetch ride the Anthropic API, so the allowlist never blocks them.
 - **Plugin:** `.claude-plugin/marketplace.json` defines the `mirabilis`
-  marketplace, which installs `neuro-matrix` at user scope. A plugin's root
-  `CLAUDE.md` is **not** loaded as context — neuro-matrix injects its protocol
-  via a SessionStart hook.
+  marketplace, which installs `neuro-matrix` at user scope. Claude Code does not
+  auto-load a plugin's `CLAUDE.md`, so `mirabilis` appends it to the system
+  prompt itself (see **System prompt**); the plugin's hooks add the invariant and
+  verification gates.
 - **MCP:** GitHub (hosted HTTP) and Context7 are registered in
-  `scripts/provision-mcp.sh`; tokens are read from the environment.
+  `scripts/provision-mcp.sh`; the GitHub token comes from your `gh` login
+  (`gh auth token`) and the Context7 key from the environment.
 
 See `README.md` for setup.

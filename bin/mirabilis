@@ -9,7 +9,20 @@ VERSION="0.2.0"
 SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
 
 die() { echo "mirabilis: $*" >&2; exit 1; }
-missing() { "$TOKEN" check 2>/dev/null | grep -qE "^$1 .*MISSING"; }
+
+repo_version()      { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
+container_version() { "$DC" exec --workspace-folder "$REPO" bash -lc 'printf %s "${MIRABILIS_VERSION:-}"' 2>/dev/null | tr -d '[:space:]'; }
+
+ensure_tools() {
+  if ! command -v docker >/dev/null 2>&1 || ! command -v devcontainer >/dev/null 2>&1; then
+    echo "mirabilis: installing prerequisites (make bootstrap)…" >&2
+    make -C "$REPO" bootstrap || die "bootstrap failed — see the output above"
+  fi
+  command -v mirabilis >/dev/null 2>&1 || {
+    echo "mirabilis: putting the 'mirabilis' command on your PATH (make install)…" >&2
+    make -C "$REPO" install || true
+  }
+}
 
 ensure_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
@@ -33,35 +46,65 @@ lifecycle() {
   docker compose -p mirabilis -f docker-compose.yml "$@"
 }
 
-ensure_github() {
-  missing gh || return 0
-  cat >&2 <<'EOF'
+warn_if_stale() {
+  local src cont here there
+  src="$(repo_version)"; cont="$(container_version)"
+  if [ -n "$cont" ] && [ "$cont" != unknown ] && [ "$src" != unknown ] && [ "$cont" != "$src" ]; then
+    echo "mirabilis: WARNING — container ($cont) is older than your checkout ($src); run 'mirabilis update'." >&2
+  fi
+  here="$(git -C "$REPO" rev-parse @ 2>/dev/null || true)"
+  there="$(git -C "$REPO" rev-parse '@{upstream}' 2>/dev/null || true)"
+  if [ -n "$here" ] && [ -n "$there" ] && [ "$here" != "$there" ] \
+     && [ -n "$(git -C "$REPO" rev-list "$there" --not "$here" 2>/dev/null | head -1)" ]; then
+    echo "mirabilis: WARNING — a newer version is available; run 'mirabilis update'." >&2
+  fi
+  ( GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q & ) >/dev/null 2>&1 || true
+  return 0
+}
 
-First run — I need a GitHub token (private repos + the GitHub MCP).
-Create one at https://github.com/settings/tokens (scope: repo), then paste it.
-EOF
-  "$TOKEN" set gh
+ensure_github() {
+  dx gh auth status >/dev/null 2>&1 && return 0
+  echo "mirabilis: first run — signing in to GitHub. A one-time code and URL will appear; open it in your browser and approve." >&2
+  dx gh auth login --hostname github.com --git-protocol https --web || die "GitHub sign-in failed — run 'mirabilis' again"
+  dx gh auth setup-git || true
+  dx bash -lc 't="$(gh auth token 2>/dev/null)"; [ -n "$t" ] && GITHUB_TOKEN="$t" /usr/local/bin/provision-mcp.sh >/dev/null 2>&1 || true'
 }
 
 ensure_claude() {
-  missing claude || return 0
-  cat >&2 <<'EOF'
+  dx bash -lc 'test -s "$HOME/.claude/.credentials.json"' && return 0
+  echo "mirabilis: first run — Claude will ask you to sign in. Open the URL it prints and paste the code back; it is saved for next time." >&2
+}
 
-First run — Claude needs a one-time login on your subscription.
-A URL/code appears: open it (VPN to a supported region ON), approve, paste the token back.
-EOF
-  dx claude setup-token || die "Claude login failed — make sure the VPN is on, then run 'mirabilis' again."
-  echo "mirabilis: now paste that same token here so it persists across container rebuilds." >&2
-  "$TOKEN" set claude
-  recreate
+system_prompt_file() {
+  dx bash -lc '
+    sbx="$1"; out=/tmp/mirabilis-system-prompt.md
+    nm="$(ls -1 /home/node/.claude/plugins/cache/*/neuro-matrix/*/CLAUDE.md 2>/dev/null | sort -V | tail -n1)"
+    if [ -n "$nm" ] && [ -f "$nm" ]; then cat "$sbx" "$nm" >"$out" && { printf %s "$out"; exit 0; }; fi
+    printf "mirabilis: WARNING — neuro-matrix CLAUDE.md not found; using the sandbox note only\n" >&2
+    printf %s "$sbx"
+  ' _ "$SANDBOX_PROMPT"
 }
 
 launch() {
+  ensure_tools
   ensure_docker
-  ensure_github
   up
+  ensure_github
+  warn_if_stale
   ensure_claude
-  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT"
+  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
+}
+
+update() {
+  ensure_tools
+  ensure_docker
+  echo "mirabilis: updating source (git pull)…" >&2
+  git -C "$REPO" pull --ff-only || echo "mirabilis: could not pull (offline or diverged) — rebuilding current source." >&2
+  echo "mirabilis: rebuilding image + container — memory, auth and /workspace are kept…" >&2
+  lifecycle down >/dev/null 2>&1 || true
+  docker image rm mirabilis:local >/dev/null 2>&1 || true
+  up
+  echo "mirabilis: updated to $(repo_version) — run 'mirabilis' to start." >&2
 }
 
 print_completion() {
@@ -76,12 +119,12 @@ usage() {
 mirabilis — autonomous Claude Code workspace
 
   mirabilis            start the workspace and open Claude
-                       (the first run sets up tokens + login automatically;
-                        every run after, this is the only command you need)
+                       (first run self-installs + builds; after that this is
+                        the only command you need)
+  mirabilis update     pull the latest version and rebuild from scratch
+                       (your memory, auth and /workspace are kept)
 
-Optional, only if you ever want them:
-  mirabilis agent "<task>"   run one prompt non-interactively and exit
-  mirabilis shell            a shell in the workspace as node
+Other commands:
   mirabilis doctor           health check
   mirabilis down|restart     stop / recreate the workspace
   mirabilis token gh|claude|context7   replace a stored secret
@@ -95,18 +138,14 @@ main() {
   local c="${1:-}"; [ $# -gt 0 ] && shift || true
   case "$c" in
     ""|claude|run|up)     launch ;;
-    agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
-                          ensure_docker; ensure_github; up; ensure_claude
-                          exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT" ;;
-    shell)                ensure_docker; ensure_github; up
-                          exec "$DC" exec --workspace-folder "$REPO" bash ;;
+    update|upgrade)       update ;;
     doctor)               "$DOCTOR" ;;
     down)                 lifecycle down ;;
     restart)              ensure_docker; recreate; echo "restarted." >&2 ;;
     token)                "$TOKEN" set "${1:-}" ;;
     check)                "$TOKEN" check ;;
     completion)           print_completion "${1:-zsh}" ;;
-    version|-v|--version) echo "mirabilis $VERSION" ;;
+    version|-v|--version) echo "mirabilis $VERSION ($(repo_version))" ;;
     help|-h|--help)       usage ;;
     *)                    die "unknown command '$c' (run 'mirabilis help')" ;;
   esac

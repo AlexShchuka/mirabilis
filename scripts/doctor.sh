@@ -16,6 +16,8 @@ docker info >/dev/null 2>&1 && ok "Docker daemon running" || { no "Docker daemon
 
 printf '\ncontainer\n'
 if v="$(DX claude --version)"; then ok "claude $v"; else no "container not up (run: mirabilis)"; exit 0; fi
+verc="$(DX bash -lc 'printf %s "${MIRABILIS_VERSION:-}"' | tr -d '[:space:]')"; vers="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+if [ -n "$verc" ] && [ "$verc" != unknown ] && [ "$vers" != unknown ] && [ "$verc" != "$vers" ]; then warn "container $verc behind source $vers (run: mirabilis update)"; else ok "version ${verc:-unknown}"; fi
 sb="$(DX bash -lc 'jq -r ".sandbox.enabled" ~/.claude/settings.json 2>/dev/null')"
 [ "$sb" = "true" ] && ok "sandbox egress allowlist active" || warn "sandbox not enabled in settings"
 DX bash -lc 'jq -e ".enabledPlugins[\"neuro-matrix@mirabilis\"]" ~/.claude/settings.json >/dev/null 2>&1' \
@@ -23,12 +25,12 @@ DX bash -lc 'jq -e ".enabledPlugins[\"neuro-matrix@mirabilis\"]" ~/.claude/setti
 DX claude mcp list 2>/dev/null | grep -qi github   && ok "github MCP"   || warn "github MCP not registered (needs token)"
 DX claude mcp list 2>/dev/null | grep -qi context7 && ok "context7 MCP" || warn "context7 MCP not registered"
 
-printf '\nnetwork / geo-exit\n'
+printf '\nnetwork\n'
 if ip="$(DX curl -fsS --max-time 12 https://api.ipify.org)"; then ok "egress IP $ip"; else warn "no exit IP"; fi
 code="$(DX curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://api.anthropic.com/v1/models)"; code="${code:-000}"
 case "$code" in
   200|401|403) ok "api.anthropic.com reachable ($code)" ;;
-  000)         no "api.anthropic.com unreachable — VPN not inherited?" ;;
+  000)         no "api.anthropic.com unreachable — check your connection" ;;
   *)           warn "api.anthropic.com $code" ;;
 esac
 printf '\ndone\n'
