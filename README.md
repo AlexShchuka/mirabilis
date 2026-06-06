@@ -4,6 +4,9 @@
 > dev container with the
 > [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) harness, persistent
 > memory, and a configurable egress allowlist.
+> *mirabilis* honors Einstein's *annus mirabilis* — his 1905 "miracle year",
+> when four landmark papers (special relativity, the photoelectric effect, Brownian motion, and
+> mass–energy equivalence, E=mc²) reshaped physics in a single year.
 
 ## Requirements
 
@@ -24,30 +27,12 @@ Claude (native flows, saved in the sandbox). After that, run it from anywhere:
 mirabilis
 ```
 
-Put the repos you want it to work on in `~/mirabilis-workspace` (mounted at
-`/workspace`). An IDE's *Reopen in Container* attaches to the same workspace.
-
-## Updating
-
-```sh
-mirabilis update
-```
-
-Pulls the latest version and rebuilds; your memory, auth, and `/workspace` are kept.
-`mirabilis` also warns you on launch when your checkout or container is behind.
-
 ## More
 
 - `mirabilis help` — every command. Docker Desktop must be running; `mirabilis`
   tries to start it for you.
 - [`AGENTS.md`](AGENTS.md) — architecture and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
-
-## The name
-
-*mirabilis* honors Einstein's *annus mirabilis* — his 1905 "miracle year", when four
-landmark papers (special relativity, the photoelectric effect, Brownian motion, and
-mass–energy equivalence, E=mc²) reshaped physics in a single year.
 
 ## License
 
