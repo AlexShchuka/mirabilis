@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq less sudo tini \
-      bubblewrap socat \
+      bubblewrap \
       ripgrep unzip tzdata
 
 RUN arch="$(dpkg --print-architecture)" \
@@ -22,9 +22,12 @@ RUN arch="$(dpkg --print-architecture)" \
          amd64) target=x86_64-unknown-linux-musl ;; \
          *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL -o /tmp/rtk.tgz "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-${target}.tar.gz" \
-    && tar -xzf /tmp/rtk.tgz -C /usr/local/bin rtk \
-    && rm -f /tmp/rtk.tgz \
+    && base="https://github.com/rtk-ai/rtk/releases/latest/download" \
+    && curl -fsSL -o "/tmp/rtk-${target}.tar.gz" "${base}/rtk-${target}.tar.gz" \
+    && curl -fsSL -o /tmp/rtk-checksums.txt "${base}/checksums.txt" \
+    && (cd /tmp && sha256sum --ignore-missing -c rtk-checksums.txt) \
+    && tar -xzf "/tmp/rtk-${target}.tar.gz" -C /usr/local/bin rtk \
+    && rm -f "/tmp/rtk-${target}.tar.gz" /tmp/rtk-checksums.txt \
     && chmod 0755 /usr/local/bin/rtk
 
 RUN npm install -g ccstatusline@2.2.19
@@ -35,10 +38,9 @@ RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh 
 COPY config/                    /opt/mirabilis/config/
 COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY scripts/provision-mcp.sh   /usr/local/bin/provision-mcp.sh
-COPY scripts/container-open.sh  /usr/local/bin/mirabilis-open
 COPY scripts/protect-critical.sh /opt/mirabilis/protect-critical.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/mirabilis-open /opt/mirabilis/protect-critical.sh /opt/mirabilis/refresh.sh
+RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/protect-critical.sh /opt/mirabilis/refresh.sh
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

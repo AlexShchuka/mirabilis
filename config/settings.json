@@ -25,7 +25,6 @@
     "filesystem": {
       "allowWrite": ["~/"],
       "denyWrite": [
-        "~/.neuro-matrix",
         "~/.claude/plugins",
         "~/.claude/settings.json",
         "~/.claude/.credentials.json",

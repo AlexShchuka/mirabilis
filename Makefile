@@ -33,7 +33,7 @@ up:
 	@$(DC) up --workspace-folder .
 
 down:
-	@WORKSPACE_DIR="$${WORKSPACE_DIR:-$$HOME/mirabilis-workspace}" docker compose -p mirabilis -f docker-compose.yml down
+	@. ./scripts/env.sh && docker compose -p mirabilis -f docker-compose.yml down
 
 clean:
-	@WORKSPACE_DIR="$${WORKSPACE_DIR:-$$HOME/mirabilis-workspace}" docker compose -p mirabilis -f docker-compose.yml down --rmi local || true
+	@. ./scripts/env.sh && docker compose -p mirabilis -f docker-compose.yml down --rmi local || true
