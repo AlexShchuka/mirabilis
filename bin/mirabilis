@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+if [ "${BASH_VERSINFO:-0}" -lt 4 ] && [ -z "${MIRABILIS_BASH_REEXEC:-}" ]; then
+  for _bash in /opt/homebrew/bin/bash /usr/local/bin/bash /opt/local/bin/bash; do
+    [ -x "$_bash" ] || continue
+    export MIRABILIS_BASH_REEXEC=1
+    exec "$_bash" "$0" "$@"
+  done
+fi
+unset _bash
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -45,7 +53,7 @@ ensure_extras() {
   command -v brew >/dev/null 2>&1 || return 0
   for t in gum socat; do
     command -v "$t" >/dev/null 2>&1 && continue
-    echo "mirabilis: installing $t…" >&2
+    echo "mirabilis: installing ${t}…" >&2
     brew install "$t" >/dev/null 2>&1 || true
   done
 }

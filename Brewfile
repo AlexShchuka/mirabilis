@@ -1,4 +1,5 @@
 cask "docker-desktop"
+brew "bash"
 brew "gum"
 brew "node"
 brew "socat"
