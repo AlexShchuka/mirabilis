@@ -9,7 +9,10 @@ container is the security boundary, and the design assumes **trusted code only**
 - The agent's Bash egress is a **default-deny allowlist** via Claude Code's native
   sandbox (`sandbox.network.allowedDomains`) — configurable, no iptables, no
   elevated capabilities.
-- The native sandbox uses **bubblewrap**, which must create user namespaces.
+- The native sandbox needs both **bubblewrap** and **socat** installed in the
+  image (`docker/Dockerfile`) — bubblewrap for filesystem/process isolation,
+  socat for the egress allowlist; with `sandbox.failIfUnavailable: true` a missing
+  dependency makes Claude refuse to start. Bubblewrap must create user namespaces.
   Docker blocks that by default, so the container runs with `seccomp=unconfined`
   (`docker-compose.yml`). This relaxes the **outer** container's syscall
   filtering — acceptable under the trusted-code model above, since the inner
