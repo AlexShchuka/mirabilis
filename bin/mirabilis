@@ -11,7 +11,8 @@ SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
 die() { echo "mirabilis: $*" >&2; exit 1; }
 
 repo_version()      { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
-container_version() { "$DC" exec --workspace-folder "$REPO" bash -lc 'printf %s "${MIRABILIS_VERSION:-}"' 2>/dev/null | tr -d '[:space:]'; }
+container_version() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mirabilis 2>/dev/null | sed -n 's/^MIRABILIS_VERSION=//p' | tr -d '[:space:]'; }
+container_exists()  { docker container inspect mirabilis >/dev/null 2>&1; }
 
 ensure_tools() {
   if ! command -v docker >/dev/null 2>&1 || ! command -v devcontainer >/dev/null 2>&1; then
@@ -46,17 +47,46 @@ lifecycle() {
   docker compose -p mirabilis -f docker-compose.yml "$@"
 }
 
-warn_if_stale() {
-  local src cont here there
+rebuild_image() {
+  lifecycle down >/dev/null 2>&1 || true
+  docker image rm mirabilis:local >/dev/null 2>&1 || true
+}
+
+confirm() {
+  local reply
+  [ -t 0 ] || return 1
+  read -r -p "$1 [y/N] " reply </dev/tty 2>/dev/null || return 1
+  case "$reply" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
+}
+
+is_stale() {
+  local src cont
   src="$(repo_version)"; cont="$(container_version)"
-  if [ -n "$cont" ] && [ "$cont" != unknown ] && [ "$src" != unknown ] && [ "$cont" != "$src" ]; then
-    echo "mirabilis: WARNING — container ($cont) is older than your checkout ($src); run 'mirabilis update'." >&2
+  [ -z "$cont" ] && return 0
+  [ "$src" = unknown ] && return 1
+  [ "$cont" != "$src" ]
+}
+
+prompt_if_stale() {
+  container_exists || return 0
+  is_stale || return 0
+  local cont; cont="$(container_version)"
+  echo "mirabilis: the workspace container (${cont:-old}) is behind your checkout ($(repo_version))." >&2
+  if confirm "mirabilis: rebuild it now? memory, auth and /workspace are kept"; then
+    echo "mirabilis: rebuilding…" >&2
+    rebuild_image
+  else
+    echo "mirabilis: keeping the existing container." >&2
   fi
+}
+
+notify_remote() {
+  local here there
   here="$(git -C "$REPO" rev-parse @ 2>/dev/null || true)"
   there="$(git -C "$REPO" rev-parse '@{upstream}' 2>/dev/null || true)"
   if [ -n "$here" ] && [ -n "$there" ] && [ "$here" != "$there" ] \
      && [ -n "$(git -C "$REPO" rev-list "$there" --not "$here" 2>/dev/null | head -1)" ]; then
-    echo "mirabilis: WARNING — a newer version is available; run 'mirabilis update'." >&2
+    echo "mirabilis: a newer version is available; run 'mirabilis update'." >&2
   fi
   ( GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q & ) >/dev/null 2>&1 || true
   return 0
@@ -88,9 +118,10 @@ system_prompt_file() {
 launch() {
   ensure_tools
   ensure_docker
+  prompt_if_stale
   up
   ensure_github
-  warn_if_stale
+  notify_remote
   ensure_claude
   exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
@@ -101,8 +132,7 @@ update() {
   echo "mirabilis: updating source (git pull)…" >&2
   git -C "$REPO" pull --ff-only || echo "mirabilis: could not pull (offline or diverged) — rebuilding current source." >&2
   echo "mirabilis: rebuilding image + container — memory, auth and /workspace are kept…" >&2
-  lifecycle down >/dev/null 2>&1 || true
-  docker image rm mirabilis:local >/dev/null 2>&1 || true
+  rebuild_image
   up
   echo "mirabilis: updated to $(repo_version) — run 'mirabilis' to start." >&2
 }
