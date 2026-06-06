@@ -35,8 +35,12 @@ via a self-owned marketplace, MCP servers, and a configurable egress allowlist.
 Onboarding is one line — `git clone … && mirabilis/mirabilis` (no `cd`). The first
 run self-bootstraps (installs Docker Desktop + the devcontainer CLI if missing),
 installs `mirabilis` on PATH globally, builds the container, and signs you in to
-GitHub and Claude (native flows, saved in the volumes). After that, run
-`mirabilis` from anywhere:
+GitHub and Claude (native flows, saved in the volumes). The sign-in CLIs run
+**inside** the container so the tokens land in the persistent volumes, while the
+browser step opens on the **host** Mac: `mirabilis` runs `open` for GitHub's
+device URL and silences the in-container browser attempt (`GH_BROWSER=true`), so
+you just type the code shown in the terminal. After that, run `mirabilis` from
+anywhere:
 
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
