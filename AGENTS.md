@@ -49,15 +49,18 @@ mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
-Launching is idempotent. When the container's version matches your checkout it is
-reused as-is — `mirabilis` just starts it and opens Claude, nothing is recreated.
-When the container is **behind your checkout** it asks `rebuild it now? [y/N]`:
-yes rebuilds in place, no keeps the existing container. When your **checkout is
-behind the remote** it notes a newer version is available (`mirabilis update`).
-Staleness is detectable because the image is stamped with the source git revision
-(`MIRABILIS_VERSION`, threaded build arg → env), read back via `docker inspect`
-(no `exec`, so the check works even on a wedged container). The `make` targets
-still cover install/lifecycle for power users / CI.
+Launching is idempotent and self-updating. On launch `mirabilis` fetches and
+compares your checkout against `origin/main`; if a newer version exists it asks
+`update now? [y/N]` — yes switches to `main`, `git pull --ff-only`s, rebuilds, and
+re-execs the updated launcher (the pull rewrites `bin/mirabilis` itself, so the
+new process replaces the old); no runs the current version. A dirty working tree
+is left untouched (commit or stash first). Then, if the **container** is behind
+your checkout, it asks `rebuild it now? [y/N]` (skipped — rebuilt automatically —
+right after a self-update); when versions match the container is reused as-is,
+nothing recreated. Container staleness is detectable because the image is stamped
+with the source git revision (`MIRABILIS_VERSION`, threaded build arg → env), read
+back via `docker inspect` (no `exec`, so the check works even on a wedged
+container). The `make` targets still cover install/lifecycle for power users / CI.
 
 ## How it fits together
 

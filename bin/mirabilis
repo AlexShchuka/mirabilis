@@ -81,16 +81,28 @@ prompt_if_stale() {
   fi
 }
 
-notify_remote() {
-  local here there
-  here="$(git -C "$REPO" rev-parse @ 2>/dev/null || true)"
-  there="$(git -C "$REPO" rev-parse '@{upstream}' 2>/dev/null || true)"
-  if [ -n "$here" ] && [ -n "$there" ] && [ "$here" != "$there" ] \
-     && [ -n "$(git -C "$REPO" rev-list "$there" --not "$here" 2>/dev/null | head -1)" ]; then
-    echo "mirabilis: a newer version is available; run 'mirabilis update'." >&2
+pull_latest() {
+  if [ -n "$(git -C "$REPO" status --porcelain 2>/dev/null)" ]; then
+    echo "mirabilis: the mirabilis repo has local changes — not pulling; commit or stash them first." >&2
+    return 1
   fi
-  ( GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q & ) >/dev/null 2>&1 || true
-  return 0
+  if [ "$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)" != main ]; then
+    git -C "$REPO" checkout main >/dev/null 2>&1 || { echo "mirabilis: could not switch to the main branch." >&2; return 1; }
+  fi
+  GIT_TERMINAL_PROMPT=0 git -C "$REPO" pull --ff-only >/dev/null 2>&1 || { echo "mirabilis: pull failed (diverged or offline) — resolve manually." >&2; return 1; }
+}
+
+prompt_if_outdated() {
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q origin 2>/dev/null || return 0
+  git -C "$REPO" rev-parse --verify -q origin/main >/dev/null 2>&1 || return 0
+  local behind; behind="$(git -C "$REPO" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
+  [ "${behind:-0}" -gt 0 ] || return 0
+  echo "mirabilis: a newer version is available ($(repo_version) → $(git -C "$REPO" rev-parse --short origin/main), $behind commit(s) behind)." >&2
+  confirm "mirabilis: update now? switches to main, pulls, rebuilds" || { echo "mirabilis: keeping the current version." >&2; return 0; }
+  pull_latest || return 0
+  echo "mirabilis: updated to $(repo_version) — rebuilding and relaunching…" >&2
+  MIRABILIS_REBUILD=1 exec "$REPO/bin/mirabilis"
 }
 
 ensure_github() {
@@ -120,10 +132,10 @@ system_prompt_file() {
 launch() {
   ensure_tools
   ensure_docker
-  prompt_if_stale
+  prompt_if_outdated
+  if [ -n "${MIRABILIS_REBUILD:-}" ]; then rebuild_image; else prompt_if_stale; fi
   up
   ensure_github
-  notify_remote
   ensure_claude
   exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
@@ -131,8 +143,8 @@ launch() {
 update() {
   ensure_tools
   ensure_docker
-  echo "mirabilis: updating source (git pull)…" >&2
-  git -C "$REPO" pull --ff-only || echo "mirabilis: could not pull (offline or diverged) — rebuilding current source." >&2
+  echo "mirabilis: updating source…" >&2
+  pull_latest || echo "mirabilis: rebuilding the current source instead." >&2
   echo "mirabilis: rebuilding image + container — memory, auth and /workspace are kept…" >&2
   rebuild_image
   up
