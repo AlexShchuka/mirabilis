@@ -126,7 +126,6 @@ mirabilis — autonomous Claude Code workspace
                        (your memory, auth and /workspace are kept)
 
 Other commands:
-  mirabilis agent "<task>"   run one prompt non-interactively and exit
   mirabilis shell            a shell in the workspace as node
   mirabilis doctor           health check
   mirabilis down|restart     stop / recreate the workspace
@@ -142,9 +141,6 @@ main() {
   case "$c" in
     ""|claude|run|up)     launch ;;
     update|upgrade)       update ;;
-    agent)                [ -n "${1:-}" ] || die "give a prompt: mirabilis agent \"...\""
-                          ensure_tools; ensure_docker; ensure_github; up; warn_if_stale; ensure_claude
-                          exec "$DC" exec --workspace-folder "$REPO" claude -p "$1" --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT" ;;
     shell)                ensure_tools; ensure_docker; ensure_github; up; warn_if_stale
                           exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;

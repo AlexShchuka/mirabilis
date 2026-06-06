@@ -39,7 +39,6 @@ that, daily use is the single `mirabilis` command:
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
 mirabilis update           pull the latest version and rebuild (memory + auth kept)
-mirabilis agent "<task>"   run one prompt non-interactively
 mirabilis shell            a shell in the workspace as node
 mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
