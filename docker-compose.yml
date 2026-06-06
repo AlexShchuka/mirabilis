@@ -22,6 +22,7 @@ services:
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
       TZ: ${TZ:-Etc/UTC}
       DISABLE_AUTOUPDATER: "1"
+      XDG_DATA_HOME: /home/node/.claude/xdg-data
       HTTP_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
       HTTPS_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
       http_proxy: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}

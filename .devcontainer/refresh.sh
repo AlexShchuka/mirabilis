@@ -2,7 +2,7 @@
 set -uo pipefail
 export HOME=/home/node
 
-mkdir -p "$HOME/.claude"
+mkdir -p "$HOME/.claude" "$HOME/.claude/xdg-data"
 SEED=/opt/mirabilis/config/settings.json
 DEST="$HOME/.claude/settings.json"
 if [ -f "$SEED" ]; then
