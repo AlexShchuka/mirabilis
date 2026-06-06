@@ -63,18 +63,21 @@ install/lifecycle for power users / CI.
 - **Filesystem:** persistent (`~/.claude` auth+memory+plugins, `~/.config/gh`,
   `/workspace`) survives rebuilds; ephemeral (`/tmp`, the refreshed plugin) is
   renewed each start.
-- **System prompt:** layered and deliberately thin — neuro-matrix injects its
-  protocol via a SessionStart hook, and `mirabilis` appends a short sandbox note
-  (`config/sandbox-context.md`) via `--append-system-prompt-file`. Both stack;
-  neither replaces the other.
+- **System prompt:** at launch `mirabilis` builds the append-system-prompt file
+  by concatenating `config/sandbox-context.md` with the neuro-matrix plugin's
+  `CLAUDE.md` (the agent protocol), located by globbing the versioned plugin
+  cache; if the plugin file is absent it falls back to the sandbox note and
+  warns. It is passed via `--append-system-prompt-file`. (neuro-matrix's hooks
+  add invariant and verification gates — they do not inject the protocol.)
 - **Egress:** Claude Code's native sandbox confines the agent's Bash commands to
   `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). Geo-exit is the
   host VPN. WebSearch/WebFetch ride the Anthropic API, so the allowlist never
   blocks them.
 - **Plugin:** `.claude-plugin/marketplace.json` defines the `mirabilis`
-  marketplace, which installs `neuro-matrix` at user scope. A plugin's root
-  `CLAUDE.md` is **not** loaded as context — neuro-matrix injects its protocol
-  via a SessionStart hook.
+  marketplace, which installs `neuro-matrix` at user scope. Claude Code does not
+  auto-load a plugin's `CLAUDE.md`, so `mirabilis` appends it to the system
+  prompt itself (see **System prompt**); the plugin's hooks add the invariant and
+  verification gates.
 - **MCP:** GitHub (hosted HTTP) and Context7 are registered in
   `scripts/provision-mcp.sh`; tokens are read from the environment.
 

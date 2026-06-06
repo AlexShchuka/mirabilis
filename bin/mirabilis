@@ -86,6 +86,16 @@ EOF
   recreate
 }
 
+system_prompt_file() {
+  dx bash -lc '
+    sbx="$1"; out=/tmp/mirabilis-system-prompt.md
+    nm="$(ls -1 /home/node/.claude/plugins/cache/*/neuro-matrix/*/CLAUDE.md 2>/dev/null | sort -V | tail -n1)"
+    if [ -n "$nm" ] && [ -f "$nm" ]; then cat "$sbx" "$nm" >"$out" && { printf %s "$out"; exit 0; }; fi
+    printf "mirabilis: WARNING — neuro-matrix CLAUDE.md not found; using the sandbox note only\n" >&2
+    printf %s "$sbx"
+  ' _ "$SANDBOX_PROMPT"
+}
+
 launch() {
   ensure_tools
   ensure_docker
@@ -93,7 +103,7 @@ launch() {
   up
   warn_if_stale
   ensure_claude
-  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$SANDBOX_PROMPT"
+  exec "$DC" exec --workspace-folder "$REPO" claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
 update() {
