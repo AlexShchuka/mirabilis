@@ -10,8 +10,9 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "sh /opt/mirabilis/config/statusline.sh",
-    "padding": 0
+    "command": "ccstatusline",
+    "padding": 0,
+    "refreshInterval": 10
   },
   "sandbox": {
     "enabled": true,

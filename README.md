@@ -43,6 +43,12 @@ Pulls the latest version and rebuilds; your memory, auth, and `/workspace` are k
 - [`AGENTS.md`](AGENTS.md) — architecture and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
 
+## The name
+
+*mirabilis* honors Einstein's *annus mirabilis* — his 1905 "miracle year", when four
+landmark papers (special relativity, the photoelectric effect, Brownian motion, and
+mass–energy equivalence, E=mc²) reshaped physics in a single year.
+
 ## License
 
 [MIT](LICENSE) © 2026 AlexShchuka

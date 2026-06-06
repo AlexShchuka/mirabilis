@@ -11,9 +11,14 @@ PROXY_RUN="${TMPDIR:-/tmp}/mirabilis-proxy"
 PROXY_PID="$PROXY_RUN.pid"
 PROXY_CONF="$PROXY_RUN.conf"
 PROXY_LOG="$PROXY_RUN.log"
+OPENER_PORT="${MIRABILIS_OPENER_PORT:-38129}"
+OPENER_PID="${TMPDIR:-/tmp}/mirabilis-opener.pid"
 BUILD_LOG="${TMPDIR:-/tmp}/mirabilis-build.log"
 
+export DOCKER_CLI_HINTS=false
+
 die() { echo "mirabilis: $*" >&2; exit 1; }
+have_gum() { command -v gum >/dev/null 2>&1; }
 open_host_url() {
   if command -v open >/dev/null 2>&1; then open "$1" >/dev/null 2>&1 || true
   elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" >/dev/null 2>&1 || true
@@ -35,6 +40,15 @@ ensure_tools() {
   }
 }
 
+ensure_extras() {
+  command -v brew >/dev/null 2>&1 || return 0
+  for t in gum socat; do
+    command -v "$t" >/dev/null 2>&1 && continue
+    echo "mirabilis: installing $t…" >&2
+    brew install "$t" >/dev/null 2>&1 || true
+  done
+}
+
 ensure_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
   command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI is missing — run 'make bootstrap'."
@@ -47,8 +61,16 @@ ensure_docker() {
 }
 
 dc_up() {
-  echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
-  if ! "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1; then
+  local rc=0
+  if have_gum && [ -t 2 ]; then
+    gum spin --spinner dot --title "building / starting the workspace…" -- \
+      env BUILD_LOG="$BUILD_LOG" bash -c '"$@" >"$BUILD_LOG" 2>&1' _ \
+      "$DC" up --workspace-folder "$REPO" "$@" || rc=$?
+  else
+    echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
+    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 || rc=$?
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "mirabilis: workspace failed to start — last 40 log lines:" >&2
     tail -n 40 "$BUILD_LOG" >&2
     die "full build log: $BUILD_LOG"
@@ -76,6 +98,27 @@ ensure_proxy() {
 stop_proxy() {
   if proxy_running; then kill "$(cat "$PROXY_PID" 2>/dev/null)" 2>/dev/null || true; fi
   rm -f "$PROXY_PID" 2>/dev/null || true
+}
+
+opener_running() {
+  [ -f "$OPENER_PID" ] || return 1
+  local pid; pid="$(cat "$OPENER_PID" 2>/dev/null)"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+ensure_opener() {
+  command -v socat >/dev/null 2>&1 || return 0
+  command -v open  >/dev/null 2>&1 || return 0
+  opener_running && return 0
+  socat TCP-LISTEN:"$OPENER_PORT",bind=127.0.0.1,reuseaddr,fork \
+    SYSTEM:'read -r u; case "$u" in http://*|https://*) open "$u" >/dev/null 2>&1 ;; esac' \
+    >/dev/null 2>&1 &
+  echo $! > "$OPENER_PID"
+}
+
+stop_opener() {
+  if opener_running; then kill "$(cat "$OPENER_PID" 2>/dev/null)" 2>/dev/null || true; fi
+  rm -f "$OPENER_PID" 2>/dev/null || true
 }
 
 preflight() {
@@ -122,6 +165,10 @@ rebuild_image() {
 confirm() {
   local reply
   [ -t 0 ] || return 1
+  if have_gum; then
+    gum confirm "$1" --default=false
+    return
+  fi
   printf '%s [y/N] ' "$1" >/dev/tty 2>/dev/null || return 1
   read -r reply </dev/tty 2>/dev/null || return 1
   case "$reply" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
@@ -183,7 +230,7 @@ ensure_github() {
 
 ensure_claude() {
   dx bash -lc 'test -s "$HOME/.claude/.credentials.json"' && return 0
-  echo "mirabilis: first run — Claude will print a sign-in URL; open it in your Mac browser, approve, and paste the code back here. It is saved for next time." >&2
+  echo "mirabilis: first run — Claude opens a sign-in page in your Mac browser; approve it, then paste the code shown back here. It is saved for next time." >&2
 }
 
 system_prompt_file() {
@@ -198,16 +245,18 @@ system_prompt_file() {
 
 launch() {
   ensure_tools
+  ensure_extras
   ensure_docker
   prompt_if_outdated
   if [ -n "${MIRABILIS_REBUILD:-}" ]; then rebuild_image; else prompt_if_stale; fi
   ensure_proxy
+  ensure_opener
   up
   ensure_github
   ensure_claude
   preflight
   local ght; ght="$(dxq gh auth token || true)"
-  exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
+  exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" BROWSER=/usr/local/bin/mirabilis-open MIRABILIS_OPENER_PORT="$OPENER_PORT" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
 update() {
@@ -252,7 +301,7 @@ main() {
   case "$c" in
     ""|claude|run|up)     launch ;;
     update|upgrade)       update ;;
-    down)                 lifecycle down; stop_proxy ;;
+    down)                 lifecycle down; stop_proxy; stop_opener ;;
     restart)              ensure_docker; recreate; echo "restarted." >&2 ;;
     token)                "$TOKEN" set "${1:-}" ;;
     check)                "$TOKEN" check ;;
