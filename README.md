@@ -31,6 +31,9 @@ mirabilis
 
 - `mirabilis help` — every command. Docker Desktop must be running; `mirabilis`
   tries to start it for you.
+- `mirabilis token claude` — optional headless sign-in (no browser): paste a
+  `claude setup-token` token once and it persists across rebuilds. Otherwise the
+  first run signs you in interactively (Claude prints a URL to open yourself).
 - [`AGENTS.md`](AGENTS.md) — architecture and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
 

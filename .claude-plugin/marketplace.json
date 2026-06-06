@@ -13,7 +13,7 @@
         "source": "github",
         "repo": "AlexShchuka/neuro-matrix"
       },
-      "description": "Anti-neuroslop harness: agents (developer/analyzer/critic/epistemic-auditor) + hooks (cycle/approval/verification gates) + invariants. Injects its system protocol via a SessionStart hook (plugin CLAUDE.md is not auto-loaded)."
+      "description": "Anti-neuroslop harness: agents (developer/analyzer/critic/epistemic-auditor) + hooks (cycle/approval/verification gates) + invariants. mirabilis appends the plugin's CLAUDE.md to Claude's system prompt at launch (--append-system-prompt-file); the plugin's SessionStart hook only runs an MCP health check."
     }
   ]
 }
