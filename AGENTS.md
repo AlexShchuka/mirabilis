@@ -45,7 +45,6 @@ anywhere:
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
 mirabilis update           pull the latest version and rebuild (memory + auth kept)
-mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
@@ -60,18 +59,26 @@ right after a self-update); when versions match the container is reused as-is,
 nothing recreated. Container staleness is detectable because the image is stamped
 with the source git revision (`MIRABILIS_VERSION`, threaded build arg → env), read
 back via `docker inspect` (no `exec`, so the check works even on a wedged
-container). The `make` targets still cover install/lifecycle for power users / CI.
+container). Launch also starts the host egress proxy (see **Egress**) and, after
+the container is up, runs a built-in **preflight** — sandbox/plugin/MCP health and
+that the container's exit IP matches the host's — printing warnings without
+blocking the start (it replaces the former `doctor` command). The `make` targets
+still cover install/lifecycle for power users / CI.
 
 ## How it fits together
 
 - **Engine:** a `.devcontainer` driven by the `@devcontainers/cli`. The image
-  comes from `docker/Dockerfile` (minimal: node base + bubblewrap/socat + a
-  marketplace seed), and the Claude Code CLI + `gh` are added as official
-  **Features**. `docker-compose.yml` provides the volumes and the `/workspace`
-  mount. `.devcontainer/refresh.sh` runs on **every start** (`postStartCommand`):
-  it re-seeds settings, refreshes the plugin (`claude plugin update`), and
-  registers MCP — so re-running `mirabilis` **updates** the sandbox in place
-  rather than from scratch, while the persistent volumes keep memory and auth.
+  comes from `docker/Dockerfile` (minimal: `node:24-trixie-slim` base +
+  bubblewrap/socat + the **RTK** token-saver binary + a marketplace seed), and the
+  Claude Code CLI + `gh` are added as official **Features**. `docker-compose.yml`
+  provides the volumes and the `/workspace` mount. `.devcontainer/refresh.sh` runs
+  on **every start** (`postStartCommand`): it re-seeds settings, marks `/workspace`
+  trusted in `~/.claude.json` (which lives outside the persisted volume, so it must
+  be re-seeded each start to suppress the trust prompt), refreshes the plugins
+  (`claude plugin update`), registers MCP, and installs the RTK hook
+  (`rtk init -g --auto-patch`, idempotent) — so re-running `mirabilis` **updates**
+  the sandbox in place rather than from scratch, while the persistent volumes keep
+  memory and auth.
 - **Filesystem (three tiers):** persistent **volumes** inside the sandbox —
   `~/.claude` (memory + Claude credentials + plugins) and `~/.config/gh` (GitHub
   credentials) — survive `mirabilis update`; the **workspace** `/workspace`
@@ -83,16 +90,29 @@ container). The `make` targets still cover install/lifecycle for power users / C
   cache; if the plugin file is absent it falls back to the sandbox note and
   warns. It is passed via `--append-system-prompt-file`. (neuro-matrix's hooks
   add invariant and verification gates — they do not inject the protocol.)
-- **Egress:** Claude Code's native sandbox confines the agent's Bash commands to
-  `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). WebSearch and
-  WebFetch ride the Anthropic API, so the allowlist never blocks them.
-- **Plugin:** `.claude-plugin/marketplace.json` defines the `mirabilis`
-  marketplace, which installs `neuro-matrix` at user scope. Claude Code does not
-  auto-load a plugin's `CLAUDE.md`, so `mirabilis` appends it to the system
-  prompt itself (see **System prompt**); the plugin's hooks add the invariant and
-  verification gates.
-- **MCP:** GitHub (hosted HTTP) and Context7 are registered in
-  `scripts/provision-mcp.sh`; the GitHub token comes from your `gh` login
-  (`gh auth token`) and the Context7 key from the environment.
+- **Egress (two layers):** *Routing* — all container egress goes through your
+  Mac. `mirabilis` runs a tinyproxy forward proxy as a host process (so it sits on
+  the host's network/VPN, the same path as your terminal) and the container is
+  pointed at it via `HTTP(S)_PROXY` → `host.docker.internal` in
+  `docker-compose.yml`; the container never talks to the internet on Docker's own
+  path. The proxy binds `127.0.0.1` only and is reached over the Docker
+  host-gateway, so it is not exposed to the LAN; it is started on launch and
+  stopped on `mirabilis down`. *Filtering* — Claude Code's native sandbox still
+  confines the agent's Bash commands to `sandbox.network.allowedDomains` (no
+  iptables, no `NET_ADMIN`); `host.docker.internal` is on that list so sandboxed
+  commands can reach the proxy. WebSearch and WebFetch ride the Anthropic API, so
+  the allowlist never blocks them.
+- **Plugins:** `.claude-plugin/marketplace.json` defines the `mirabilis`
+  marketplace, which installs `neuro-matrix` at user scope; the official
+  `github@claude-plugins-official` plugin is installed alongside it. Claude Code
+  does not auto-load a plugin's `CLAUDE.md`, so `mirabilis` appends neuro-matrix's
+  to the system prompt itself (see **System prompt**); the plugin's hooks add the
+  invariant and verification gates.
+- **MCP:** the GitHub MCP is provided by the `github` plugin (its bundled official
+  server at `api.githubcopilot.com/mcp/`); `mirabilis` injects
+  `GITHUB_PERSONAL_ACCESS_TOKEN` from your `gh` login into the Claude process at
+  launch so it authenticates. Context7 is registered separately in
+  `scripts/provision-mcp.sh`. Only one GitHub MCP exists — the manual registration
+  was dropped in favour of the plugin's.
 
 See `README.md` for setup.

@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:24-trixie-slim
 
 ARG TZ=Etc/UTC
 ENV TZ="$TZ" \
@@ -11,6 +11,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bubblewrap socat \
       ripgrep unzip tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         arm64) target=aarch64-unknown-linux-gnu ;; \
+         amd64) target=x86_64-unknown-linux-musl ;; \
+         *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/rtk.tgz "https://github.com/rtk-ai/rtk/releases/latest/download/rtk-${target}.tar.gz" \
+    && tar -xzf /tmp/rtk.tgz -C /usr/local/bin rtk \
+    && rm -f /tmp/rtk.tgz \
+    && chmod 0755 /usr/local/bin/rtk
 
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
     && chown -R node:node /workspace /opt/mirabilis /home/node

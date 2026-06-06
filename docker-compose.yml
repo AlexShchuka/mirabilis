@@ -13,6 +13,8 @@ services:
     hostname: mirabilis
     security_opt:
       - seccomp=unconfined
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -20,6 +22,12 @@ services:
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
       TZ: ${TZ:-Etc/UTC}
       DISABLE_AUTOUPDATER: "1"
+      HTTP_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
+      HTTPS_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
+      http_proxy: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
+      https_proxy: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
+      NO_PROXY: localhost,127.0.0.1,::1
+      no_proxy: localhost,127.0.0.1,::1
     volumes:
       - type: bind
         source: ${WORKSPACE_DIR:-${HOME}/mirabilis-workspace}
