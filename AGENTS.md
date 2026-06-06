@@ -45,7 +45,6 @@ anywhere:
 ```
 mirabilis                  start the workspace and open Claude (first run self-configures)
 mirabilis update           pull the latest version and rebuild (memory + auth kept)
-mirabilis doctor           health check
 mirabilis down | restart   stop / recreate the workspace
 ```
 
@@ -60,7 +59,11 @@ right after a self-update); when versions match the container is reused as-is,
 nothing recreated. Container staleness is detectable because the image is stamped
 with the source git revision (`MIRABILIS_VERSION`, threaded build arg → env), read
 back via `docker inspect` (no `exec`, so the check works even on a wedged
-container). The `make` targets still cover install/lifecycle for power users / CI.
+container). Launch also starts the host egress proxy (see **Egress**) and, after
+the container is up, runs a built-in **preflight** — sandbox/plugin/MCP health and
+that the container's exit IP matches the host's — printing warnings without
+blocking the start (it replaces the former `doctor` command). The `make` targets
+still cover install/lifecycle for power users / CI.
 
 ## How it fits together
 
@@ -83,9 +86,18 @@ container). The `make` targets still cover install/lifecycle for power users / C
   cache; if the plugin file is absent it falls back to the sandbox note and
   warns. It is passed via `--append-system-prompt-file`. (neuro-matrix's hooks
   add invariant and verification gates — they do not inject the protocol.)
-- **Egress:** Claude Code's native sandbox confines the agent's Bash commands to
-  `sandbox.network.allowedDomains` (no iptables, no `NET_ADMIN`). WebSearch and
-  WebFetch ride the Anthropic API, so the allowlist never blocks them.
+- **Egress (two layers):** *Routing* — all container egress goes through your
+  Mac. `mirabilis` runs a tinyproxy forward proxy as a host process (so it sits on
+  the host's network/VPN, the same path as your terminal) and the container is
+  pointed at it via `HTTP(S)_PROXY` → `host.docker.internal` in
+  `docker-compose.yml`; the container never talks to the internet on Docker's own
+  path. The proxy binds `127.0.0.1` only and is reached over the Docker
+  host-gateway, so it is not exposed to the LAN; it is started on launch and
+  stopped on `mirabilis down`. *Filtering* — Claude Code's native sandbox still
+  confines the agent's Bash commands to `sandbox.network.allowedDomains` (no
+  iptables, no `NET_ADMIN`); `host.docker.internal` is on that list so sandboxed
+  commands can reach the proxy. WebSearch and WebFetch ride the Anthropic API, so
+  the allowlist never blocks them.
 - **Plugin:** `.claude-plugin/marketplace.json` defines the `mirabilis`
   marketplace, which installs `neuro-matrix` at user scope. Claude Code does not
   auto-load a plugin's `CLAUDE.md`, so `mirabilis` appends it to the system

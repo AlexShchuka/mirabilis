@@ -45,7 +45,12 @@ checkout; it still starts, so you can update when it suits you.
 - Built on Anthropic's official dev-container **Feature** for the Claude Code CLI
   (consumed, not vendored) — with a thin mirabilis layer on top.
 - **neuro-matrix** plugin, **GitHub** + **Context7** MCP, and a native status line — preinstalled.
-- Egress is a **configurable allowlist** via Claude Code's native sandbox
+- **All container egress is routed through your Mac.** On launch `mirabilis`
+  starts a small forward proxy as a host process and points the container at it
+  (`HTTPS_PROXY` → `host.docker.internal`), so the workspace reaches the internet
+  over the host's network — the same VPN or connection as your terminal — instead
+  of Docker's own path. Launch verifies the container's exit IP matches the host's.
+- Egress is also a **configurable allowlist** via Claude Code's native sandbox
   (`sandbox.network.allowedDomains`) — no iptables, no elevated capabilities. To
   let the agent's shell reach a new host, add it to that list in
   `config/settings.json`.
@@ -53,8 +58,9 @@ checkout; it still starts, so you can update when it suits you.
 
 ## Troubleshooting
 
-- Run `mirabilis doctor` for a health check (Docker, secrets, sandbox, plugin,
-  MCP, version, and egress).
+- Every `mirabilis` launch runs a built-in preflight (Docker, sandbox, plugin,
+  MCP, and that container egress exits through your host) and prints any warning;
+  it still starts so you can act when it suits you.
 - Docker Desktop must be running; `mirabilis` tries to start it, but launch it
   yourself if it does not come up.
 - On first run you sign in to GitHub and Claude — a code and URL appear; open the
@@ -66,7 +72,7 @@ checkout; it still starts, so you can update when it suits you.
 
 The `make` targets expose the lifecycle directly: `make bootstrap`
 (prerequisites), `make install` / `make uninstall` (the PATH launcher),
-`make doctor`, and `make clean` (remove the container and image; volumes are
+and `make clean` (remove the container and image; volumes are
 kept). `make install PREFIX=…` overrides where the launcher is written (the
 default is your Homebrew prefix's `bin`, which is already on PATH).
 

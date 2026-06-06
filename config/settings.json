@@ -19,6 +19,7 @@
     "enableWeakerNestedSandbox": true,
     "network": {
       "allowedDomains": [
+        "host.docker.internal",
         "api.anthropic.com",
         "claude.ai",
         "console.anthropic.com",
