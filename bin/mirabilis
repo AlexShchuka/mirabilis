@@ -125,7 +125,6 @@ mirabilis — autonomous Claude Code workspace
                        (your memory, auth and /workspace are kept)
 
 Other commands:
-  mirabilis shell            a shell in the workspace as node
   mirabilis doctor           health check
   mirabilis down|restart     stop / recreate the workspace
   mirabilis token gh|claude|context7   replace a stored secret
@@ -140,8 +139,6 @@ main() {
   case "$c" in
     ""|claude|run|up)     launch ;;
     update|upgrade)       update ;;
-    shell)                ensure_tools; ensure_docker; up; ensure_github; warn_if_stale
-                          exec "$DC" exec --workspace-folder "$REPO" bash ;;
     doctor)               "$DOCTOR" ;;
     down)                 lifecycle down ;;
     restart)              ensure_docker; recreate; echo "restarted." >&2 ;;

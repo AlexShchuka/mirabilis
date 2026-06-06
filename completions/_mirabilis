@@ -6,7 +6,6 @@ _mirabilis() {
     cmds)
       _values "mirabilis command" \
         "update[pull latest and rebuild, keeping memory]" \
-        "shell[shell as node]" \
         "doctor[health check]" \
         "down[stop the workspace]" \
         "restart[recreate the container]" \
