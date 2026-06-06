@@ -18,8 +18,8 @@ git clone https://github.com/AlexShchuka/mirabilis.git && mirabilis/mirabilis
 
 That one line is the whole setup — no `cd`, nothing else to copy. The first run
 installs any missing prerequisites, **puts `mirabilis` on your PATH globally**,
-builds the container, and sets up your GitHub token and Claude login. From then
-on, run it from anywhere in the terminal:
+builds the container, and signs you in to GitHub and Claude (native flows, saved
+in the sandbox). From then on, run it from anywhere in the terminal:
 
 ```sh
 mirabilis
@@ -49,7 +49,7 @@ checkout; it still starts, so you can update when it suits you.
   (`sandbox.network.allowedDomains`) — no iptables, no elevated capabilities. To
   let the agent's shell reach a new host, add it to that list in
   `config/settings.json`.
-- Secrets live in the **macOS Keychain**, never in the repo. The agent runs **non-root**.
+- Sign-in is native and saved **inside the sandbox** (`gh auth login` + Claude's first-run login → persistent volumes), never in the repo. The agent runs **non-root**.
 
 ## Troubleshooting
 
@@ -57,8 +57,9 @@ checkout; it still starts, so you can update when it suits you.
   MCP, version, and egress).
 - Docker Desktop must be running; `mirabilis` tries to start it, but launch it
   yourself if it does not come up.
-- The first-run Claude login is geo-restricted — connect your VPN to a supported
-  region before it runs.
+- On first run you sign in to GitHub and Claude — a code and URL appear; open the
+  URL in your browser, approve, and paste the code back. It is saved in the
+  sandbox volumes, so you are not asked again.
 - `mirabilis help` lists every command.
 
 ## Power users / CI

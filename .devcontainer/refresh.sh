@@ -14,8 +14,9 @@ if [ -f "$SEED" ]; then
   fi
 fi
 
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  export GH_TOKEN="${GH_TOKEN:-$GITHUB_TOKEN}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [ -n "$GITHUB_TOKEN" ]; then
+  export GITHUB_TOKEN GH_TOKEN="$GITHUB_TOKEN"
   gh auth setup-git 2>/dev/null || true
 fi
 

@@ -16,7 +16,6 @@ container is the security boundary, and the design assumes **trusted code only**
   sandbox still enforces the egress allowlist and filesystem confinement, and no
   Linux capabilities are added. For untrusted code, pair it with a stronger
   boundary (microVM).
-- The geo-exit is the **host VPN**.
 - The sandbox confines spawned Bash commands (the main exfiltration vector). The
   Claude process and MCP traffic go to known hosts but are not themselves
   allowlist-confined. The sandbox does **not** perform TLS inspection, so
@@ -28,21 +27,20 @@ stronger isolation boundary (microVM) than a container provides.
 
 ## Secrets
 
-- The **macOS Keychain is the single source of truth** for tokens
-  (`scripts/token.sh set gh|claude|context7`).
-- Tokens are injected as **environment variables at run time** and are never
-  written to the repository. `.env` and token files are gitignored.
-- Because tokens are delivered as container **environment variables**, anyone
-  with access to the Docker socket (or host root) can read them via
-  `docker inspect mirabilis` or `/proc/1/environ`. The Docker socket is part of
-  the secret trust boundary — do not expose it to untrusted users or containers.
-- The GitHub and Context7 MCP servers receive their tokens as resolved request
-  headers, so those values also persist in the container's per-user config
-  (`~/.claude.json`) on the `claude-home` volume — inside the container, never in
-  the repo. Treat that volume as part of the secret trust boundary.
+- **GitHub and Claude** sign-in use the native flows (`gh auth login`, Claude's
+  first-run login) and persist **inside the sandbox volumes** — `~/.config/gh`
+  (`gh-config`) and `~/.claude/.credentials.json` (`claude-home`, mode `0600`).
+  They never touch the repository and survive `mirabilis update`.
+- The **Context7** API key lives in the macOS Keychain (`scripts/token.sh set
+  context7`) and is injected as an environment variable at run time.
+- The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
+  GitHub and Context7 MCP servers receive it as a request header, so it also
+  lands in the container's per-user config on the `claude-home` volume — inside
+  the container, never in the repo. Anyone with access to the Docker socket (or
+  host root) can read container secrets via `docker inspect mirabilis` or
+  `/proc/1/environ`; the Docker socket is part of the secret trust boundary.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
-  treat it as compromised and rotate it immediately
-  (https://github.com/settings/tokens for GitHub).
+  treat it as compromised and rotate it immediately.
 
 ## Reporting
 
