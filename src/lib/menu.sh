@@ -74,12 +74,12 @@ do_plugins() {
   ensure_proxy
   container_running || up
   have_gum || { echo "mirabilis: gum required for the plugin menu — run 'make bootstrap'." >&2; return 0; }
-  local catalog preselect chosen dis line
+  local catalog preselect chosen dis line rc=0
   catalog="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null')"
   [ -n "$catalog" ] || { echo "mirabilis: no plugin catalog found." >&2; return 0; }
   preselect="$(printf '%s' "$catalog" | tr '\n' ',' | sed 's/,*$//')"
-  chosen="$(printf '%s\n' "$catalog" | gum choose --no-limit --selected "$preselect" --header "Плагины (пробел — переключить, Enter — ок)" || true)"
-  [ -n "$chosen" ] || chosen="$catalog"
+  chosen="$(printf '%s\n' "$catalog" | gum choose --no-limit --selected "$preselect" --header "Плагины (пробел — переключить, Enter — ок)")" || rc=$?
+  [ "$rc" -eq 0 ] || return 0
   dis=""
   while IFS= read -r line; do
     [ -n "$line" ] || continue

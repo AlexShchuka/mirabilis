@@ -48,14 +48,7 @@ GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 if [ -n "$GITHUB_TOKEN" ]; then
   export GITHUB_TOKEN GH_TOKEN="$GITHUB_TOKEN"
   gh auth setup-git 2>/dev/null || true
-  gh_login="$(gh api user --jq .login 2>/dev/null || true)"
-  if [ -n "$gh_login" ]; then
-    gh_name="$(gh api user --jq '.name // empty' 2>/dev/null || true)"; [ -n "$gh_name" ] || gh_name="$gh_login"
-    gh_email="$(gh api user --jq '.email // empty' 2>/dev/null || true)"
-    [ -n "$gh_email" ] || gh_email="$(gh api user --jq .id 2>/dev/null || true)+$gh_login@users.noreply.github.com"
-    git config --global user.name  "$gh_name"  2>/dev/null || true
-    git config --global user.email "$gh_email" 2>/dev/null || true
-  fi
+  bash /usr/local/bin/git-identity.sh || true
 fi
 
 HARNESS_CHOICE="$(cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null || echo install)"
@@ -81,6 +74,23 @@ if command -v claude >/dev/null 2>&1; then
         || claude plugin install "$p" --scope user >/dev/null 2>&1 || true
     done < "$PLUGINS_CATALOG"
   fi
+fi
+
+if command -v jq >/dev/null 2>&1 && [ -f "$DEST" ]; then
+  enabled="$(
+    [ "$HARNESS_CHOICE" != skip ] && printf 'neuro-matrix@mirabilis\n'
+    if [ -f "$PLUGINS_CATALOG" ]; then
+      while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        case "$p" in \#*) continue ;; esac
+        grep -qxF "$p" "$PLUGINS_DISABLED" 2>/dev/null && continue
+        printf '%s\n' "$p"
+      done < "$PLUGINS_CATALOG"
+    fi
+  )"
+  obj="$(printf '%s\n' "$enabled" | jq -R . | jq -s 'map(select(length>0)) | reduce .[] as $p ({}; .[$p]=true)')"
+  tmp="$(mktemp)"
+  jq --argjson e "$obj" '.enabledPlugins = $e' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
 fi
 
 NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"

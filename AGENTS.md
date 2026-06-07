@@ -56,6 +56,7 @@ Change a behaviour in its owning file, not by restating it here.
 | Plugin marketplace (installs neuro-matrix, pinned `ref`) | `.claude-plugin/marketplace.json` |
 | MCP registration (Context7) | `src/provision-mcp.sh` |
 | Secret storage (macOS Keychain ↔ env) | `src/token.sh` |
+| Git identity from the GitHub login (gh api user) | `src/git-identity.sh` |
 | Prerequisites / install / clean (power users, CI) | `Makefile` |
 | One-command installer (curl\|sh bridge: clone + bootstrap + install) | `install.sh` |
 

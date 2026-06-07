@@ -40,7 +40,7 @@ cmd_get() {
   fi
   local ev; ev="$(envv "$name")"
   if [[ -n "$ev" && -n "${!ev:-}" ]]; then printf '%s\n' "${!ev}"; return 0; fi
-  die "no $name token found (run: ./scripts/token.sh set $name)"
+  die "no $name token found (run: ./src/token.sh set $name)"
 }
 
 cmd_rm() {

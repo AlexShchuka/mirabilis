@@ -49,7 +49,7 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph HOST["macOS (хост)"]
-    LCH[Хост-лаунчер\nbin/mirabilis]
+    LCH[Хост-лаунчер\nsrc/bin/mirabilis]
     PRX[Egress-прокси\ntinyproxy]
     KC[(Keychain — секреты)]
   end

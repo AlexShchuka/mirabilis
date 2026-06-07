@@ -6,6 +6,7 @@ ensure_github() {
   open_host_url "https://github.com/login/device"
   dx env GH_BROWSER=true BROWSER=true gh auth login --hostname github.com --git-protocol https --web || die "GitHub sign-in failed — run 'mirabilis' again"
   dx gh auth setup-git || true
+  dx bash /usr/local/bin/git-identity.sh || true
   dx bash -lc 't="$(gh auth token 2>/dev/null)"; [ -n "$t" ] && GITHUB_TOKEN="$t" /usr/local/bin/provision-mcp.sh >/dev/null 2>&1 || true'
 }
 
