@@ -16,20 +16,24 @@ the devcontainer CLI are installed for you on first run.
 ## Quick start
 
 ```sh
-git clone https://github.com/AlexShchuka/mirabilis.git && mirabilis/mirabilis
+curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.sh | bash
 ```
 
-That one line is the whole setup. The first run installs prerequisites, puts
-`mirabilis` on your PATH, builds the container, and signs you in to GitHub and
-Claude (native flows, saved in the sandbox). After that, run it from anywhere:
+That one line clones mirabilis to `~/.mirabilis`, installs prerequisites, and puts
+`mirabilis` on your PATH. The first launch builds the container and signs you in to
+GitHub and Claude (native flows, saved in the sandbox). After that, run it from anywhere:
 
 ```sh
 mirabilis
 ```
 
+Prefer to clone it yourself (e.g. to develop mirabilis)?
+`git clone https://github.com/AlexShchuka/mirabilis.git && cd mirabilis && make bootstrap install`
+does the same.
+
 ## More
 
-- `mirabilis help` — every command. Docker Desktop must be running;
+- `mirabilis` — the only command; it opens a menu (launch / update / plugins / harness / sign-in / theme). Docker Desktop must be running;
 - [`AGENTS.md`](AGENTS.md) — architecture and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
 

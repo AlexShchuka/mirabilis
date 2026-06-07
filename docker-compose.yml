@@ -21,7 +21,6 @@ services:
       GH_TOKEN: ${GITHUB_TOKEN:-}
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
       TZ: ${TZ:-Etc/UTC}
-      DISABLE_AUTOUPDATER: "1"
       XDG_DATA_HOME: /home/node/.claude/xdg-data
       HTTP_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
       HTTPS_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
@@ -30,19 +29,18 @@ services:
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
     volumes:
-      - type: bind
-        source: ${WORKSPACE_DIR:-${HOME}/mirabilis-workspace}
-        target: /workspace
+      - workspace:/workspace
       - claude-home:/home/node/.claude
       - gh-config:/home/node/.config/gh
     tmpfs:
       - /tmp
-    entrypoint: ["/usr/bin/tini", "--"]
-    command: ["sleep", "infinity"]
+    entrypoint: ["/usr/bin/tini", "--", "/opt/mirabilis/entrypoint.sh"]
+    command: []
     stdin_open: true
     tty: true
     restart: unless-stopped
 
 volumes:
+  workspace:
   claude-home:
   gh-config:

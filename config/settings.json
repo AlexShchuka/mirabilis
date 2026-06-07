@@ -1,16 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "theme": "auto",
-  "env": {
-    "DISABLE_AUTOUPDATER": "1"
-  },
-  "enabledPlugins": {
-    "neuro-matrix@mirabilis": true,
-    "github@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "chrome-devtools-mcp@claude-plugins-official": true
-  },
   "statusLine": {
     "type": "command",
     "command": "ccstatusline",
@@ -23,16 +13,7 @@
     "allowUnsandboxedCommands": false,
     "enableWeakerNestedSandbox": true,
     "filesystem": {
-      "allowWrite": ["~/"],
-      "denyWrite": [
-        "~/.claude/plugins",
-        "~/.claude/settings.json",
-        "~/.claude/.credentials.json",
-        "~/.config/gh",
-        "/etc",
-        "/usr",
-        "/opt/mirabilis"
-      ]
+      "allowWrite": ["/"]
     },
     "network": {
       "allowedDomains": [
@@ -49,6 +30,17 @@
         "raw.githubusercontent.com",
         "api.githubcopilot.com",
         "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org",
+        "api.nuget.org",
+        "www.nuget.org",
+        "dot.net",
+        "dotnetcli.azureedge.net",
+        "builds.dotnet.microsoft.com",
+        "dotnetcli.blob.core.windows.net",
+        "aka.ms",
+        "deb.debian.org",
+        "security.debian.org",
         "mcp.context7.com",
         "context7.com"
       ]

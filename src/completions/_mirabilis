@@ -1,0 +1,19 @@
+#compdef mirabilis
+_mirabilis() {
+  local line state
+  _arguments -C "1: :->cmds" "*::arg:->args"
+  case "$state" in
+    cmds)
+      _values "mirabilis command" \
+        "completion[print the zsh completion script]" \
+        "version[print version]" \
+        "help[show help]"
+      ;;
+    args)
+      case "$line[1]" in
+        completion) _values "shell" "zsh" ;;
+      esac
+      ;;
+  esac
+}
+_mirabilis "$@"
