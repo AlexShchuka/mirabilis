@@ -29,9 +29,7 @@ services:
       NO_PROXY: localhost,127.0.0.1,::1
       no_proxy: localhost,127.0.0.1,::1
     volumes:
-      - type: bind
-        source: ${WORKSPACE_DIR:-${HOME}/mirabilis-workspace}
-        target: /workspace
+      - workspace:/workspace
       - claude-home:/home/node/.claude
       - gh-config:/home/node/.config/gh
     tmpfs:
@@ -43,5 +41,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  workspace:
   claude-home:
   gh-config:

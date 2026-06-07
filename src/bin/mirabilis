@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+if [ "${BASH_VERSINFO:-0}" -lt 4 ] && [ -z "${MIRABILIS_BASH_REEXEC:-}" ]; then
+  for _bash in /opt/homebrew/bin/bash /usr/local/bin/bash /opt/local/bin/bash; do
+    [ -x "$_bash" ] || continue
+    export MIRABILIS_BASH_REEXEC=1
+    exec "$_bash" "$0" "$@"
+  done
+fi
+unset _bash
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+DC="$REPO/src/dc.sh"
+TOKEN="$REPO/src/token.sh"
+SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
+PROXY_PORT="${MIRABILIS_PROXY_PORT:-38128}"
+PROXY_RUN="${TMPDIR:-/tmp}/mirabilis-proxy"
+PROXY_PID="$PROXY_RUN.pid"
+PROXY_CONF="$PROXY_RUN.conf"
+PROXY_LOG="$PROXY_RUN.log"
+BUILD_LOG="${TMPDIR:-/tmp}/mirabilis-build.log"
+
+export DOCKER_CLI_HINTS=false
+
+for _lib in util version proxy docker preflight auth prompt menu; do
+  . "$REPO/src/lib/$_lib.sh"
+done
+unset _lib
+
+main() {
+  case "${1:-}" in
+    completion)           print_completion "${2:-zsh}" ;;
+    version|-v|--version) echo "mirabilis $(repo_version)" ;;
+    help|-h|--help)       echo "mirabilis — autonomous Claude Code workspace. Run 'mirabilis' (opens the menu: launch / update / sign-in / theme)." >&2 ;;
+    *)                    menu ;;
+  esac
+}
+
+main "$@"

@@ -10,9 +10,9 @@ else
   log "WARN: per-start setup script missing at /opt/mirabilis/refresh.sh"
 fi
 
-if command -v claude >/dev/null 2>&1; then
+if command -v claude >/dev/null 2>&1 && [ "$(cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null || echo install)" != skip ]; then
   claude plugin list 2>/dev/null | grep -q neuro-matrix \
-    || log "WARN: neuro-matrix harness not confirmed — host preflight will gate before launching the agent"
+    || log "WARN: neuro-matrix harness not confirmed — host preflight will warn before launching the agent"
 fi
 
 exec sleep infinity

@@ -48,20 +48,39 @@ GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 if [ -n "$GITHUB_TOKEN" ]; then
   export GITHUB_TOKEN GH_TOKEN="$GITHUB_TOKEN"
   gh auth setup-git 2>/dev/null || true
+  gh_login="$(gh api user --jq .login 2>/dev/null || true)"
+  if [ -n "$gh_login" ]; then
+    gh_name="$(gh api user --jq '.name // empty' 2>/dev/null || true)"; [ -n "$gh_name" ] || gh_name="$gh_login"
+    gh_email="$(gh api user --jq '.email // empty' 2>/dev/null || true)"
+    [ -n "$gh_email" ] || gh_email="$(gh api user --jq .id 2>/dev/null || true)+$gh_login@users.noreply.github.com"
+    git config --global user.name  "$gh_name"  2>/dev/null || true
+    git config --global user.email "$gh_email" 2>/dev/null || true
+  fi
 fi
 
-if command -v claude >/dev/null 2>&1 && [ -f /opt/mirabilis/marketplace/.claude-plugin/marketplace.json ]; then
-  claude plugin marketplace add /opt/mirabilis/marketplace >/dev/null 2>&1 \
-    || claude plugin marketplace update mirabilis >/dev/null 2>&1 || true
-  claude plugin install neuro-matrix@mirabilis --scope user 2>&1 || true
-  claude plugin update neuro-matrix >/dev/null 2>&1 || true
-  claude plugin list 2>/dev/null | grep -q neuro-matrix \
-    || echo "[refresh] WARN: neuro-matrix not installed — check git/network" >&2
-  claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
-  for p in github claude-code-setup claude-md-management chrome-devtools-mcp; do
-    claude plugin list 2>/dev/null | grep -q "$p" \
-      || claude plugin install "$p@claude-plugins-official" --scope user >/dev/null 2>&1 || true
-  done
+HARNESS_CHOICE="$(cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null || echo install)"
+PLUGINS_CATALOG=/opt/mirabilis/config/plugins.txt
+PLUGINS_DISABLED="$HOME/.claude/.mirabilis-plugins-disabled"
+
+if command -v claude >/dev/null 2>&1; then
+  if [ "$HARNESS_CHOICE" != skip ] && [ -f /opt/mirabilis/marketplace/.claude-plugin/marketplace.json ]; then
+    claude plugin marketplace add /opt/mirabilis/marketplace >/dev/null 2>&1 \
+      || claude plugin marketplace update mirabilis >/dev/null 2>&1 || true
+    claude plugin install neuro-matrix@mirabilis --scope user 2>&1 || true
+    claude plugin update neuro-matrix >/dev/null 2>&1 || true
+    claude plugin list 2>/dev/null | grep -q neuro-matrix \
+      || echo "[refresh] WARN: neuro-matrix selected but not installed — check git/network" >&2
+  fi
+  if [ -f "$PLUGINS_CATALOG" ]; then
+    claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      case "$p" in \#*) continue ;; esac
+      grep -qxF "$p" "$PLUGINS_DISABLED" 2>/dev/null && continue
+      claude plugin list 2>/dev/null | grep -q "${p%@*}" \
+        || claude plugin install "$p" --scope user >/dev/null 2>&1 || true
+    done < "$PLUGINS_CATALOG"
+  fi
 fi
 
 NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
@@ -76,5 +95,5 @@ fi
 
 if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1; then
   tmp="$(mktemp)"
-  jq '(.hooks.PreToolUse) |= (map(.hooks |= map(select((.command != "bash /opt/mirabilis/protect-critical.sh") and (.command != "bash /opt/mirabilis/consent-gate.sh")))) | map(select((.hooks | length) > 0)))' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
+  jq 'if (.hooks.PreToolUse) then (.hooks.PreToolUse) |= (map(.hooks |= map(select((.command // "") | startswith("bash /opt/mirabilis/") | not))) | map(select((.hooks | length) > 0))) else . end' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
 fi

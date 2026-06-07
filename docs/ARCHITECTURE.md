@@ -61,7 +61,7 @@ flowchart TB
     VOL[("volume ~/.claude\nharness · plugins · venv · память")]
     GHV[("volume ~/.config/gh")]
   end
-  WS[/host: ~/mirabilis (bind) ↔ /workspace/]
+  WS[/named-volume workspace ↔ /workspace/]
   LCH --> ENT
   LCH --> PRX
   LCH --> KC
@@ -87,7 +87,7 @@ flowchart TB
 ```mermaid
 flowchart LR
   subgraph CT["Контейнер — всё пишемо (I2)"]
-    WS[/workspace/\nработа · репозитории · отчёты · заметки\n(bind-mount, виден на хосте)]
+    WS[/workspace/\nработа · репозитории · отчёты · заметки\n(named-volume, песочница владеет)]
     TMP[/tmp/\nэфемерный скретч]
     REST["остальное:\nсистемные файлы · плагин/харнес · /home · /var ...\n(пишемо; рестарт пересоберёт)"]
   end
@@ -98,7 +98,8 @@ flowchart LR
 рестарт пересоберёт его (I4); это своя песочница агента.
 
 - **`/workspace`** — рабочая зона. Вся работа, `git clone` всех репозиториев, файлы, отчёты, заметки.
-  Физически — **одна общая папка на хосте** (`~/mirabilis`, bind-mount); видна и в редакторе macOS;
+  Физически — **named-volume, которым владеет песочница** (`workspace`); на хост папкой не торчит,
+  открывается из редактора через VSCode (Dev Containers attach / Clone in Container Volume);
   переживает пересоздание.
 - **`/tmp`** — эфемерный скретч (исчезает с контейнером).
 - **Всё прочее** (system/харнес/`/home`/`/var` …) — тоже пишемо, но эфемерно: не переживает

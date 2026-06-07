@@ -1,0 +1,4 @@
+github@claude-plugins-official
+claude-code-setup@claude-plugins-official
+claude-md-management@claude-plugins-official
+chrome-devtools-mcp@claude-plugins-official
