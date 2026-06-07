@@ -44,9 +44,7 @@ Change a behaviour in its owning file, not by restating it here.
 | Volumes, `/workspace` mount, container env, proxy wiring, entrypoint | `docker-compose.yml` |
 | Dev-container engine; Claude Code CLI + `gh` as official Features | `.devcontainer/devcontainer.json` |
 | Container entrypoint: runs per-start setup on every start (incl. auto-restart) | `.devcontainer/entrypoint.sh` |
-| Per-start setup (idempotent): settings seed, denyWrite render, theme, trust, plugins, MCP, apt-list, hook wiring | `.devcontainer/refresh.sh` |
-| Consent gate (honest gate + deny-set; PreToolUse hook) | `scripts/consent-gate.sh` |
-| Protected-paths single source (feeds the gate + sandbox denyWrite) | `config/protected-paths` |
+| Per-start setup (idempotent): settings seed, theme, trust, plugins, MCP, apt-list, harness install | `.devcontainer/refresh.sh` |
 | Declared apt packages (re-applied at start) | `config/apt-packages.txt` |
 | Claude settings: sandbox allowlist + filesystem, plugins, theme | `config/settings.json` |
 | Agent-facing sandbox note (prepended to the system prompt) | `config/sandbox-context.md` |
@@ -67,5 +65,7 @@ every start path — `mirabilis`, `docker compose up`, or Docker auto-restart �
 up configured. Persistent volumes (`~/.claude`, `~/.config/gh`) keep memory and auth
 across updates; `/workspace` is the host bind-mount; everything else is ephemeral.
 At launch the neuro-matrix protocol is appended to the system prompt and its hooks
-add the invariant and verification gates; a separate consent-gate hook (with a
-deny-set) plus the host preflight enforce sensitive-action consent and fail-fast.
+add the invariant and verification gates. mirabilis does not protect files inside
+the container — the container is the boundary (I5) and inside the agent has full
+freedom (I2); behavioural limits are the harness's job, not the sandbox's. The host
+preflight fails fast if the harness, egress or Claude access is missing.

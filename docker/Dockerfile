@@ -34,7 +34,7 @@ RUN arch="$(dpkg --print-architecture)" \
 
 RUN npm install -g ccstatusline@2.2.19
 
-ARG DOTNET_CHANNEL=LTS
+ARG DOTNET_CHANNEL=10.0
 ENV DOTNET_ROOT=/usr/share/dotnet
 ENV PATH=$PATH:/usr/share/dotnet
 RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
@@ -49,10 +49,9 @@ RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh 
 COPY config/                    /opt/mirabilis/config/
 COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY scripts/provision-mcp.sh   /usr/local/bin/provision-mcp.sh
-COPY scripts/consent-gate.sh    /opt/mirabilis/consent-gate.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
 COPY .devcontainer/entrypoint.sh /opt/mirabilis/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/consent-gate.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

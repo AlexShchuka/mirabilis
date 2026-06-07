@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 export HOME=/home/node
-export MIRABILIS_PROTECTED_PATHS=/opt/mirabilis/config/protected-paths
 
 mkdir -p "$HOME/.claude" "$HOME/.claude/xdg-data"
 SEED=/opt/mirabilis/config/settings.json
@@ -12,15 +11,6 @@ if [ -f "$SEED" ]; then
     jq -s '.[0] * .[1]' "$DEST" "$SEED" > "$tmp" && mv "$tmp" "$DEST" || cp "$SEED" "$DEST"
   else
     cp "$SEED" "$DEST"
-  fi
-fi
-
-PP="$MIRABILIS_PROTECTED_PATHS"
-if [ -f "$PP" ] && [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1; then
-  arr="$(jq -R -s 'split("\n") | map(select(length>0))' "$PP")"
-  if [ -n "$arr" ] && [ "$arr" != "[]" ]; then
-    tmp="$(mktemp)"
-    jq --argjson dw "$arr" '.sandbox.filesystem.denyWrite = $dw' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
   fi
 fi
 
@@ -84,14 +74,7 @@ if command -v rtk >/dev/null 2>&1; then
     || rtk init -g --auto-patch >/dev/null 2>&1 || true
 fi
 
-if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1 \
-   && jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "bash /opt/mirabilis/protect-critical.sh")' "$DEST" >/dev/null 2>&1; then
+if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1; then
   tmp="$(mktemp)"
-  jq '(.hooks.PreToolUse) |= (map(.hooks |= map(select(.command != "bash /opt/mirabilis/protect-critical.sh"))) | map(select((.hooks | length) > 0)))' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
-fi
-
-if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1 \
-   && ! jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "bash /opt/mirabilis/consent-gate.sh")' "$DEST" >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  jq '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Bash|Write|Edit|MultiEdit|NotebookEdit","hooks":[{"type":"command","command":"bash /opt/mirabilis/consent-gate.sh"}]}])' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
+  jq '(.hooks.PreToolUse) |= (map(.hooks |= map(select((.command != "bash /opt/mirabilis/protect-critical.sh") and (.command != "bash /opt/mirabilis/consent-gate.sh")))) | map(select((.hooks | length) > 0)))' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
 fi
