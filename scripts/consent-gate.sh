@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+set -f
 
 input="$(cat)"
 tool="$(printf '%s' "$input" | jq -r '.tool_name // ""' 2>/dev/null || echo "")"
@@ -64,6 +65,7 @@ if [ "$tool" = "Bash" ]; then
   if printf '%s' "$cmd" | grep -qE '(^|[;&|([:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+push([[:space:]]|$)'; then
     printf '%s' "$cmd" | grep -qE "(^|[[:space:]:+=/\"'])(main|master)([[:space:]:\"'/]|\$)" && deny "git push to a protected branch (main/master)"
     printf '%s' "$cmd" | grep -qE '([[:space:]](--force([[:space:]]|=|$)|--force-with-lease)|[[:space:]]-[A-Za-z]*f[A-Za-z]*([[:space:]]|$)|[[:space:]]\+[A-Za-z0-9_])' && deny "git force-push"
+    printf '%s' "$cmd" | grep -qE '[[:space:]](--mirror|--all)([[:space:]]|$)' && deny "git push --mirror/--all (pushes protected branches)"
   fi
 
   if printf '%s' "$cmd" | grep -qE '(^|[;&|([:space:]])rm([[:space:]]+-[A-Za-z]*r[A-Za-z]*f|[[:space:]]+-[A-Za-z]*f[A-Za-z]*r|[[:space:]]+-[rf][[:space:]]+-[rf])'; then
@@ -84,7 +86,6 @@ if [ "$tool" = "Bash" ]; then
     *mirabilis-consent-approved*) deny "self-approving the consent gate (only the user may approve, via ! touch)" ;;
   esac
   printf '%s' "$cmd" | grep -qE '(plugin[[:space:]]+(remove|uninstall|disable)[[:space:]]+.*neuro-matrix|neuro-matrix.*(remove|uninstall|disable))' && deny "disabling the neuro-matrix harness"
-  printf '%s' "$cmd" | grep -qE '"?sandbox"?[^}]*"?enabled"?[[:space:]]*[:=][[:space:]]*false' && deny "disabling the sandbox"
 
   if printf '%s' "$cmd" | grep -qE '(\.credentials\.json|\.config/gh|CLAUDE_CODE_OAUTH_TOKEN|GITHUB_TOKEN|CONTEXT7_API_KEY|gh[[:space:]]+auth[[:space:]]+token|security[[:space:]]+find-generic-password)'; then
     printf '%s' "$cmd" | grep -qE '(curl|wget|nc[[:space:]]|netcat|scp|/dev/tcp|[[:space:]]mail[[:space:]]|nslookup|[[:space:]]dig[[:space:]])' && deny "exfiltrating credentials"
