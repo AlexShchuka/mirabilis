@@ -2,11 +2,7 @@
 
 die() { echo "mirabilis: $*" >&2; exit 1; }
 have_gum() { command -v gum >/dev/null 2>&1; }
-open_host_url() {
-  if command -v open >/dev/null 2>&1; then open "$1" >/dev/null 2>&1 || true
-  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" >/dev/null 2>&1 || true
-  fi
-}
+open_host_url() { command -v open >/dev/null 2>&1 && open "$1" >/dev/null 2>&1 || true; }
 
 confirm() {
   local reply
