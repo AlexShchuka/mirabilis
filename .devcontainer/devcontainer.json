@@ -9,11 +9,7 @@
     "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "containerEnv": {
-    "DISABLE_AUTOUPDATER": "1"
-  },
   "initializeCommand": "bash .devcontainer/initialize.sh",
-  "postStartCommand": "bash /opt/mirabilis/refresh.sh",
   "customizations": {
     "vscode": {
       "extensions": ["anthropic.claude-code"]

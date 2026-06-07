@@ -33,7 +33,7 @@ stronger isolation boundary (microVM) than a container provides.
 - **GitHub and Claude** sign-in use the native flows (`gh auth login`, Claude's
   first-run login) and persist **inside the sandbox volumes** — `~/.config/gh`
   (`gh-config`) and `~/.claude/.credentials.json` (`claude-home`, mode `0600`).
-  They never touch the repository and survive `mirabilis update`.
+  They never touch the repository and survive updates and rebuilds.
 - The **Context7** API key lives in the macOS Keychain (`scripts/token.sh set
   context7`) and is injected as an environment variable at run time.
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the

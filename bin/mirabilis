@@ -12,7 +12,6 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DC="$REPO/scripts/dc.sh"
 TOKEN="$REPO/scripts/token.sh"
-VERSION="0.2.0"
 SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
 PROXY_PORT="${MIRABILIS_PROXY_PORT:-38128}"
 PROXY_RUN="${TMPDIR:-/tmp}/mirabilis-proxy"
@@ -49,7 +48,7 @@ ensure_tools() {
 
 ensure_extras() {
   command -v gum >/dev/null 2>&1 \
-    || echo "mirabilis: optional tool 'gum' is missing — run 'make bootstrap' for the full UX." >&2
+    || echo "mirabilis: optional tool 'gum' is missing — run 'make bootstrap' for the full menu." >&2
 }
 
 ensure_docker() {
@@ -115,33 +114,49 @@ stop_proxy() {
   rm -f "$PROXY_PID" 2>/dev/null || true
 }
 
+PREFLIGHT_CRIT=""
+PREFLIGHT_WARN=""
 preflight() {
-  local host_ip cont_ip code sb mcp msgs=""
-  host_ip="$(curl -s -m 8 https://api.ipify.org 2>/dev/null || true)"
+  local host_ip cont_ip code sb mcp crit="" warn=""
   cont_ip="$(dxq curl -s -m 8 https://api.ipify.org || true)"
+  host_ip="$(curl -s -m 8 https://api.ipify.org 2>/dev/null || true)"
   if [ -z "$cont_ip" ]; then
-    msgs="$msgs"$'\n'"  egress: the container has no outbound — is the proxy up?"
+    crit="$crit"$'\n'"  egress: the container has no outbound — is the proxy up?"
   elif [ -n "$host_ip" ] && [ "$cont_ip" != "$host_ip" ]; then
-    msgs="$msgs"$'\n'"  egress: container exits $cont_ip, host exits $host_ip — not routing through your host"
+    warn="$warn"$'\n'"  egress: container exits $cont_ip, host exits $host_ip — not routing through your host"
   fi
   code="$(dxq curl -s -o /dev/null -w '%{http_code}' -m 12 https://api.anthropic.com/v1/models || true)"
   case "${code:-000}" in
     200|401|403) ;;
-    000) msgs="$msgs"$'\n'"  api.anthropic.com: unreachable" ;;
-    *)   msgs="$msgs"$'\n'"  api.anthropic.com: HTTP $code" ;;
+    000) crit="$crit"$'\n'"  api.anthropic.com: unreachable" ;;
+    *)   crit="$crit"$'\n'"  api.anthropic.com: HTTP $code" ;;
   esac
   sb="$(dxq bash -lc 'jq -r ".sandbox.enabled" ~/.claude/settings.json 2>/dev/null' || true)"
-  [ "$sb" = true ] || msgs="$msgs"$'\n'"  sandbox: not enabled in settings"
+  [ "$sb" = true ] || crit="$crit"$'\n'"  sandbox: not enabled in settings"
+  dxq bash -lc 'claude plugin list 2>/dev/null | grep -q neuro-matrix' \
+    || crit="$crit"$'\n'"  neuro-matrix: harness not installed (check git/network/token)"
   dxq bash -lc 'jq -e ".enabledPlugins[\"neuro-matrix@mirabilis\"]" ~/.claude/settings.json >/dev/null 2>&1' \
-    || msgs="$msgs"$'\n'"  neuro-matrix: plugin not enabled (token?)"
+    || crit="$crit"$'\n'"  neuro-matrix: plugin not enabled"
   mcp="$(dxq claude mcp list || true)"
-  printf '%s\n' "$mcp" | grep -qi github   || msgs="$msgs"$'\n'"  github MCP: not registered (token?)"
-  printf '%s\n' "$mcp" | grep -qi context7 || msgs="$msgs"$'\n'"  context7 MCP: not registered"
-  if [ -n "$msgs" ]; then
-    printf 'mirabilis: preflight —%s\n' "$msgs" >&2
-  else
-    printf 'mirabilis: healthy — egress via your host (%s)\n' "${cont_ip:-?}" >&2
+  printf '%s\n' "$mcp" | grep -qi github   || warn="$warn"$'\n'"  github MCP: not registered (token?)"
+  printf '%s\n' "$mcp" | grep -qi context7 || warn="$warn"$'\n'"  context7 MCP: not registered"
+  PREFLIGHT_CRIT="$crit"
+  PREFLIGHT_WARN="$warn"
+}
+
+preflight_gate() {
+  preflight
+  if [ -n "$PREFLIGHT_CRIT" ]; then
+    echo "mirabilis: critical checks failed — re-running per-start setup once…" >&2
+    dxq bash /opt/mirabilis/refresh.sh || true
+    preflight
   fi
+  [ -n "$PREFLIGHT_WARN" ] && printf 'mirabilis: warnings (continuing) —%s\n' "$PREFLIGHT_WARN" >&2
+  if [ -n "$PREFLIGHT_CRIT" ]; then
+    printf 'mirabilis: STOP — critical environment failure:%s\n' "$PREFLIGHT_CRIT" >&2
+    die "egress, Claude access and the neuro-matrix harness are required — fix the above and run mirabilis again"
+  fi
+  printf 'mirabilis: healthy — egress via your host\n' >&2
 }
 
 lifecycle() {
@@ -151,6 +166,7 @@ lifecycle() {
 }
 
 rebuild_image() {
+  stop_proxy
   lifecycle down >/dev/null 2>&1 || true
   docker image rm mirabilis:local >/dev/null 2>&1 || true
 }
@@ -175,17 +191,16 @@ is_stale() {
   [ "$cont" != "$src" ]
 }
 
-prompt_if_stale() {
-  container_exists || return 0
-  is_stale || return 0
-  local cont; cont="$(container_version)"
-  echo "mirabilis: the workspace container (${cont:-old}) is behind your checkout ($(repo_version))." >&2
-  if confirm "mirabilis: rebuild it now? memory, auth and /workspace are kept"; then
-    echo "mirabilis: rebuilding…" >&2
-    rebuild_image
-  else
-    echo "mirabilis: keeping the existing container." >&2
-  fi
+repo_behind() {
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo 0; return; }
+  GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q origin 2>/dev/null || { echo 0; return; }
+  git -C "$REPO" rev-parse --verify -q origin/main >/dev/null 2>&1 || { echo 0; return; }
+  git -C "$REPO" rev-list --count HEAD..origin/main 2>/dev/null || echo 0
+}
+
+nm_status() {
+  container_running || { echo unknown; return; }
+  dxq bash -lc 'claude plugin list 2>/dev/null | grep -q neuro-matrix' && echo ok || echo missing
 }
 
 pull_latest() {
@@ -199,22 +214,9 @@ pull_latest() {
   GIT_TERMINAL_PROMPT=0 git -C "$REPO" pull --ff-only >/dev/null 2>&1 || { echo "mirabilis: pull failed (diverged or offline) — resolve manually." >&2; return 1; }
 }
 
-prompt_if_outdated() {
-  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || return 0
-  GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch -q origin 2>/dev/null || return 0
-  git -C "$REPO" rev-parse --verify -q origin/main >/dev/null 2>&1 || return 0
-  local behind; behind="$(git -C "$REPO" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)"
-  [ "${behind:-0}" -gt 0 ] || return 0
-  echo "mirabilis: a newer version is available ($(repo_version) → $(git -C "$REPO" rev-parse --short origin/main), $behind commit(s) behind)." >&2
-  confirm "mirabilis: update now? switches to main, pulls, rebuilds" || { echo "mirabilis: keeping the current version." >&2; return 0; }
-  pull_latest || return 0
-  echo "mirabilis: updated to $(repo_version) — rebuilding and relaunching…" >&2
-  MIRABILIS_REBUILD=1 exec "$REPO/bin/mirabilis"
-}
-
 ensure_github() {
   dx gh auth status >/dev/null 2>&1 && return 0
-  echo "mirabilis: first run — signing in to GitHub. Your Mac browser will open github.com/login/device; type the one-time code shown below and approve." >&2
+  echo "mirabilis: signing in to GitHub. Your Mac browser will open github.com/login/device; type the one-time code shown below and approve." >&2
   open_host_url "https://github.com/login/device"
   dx env GH_BROWSER=true BROWSER=true gh auth login --hostname github.com --git-protocol https --web || die "GitHub sign-in failed — run 'mirabilis' again"
   dx gh auth setup-git || true
@@ -223,7 +225,15 @@ ensure_github() {
 
 ensure_claude() {
   dxq bash -lc '[ -s "$HOME/.claude/.credentials.json" ] || [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]' && return 0
-  echo "mirabilis: Claude needs sign-in. Recommended: run 'mirabilis token claude' for headless auth (no browser; persists across rebuilds — re-run 'mirabilis restart' if the workspace is already up). Otherwise complete the sign-in Claude shows next: it prints a URL to open in your browser; approve, then paste the code back here. Saved for next time." >&2
+  echo "mirabilis: Claude needs sign-in. Complete the sign-in Claude shows on first launch: it prints a URL to open in your browser; approve, then paste the code back. Saved for next time." >&2
+}
+
+set_theme() {
+  local th="$1"
+  case "$th" in auto|dark|light|dark-daltonized|light-daltonized) ;; *) return 0 ;; esac
+  dx bash -lc "printf '%s\n' '$th' > \"\$HOME/.claude/.mirabilis-theme\"" || true
+  dx bash -lc "tmp=\$(mktemp); jq --arg t '$th' '.theme=\$t' \"\$HOME/.claude/settings.json\" > \"\$tmp\" && mv \"\$tmp\" \"\$HOME/.claude/settings.json\" || rm -f \"\$tmp\"" \
+    && echo "mirabilis: theme set to $th." >&2 || echo "mirabilis: theme saved for next launch." >&2
 }
 
 system_prompt_file() {
@@ -236,39 +246,93 @@ system_prompt_file() {
   ' _ "$SANDBOX_PROMPT"
 }
 
-launch() {
-  ensure_tools
-  ensure_extras
-  ensure_docker
-  prompt_if_outdated
-  local fresh=1
-  if [ -n "${MIRABILIS_REBUILD:-}" ]; then
-    rebuild_image
-  elif container_running && ! is_stale; then
-    fresh=0
-  else
-    prompt_if_stale
-  fi
+prepare_container() {
   ensure_proxy
-  if [ "$fresh" = 1 ]; then
-    up
-    ensure_github
-    ensure_claude
-    preflight
+  if container_running && ! is_stale; then
+    return 0
   fi
+  if container_exists && is_stale; then
+    echo "mirabilis: the workspace (${1:-old}) is behind your checkout ($(repo_version)) — rebuilding (memory, auth and /workspace are kept)." >&2
+    rebuild_image
+  fi
+  up
+  ensure_github
+  ensure_claude
+}
+
+do_launch() {
+  prepare_container "$(container_version)"
+  preflight_gate
   local ght; ght="$(dxq gh auth token || true)"
   exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
-update() {
-  ensure_tools
+do_update() {
   ensure_docker
-  echo "mirabilis: updating source…" >&2
-  pull_latest || echo "mirabilis: rebuilding the current source instead." >&2
-  echo "mirabilis: rebuilding image + container — memory, auth and /workspace are kept…" >&2
+  local behind; behind="$(repo_behind)"
+  if [ "${behind:-0}" -gt 0 ]; then
+    echo "mirabilis: $behind commit(s) behind origin/main — updating source…" >&2
+    pull_latest || echo "mirabilis: rebuilding the current source instead." >&2
+  else
+    echo "mirabilis: source is up to date — rebuilding the workspace…" >&2
+  fi
   rebuild_image
+  ensure_proxy
   up
-  echo "mirabilis: updated to $(repo_version) — run 'mirabilis' to start." >&2
+  echo "mirabilis: updated to $(repo_version)." >&2
+}
+
+do_secrets() {
+  ensure_docker
+  ensure_proxy
+  container_running || up
+  ensure_github
+  ensure_claude
+  if [ -x "$TOKEN" ]; then
+    confirm "mirabilis: set/replace the context7 API key?" && "$TOKEN" set context7 || true
+  fi
+}
+
+do_theme() {
+  ensure_docker
+  container_running || up
+  local th
+  if have_gum; then
+    th="$(gum choose --header "Theme" auto dark light dark-daltonized light-daltonized || true)"
+  else
+    printf 'theme (auto/dark/light): ' >/dev/tty 2>/dev/null || return 0
+    read -r th </dev/tty 2>/dev/null || return 0
+  fi
+  set_theme "$th"
+}
+
+menu() {
+  ensure_tools
+  ensure_extras
+  ensure_docker
+  local behind nm header choice
+  behind="$(repo_behind)"
+  nm="$(nm_status)"
+  header="mirabilis"
+  container_exists && is_stale && header="$header · workspace: stale (rebuild on launch)"
+  [ "${behind:-0}" -gt 0 ] && header="$header · mirabilis: $behind behind origin/main"
+  [ "$nm" = missing ] && header="$header · neuro-matrix: missing"
+  if have_gum; then
+    choice="$(gum choose --header "$header" "Запустить" "Обновить" "Войти / секреты" "Тема" "Выход" || echo Выход)"
+  else
+    echo "$header" >&2
+    echo "  1) Запустить  2) Обновить  3) Войти / секреты  4) Тема  5) Выход" >&2
+    printf 'выбор [1]: ' >/dev/tty 2>/dev/null || { do_launch; return; }
+    local n; read -r n </dev/tty 2>/dev/null || n=1
+    case "${n:-1}" in 2) choice=Обновить ;; 3) choice="Войти / секреты" ;; 4) choice=Тема ;; 5) choice=Выход ;; *) choice=Запустить ;; esac
+  fi
+  case "$choice" in
+    "Обновить")          do_update; menu ;;
+    "Войти / секреты")   do_secrets; menu ;;
+    "Тема")              do_theme; menu ;;
+    "Выход")             exit 0 ;;
+    *)                   do_launch ;;
+  esac
 }
 
 print_completion() {
@@ -278,38 +342,12 @@ print_completion() {
   esac
 }
 
-usage() {
-  cat >&2 <<'EOF'
-mirabilis — autonomous Claude Code workspace
-
-  mirabilis            start the workspace and open Claude
-                       (first run self-installs + builds; after that this is
-                        the only command you need)
-  mirabilis update     pull the latest version and rebuild from scratch
-                       (your memory, auth and /workspace are kept)
-
-Other commands:
-  mirabilis down|restart     stop / recreate the workspace
-  mirabilis token gh|claude|context7   replace a stored secret
-  mirabilis check            show which secrets are set
-  mirabilis completion zsh   print the zsh completion script
-  mirabilis version
-EOF
-}
-
 main() {
-  local c="${1:-}"; [ $# -gt 0 ] && shift || true
-  case "$c" in
-    ""|claude|run|up)     launch ;;
-    update|upgrade)       update ;;
-    down)                 lifecycle down; stop_proxy ;;
-    restart)              ensure_docker; recreate; echo "restarted." >&2 ;;
-    token)                "$TOKEN" set "${1:-}" ;;
-    check)                "$TOKEN" check ;;
-    completion)           print_completion "${1:-zsh}" ;;
-    version|-v|--version) echo "mirabilis $VERSION ($(repo_version))" ;;
-    help|-h|--help)       usage ;;
-    *)                    die "unknown command '$c' (run 'mirabilis help')" ;;
+  case "${1:-}" in
+    completion)           print_completion "${2:-zsh}" ;;
+    version|-v|--version) echo "mirabilis $(repo_version)" ;;
+    help|-h|--help)       echo "mirabilis — autonomous Claude Code workspace. Run 'mirabilis' (opens the menu: launch / update / sign-in / theme)." >&2 ;;
+    *)                    menu ;;
   esac
 }
 

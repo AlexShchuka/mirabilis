@@ -24,13 +24,14 @@ for the threat model.
 ## Commands
 
 ```
-mirabilis            start the workspace and open Claude (first run self-configures)
-mirabilis update     pull the latest version and rebuild (memory + auth kept)
-mirabilis down|restart
+mirabilis            the only command — opens a menu: launch / update / sign-in / theme
 ```
 
-`mirabilis help` lists the rest. The launcher is `bin/mirabilis` — read it before
-changing any lifecycle behaviour.
+Every run opens the menu, highlighting anything stale (the workspace container, the
+mirabilis repo, the neuro-matrix harness); pick **launch** to drop into Claude. Update
+and sign-in live in the menu, not as subcommands. `mirabilis completion zsh` and
+`mirabilis version` are the only other invocations. The launcher is `bin/mirabilis` —
+read it before changing any lifecycle behaviour.
 
 ## Where things live
 
@@ -38,14 +39,18 @@ Change a behaviour in its owning file, not by restating it here.
 
 | Concern | File |
 |---|---|
-| Launcher, lifecycle, update/staleness, preflight, egress proxy | `bin/mirabilis` |
-| Image: base, system tools, RTK binary | `docker/Dockerfile` |
-| Volumes, `/workspace` mount, container env, proxy wiring | `docker-compose.yml` |
+| Launcher, menu, staleness, preflight + fail-fast gate, egress proxy | `bin/mirabilis` |
+| Image: base, system tools, Python + .NET SDK, RTK binary (pinned) | `docker/Dockerfile` |
+| Volumes, `/workspace` mount, container env, proxy wiring, entrypoint | `docker-compose.yml` |
 | Dev-container engine; Claude Code CLI + `gh` as official Features | `.devcontainer/devcontainer.json` |
-| Per-start re-seed: settings, `/workspace` trust, plugins, MCP, RTK hook | `.devcontainer/refresh.sh` |
-| Claude settings: sandbox allowlist + filesystem, plugins, theme, RTK data dir | `config/settings.json` |
+| Container entrypoint: runs per-start setup on every start (incl. auto-restart) | `.devcontainer/entrypoint.sh` |
+| Per-start setup (idempotent): settings seed, denyWrite render, theme, trust, plugins, MCP, apt-list, hook wiring | `.devcontainer/refresh.sh` |
+| Consent gate (honest gate + deny-set; PreToolUse hook) | `scripts/consent-gate.sh` |
+| Protected-paths single source (feeds the gate + sandbox denyWrite) | `config/protected-paths` |
+| Declared apt packages (re-applied at start) | `config/apt-packages.txt` |
+| Claude settings: sandbox allowlist + filesystem, plugins, theme | `config/settings.json` |
 | Agent-facing sandbox note (prepended to the system prompt) | `config/sandbox-context.md` |
-| Plugin marketplace (installs neuro-matrix) | `.claude-plugin/marketplace.json` |
+| Plugin marketplace (installs neuro-matrix, pinned `ref`) | `.claude-plugin/marketplace.json` |
 | MCP registration (Context7) | `scripts/provision-mcp.sh` |
 | Secret storage (macOS Keychain ↔ env) | `scripts/token.sh` |
 | Prerequisites / install / clean (power users, CI) | `Makefile` |
@@ -57,7 +62,10 @@ A `.devcontainer` driven by `@devcontainers/cli`. The image is built from
 (consumed, not vendored). Egress has two layers: all container traffic is routed
 through a host-side proxy so it rides your Mac's network, and the agent's Bash is
 separately confined by Claude Code's native sandbox allowlist — no iptables, no
-`NET_ADMIN`. Persistent volumes (`~/.claude`, `~/.config/gh`) keep memory and auth
-across `mirabilis update`; `/workspace` is the host bind-mount; everything else is
-ephemeral. At launch the neuro-matrix protocol is appended to the system prompt
-and its hooks add the invariant and verification gates.
+`NET_ADMIN`. Per-start setup runs in the container **entrypoint** (idempotent), so
+every start path — `mirabilis`, `docker compose up`, or Docker auto-restart — comes
+up configured. Persistent volumes (`~/.claude`, `~/.config/gh`) keep memory and auth
+across updates; `/workspace` is the host bind-mount; everything else is ephemeral.
+At launch the neuro-matrix protocol is appended to the system prompt and its hooks
+add the invariant and verification gates; a separate consent-gate hook (with a
+deny-set) plus the host preflight enforce sensitive-action consent and fail-fast.

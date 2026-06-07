@@ -61,13 +61,18 @@ flowchart LR
   P3 --> P4["Дистрибуция:\nbrew install mirabilis (OSS)"]
 ```
 
-## 7. Открытые вопросы (все — [ИИ], ждут твоего слова)
+## 7. Открытые вопросы ([ИИ]; часть закрыта PR «coherent box»)
 
-- [ ] Консент-диалог: TTY сессии vs host-bridge — проверить доступ хука к TTY ([CONSENT.md](CONSENT.md) §5).
-- [ ] Финальный `deny`-набор (что нельзя **никогда**, даже с согласия).
-- [ ] Формат declared-list (apt/стеки/плагины) и точный allowlist реестров.
-- [ ] Конвенция структуры `/workspace` и ключ памяти для не-репо активностей ([ARCHITECTURE.md](ARCHITECTURE.md) §7).
-- [ ] Дистрибуция: `brew`-формула / упаковка.
+- [x] Консент-диалог: TTY vs host-bridge — **закрыто** (хук не имеет управляющего терминала, Claude Code
+  v2.1.139+; принят механизм отложенного маркера, [CONSENT.md](CONSENT.md) §3/§5).
+- [x] Финальный `deny`-набор — **подтверждён владельцем**: push/force в `main`/`master`, вывод кредов
+  наружу, `rm -rf` вне `/workspace`/`/tmp`, отключение/обход гейта/харнеса.
+- [x] Формат declared-list + allowlist реестров — **v1 задан**: `config/apt-packages.txt` + домены
+  PyPI/npm/NuGet/.NET/debian в `config/settings.json`.
+- [x] **Переход к I1:** подкоманды `update/down/restart/token/check` свёрнуты — единственная команда
+  `mirabilis` открывает меню.
+- [~] Конвенция структуры `/workspace`: владелец выбрал «папки да, память **глобальная**»; набор папок
+  (`projects/neuro-matrix/research/interview/learning`) зашит как рабочая конвенция в agent-заметку
+  ([ARCHITECTURE.md](ARCHITECTURE.md) §7). Финальное закрепление как [ВЛАДЕЛЕЦ] — по желанию.
+- [ ] Дистрибуция: `brew`-формула / упаковка — **отложено на следующий PR** (clone+make остаётся мостом).
 - [ ] Бэкап/синк `/workspace` и памяти за пределами bind-mount.
-- [ ] **Переход к I1:** текущий `bin/mirabilis` ещё имеет подкоманды `update/down/restart/token`
-  (описаны в `AGENTS.md`) — их нужно свернуть в единый флоу. I1 — цель, текущий код пока отличается.

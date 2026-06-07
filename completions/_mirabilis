@@ -5,17 +5,12 @@ _mirabilis() {
   case "$state" in
     cmds)
       _values "mirabilis command" \
-        "update[pull latest and rebuild, keeping memory]" \
-        "down[stop the workspace]" \
-        "restart[recreate the container]" \
-        "token[replace a secret: gh|claude|context7]" \
-        "check[show configured secrets]" \
-        "completion[print the completion script]" \
-        "version[print version]"
+        "completion[print the zsh completion script]" \
+        "version[print version]" \
+        "help[show help]"
       ;;
     args)
       case "$line[1]" in
-        token)      _values "secret" "gh" "claude" "context7" ;;
         completion) _values "shell" "zsh" ;;
       esac
       ;;

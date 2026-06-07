@@ -14,15 +14,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq less sudo tini \
       bubblewrap socat \
-      ripgrep unzip tzdata
+      ripgrep unzip tzdata \
+      python3 python3-venv python3-pip
 
+ARG RTK_VERSION=v0.42.3
 RUN arch="$(dpkg --print-architecture)" \
     && case "$arch" in \
          arm64) target=aarch64-unknown-linux-gnu ;; \
          amd64) target=x86_64-unknown-linux-musl ;; \
          *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
        esac \
-    && base="https://github.com/rtk-ai/rtk/releases/latest/download" \
+    && base="https://github.com/rtk-ai/rtk/releases/download/${RTK_VERSION}" \
     && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o "/tmp/rtk-${target}.tar.gz" "${base}/rtk-${target}.tar.gz" \
     && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/rtk-checksums.txt "${base}/checksums.txt" \
     && (cd /tmp && sha256sum --ignore-missing -c rtk-checksums.txt) \
@@ -32,15 +34,25 @@ RUN arch="$(dpkg --print-architecture)" \
 
 RUN npm install -g ccstatusline@2.2.19
 
+ARG DOTNET_CHANNEL=LTS
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH=$PATH:/usr/share/dotnet
+RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel "$DOTNET_CHANNEL" --install-dir /usr/share/dotnet \
+    && ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
+    && rm -f /tmp/dotnet-install.sh
+
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
 COPY config/                    /opt/mirabilis/config/
 COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY scripts/provision-mcp.sh   /usr/local/bin/provision-mcp.sh
-COPY scripts/protect-critical.sh /opt/mirabilis/protect-critical.sh
+COPY scripts/consent-gate.sh    /opt/mirabilis/consent-gate.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/protect-critical.sh /opt/mirabilis/refresh.sh
+COPY .devcontainer/entrypoint.sh /opt/mirabilis/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/provision-mcp.sh /opt/mirabilis/consent-gate.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

@@ -76,8 +76,11 @@
 | E4 | предлагал убрать `restart: unless-stopped` | сохраняем (персистентность) |
 | E5 | предлагал убрать bypass | bypass — инвариант I3 |
 
-## 5. Переход current → target [ИИ] (из ревью критика, C1)
+## 5. Переход current → target [ИИ] (из ревью критика, C1) — закрыто PR «coherent box»
 
-Текущий `bin/mirabilis` ещё содержит подкоманды `update/down/restart/token` (описаны в `AGENTS.md`).
-I1 («единственная команда») — **цель**, нынешний код отличается. `AGENTS.md` не правится в этом
-doc-PR (он корректно описывает текущее поведение); сворачивание команд — отдельная задача роадмапа P1.
+I1 реализован: `bin/mirabilis` свёрнут в единственную команду → меню (обновить/войти/настройки);
+подкоманды `update/down/restart/token/check` убраны; `AGENTS.md` приведён к этой реальности. Тем же PR:
+единый идемпотентный entrypoint (H2), fail-fast preflight на всех путях (I7/H1/M2/M3), честный
+consent-gate + deny-set вместо фейкового маркера (M1), единый источник защищённых путей `config/protected-paths`
+(L5), Python + .NET SDK в образ и allowlist реестров (P2/F1), пиннинг RTK и single-source
+`DISABLE_AUTOUPDATER` (H3/M7), удалён мёртвый `VERSION` (L3). brew-дистрибуция (P4) — отдельный следующий PR.
