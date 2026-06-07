@@ -60,5 +60,9 @@ RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
 ARG MIRABILIS_VERSION=unknown
 ENV MIRABILIS_VERSION=$MIRABILIS_VERSION
 
+RUN printf 'node ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/node \
+    && chmod 0440 /etc/sudoers.d/node \
+    && visudo -cf /etc/sudoers.d/node
+
 USER node
 WORKDIR /workspace

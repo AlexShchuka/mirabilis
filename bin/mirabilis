@@ -91,7 +91,6 @@ dc_up() {
   fi
 }
 up()      { dc_up; }
-recreate(){ dc_up --remove-existing-container; }
 dx()      { "$DC" exec --workspace-folder "$REPO" "$@"; }
 dxq()     { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
 
@@ -169,6 +168,7 @@ rebuild_image() {
   stop_proxy
   lifecycle down >/dev/null 2>&1 || true
   docker image rm mirabilis:local >/dev/null 2>&1 || true
+  ensure_proxy
 }
 
 confirm() {
@@ -295,6 +295,7 @@ do_secrets() {
 
 do_theme() {
   ensure_docker
+  ensure_proxy
   container_running || up
   local th
   if have_gum; then

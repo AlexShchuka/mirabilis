@@ -32,6 +32,7 @@ is_protected() {
 }
 
 marker="${TMPDIR:-/tmp}/mirabilis-consent-approved"
+marker_base="${marker##*/}"
 
 gate_request() {
   local subject="$1" now mt
@@ -98,6 +99,7 @@ if [ "$tool" = "Bash" ]; then
     for tok in $cmd; do
       tok="${tok%\"}"; tok="${tok#\"}"; tok="${tok%\'}"; tok="${tok#\'}"
       case "$tok" in "~/"*) tok="$HOME/${tok#\~/}" ;; esac
+      case "${tok##*/}" in "$marker_base") deny "self-approving the consent gate (only the user may approve, via ! touch)" ;; esac
       case "$tok" in /*) is_protected "$tok" && gate_request "Bash writes into a protected path: $cmd" ;; esac
     done
   fi
