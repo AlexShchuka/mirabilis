@@ -32,8 +32,6 @@ Prefer to clone it yourself (e.g. to develop mirabilis)?
 does the same.
 
 ## More
-
-- `mirabilis` — the only command; it opens a menu (launch / update / plugins / harness / sign-in / theme). Docker Desktop must be running;
 - [`AGENTS.md`](AGENTS.md) — architecture and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
 
