@@ -23,7 +23,7 @@ ensure_docker() {
   [ -d /Applications/Docker.app ] || die "Docker daemon is not running — start Docker Desktop."
   echo "mirabilis: starting Docker Desktop…" >&2
   open -a Docker
-  for _ in $(seq 1 60); do docker info >/dev/null 2>&1 && return 0; sleep 2; done
+  for _ in {1..60}; do docker info >/dev/null 2>&1 && return 0; sleep 2; done
   die "Docker did not come up — open Docker Desktop and run 'mirabilis' again."
 }
 
@@ -55,19 +55,12 @@ dc_up() {
     die "full build log: $BUILD_LOG"
   fi
 }
-up()      { dc_up; }
 dx()      { "$DC" exec --workspace-folder "$REPO" "$@"; }
 dxq()     { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
 
-lifecycle() {
-  cd "$REPO"
-  . "$REPO/src/env.sh"
-  docker compose -p mirabilis -f docker-compose.yml "$@"
-}
-
 rebuild_image() {
   stop_proxy
-  lifecycle down >/dev/null 2>&1 || true
+  ( cd "$REPO" && . "$REPO/src/env.sh" && docker compose -p mirabilis -f docker-compose.yml down ) >/dev/null 2>&1 || true
   docker image rm mirabilis:local >/dev/null 2>&1 || true
   ensure_proxy
 }
@@ -81,7 +74,7 @@ prepare_container() {
     echo "mirabilis: the workspace (${1:-old}) is behind your checkout ($(repo_version)) — rebuilding (memory, auth and /workspace are kept)." >&2
     rebuild_image
   fi
-  up
+  dc_up
   ensure_github
   ensure_claude
 }

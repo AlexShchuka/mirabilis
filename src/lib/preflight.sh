@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-PREFLIGHT_CRIT=""
-PREFLIGHT_WARN=""
 preflight() {
   local host_ip cont_ip code sb mcp hc crit="" warn=""
   cont_ip="$(dxq curl -s -m 8 https://api.ipify.org || true)"
@@ -29,20 +27,21 @@ preflight() {
   mcp="$(dxq claude mcp list || true)"
   printf '%s\n' "$mcp" | grep -qi github   || warn="$warn"$'\n'"  github MCP: not registered (token?)"
   printf '%s\n' "$mcp" | grep -qi context7 || warn="$warn"$'\n'"  context7 MCP: not registered"
-  PREFLIGHT_CRIT="$crit"
-  PREFLIGHT_WARN="$warn"
+  printf '%s\037%s' "$crit" "$warn"
 }
 
 preflight_gate() {
-  preflight
-  if [ -n "$PREFLIGHT_CRIT" ]; then
+  local out crit warn
+  out="$(preflight)"; crit="${out%%$'\037'*}"; warn="${out#*$'\037'}"
+  if [ -n "$crit" ]; then
     echo "mirabilis: critical checks failed — re-running per-start setup once…" >&2
-    dxq bash /opt/mirabilis/refresh.sh || true
-    preflight
+    dxq bash /opt/mirabilis/refresh.sh \
+      || echo "mirabilis: WARN — per-start setup retry itself failed (see container logs)" >&2
+    out="$(preflight)"; crit="${out%%$'\037'*}"; warn="${out#*$'\037'}"
   fi
-  [ -n "$PREFLIGHT_WARN" ] && printf 'mirabilis: warnings (continuing) —%s\n' "$PREFLIGHT_WARN" >&2
-  if [ -n "$PREFLIGHT_CRIT" ]; then
-    printf 'mirabilis: STOP — critical environment failure:%s\n' "$PREFLIGHT_CRIT" >&2
+  [ -n "$warn" ] && printf 'mirabilis: warnings (continuing) —%s\n' "$warn" >&2
+  if [ -n "$crit" ]; then
+    printf 'mirabilis: STOP — critical environment failure:%s\n' "$crit" >&2
     die "egress and Claude access are required — fix the above and run mirabilis again"
   fi
   printf 'mirabilis: healthy — egress via your host\n' >&2

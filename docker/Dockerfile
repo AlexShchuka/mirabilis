@@ -34,14 +34,18 @@ RUN arch="$(dpkg --print-architecture)" \
 
 RUN npm install -g ccstatusline@2.2.19
 
+ARG STACKS=
 ARG DOTNET_CHANNEL=10.0
 ENV DOTNET_ROOT=/usr/share/dotnet
 ENV PATH=$PATH:/usr/share/dotnet
-RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
-    && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --channel "$DOTNET_CHANNEL" --install-dir /usr/share/dotnet \
-    && ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
-    && rm -f /tmp/dotnet-install.sh
+RUN case ",${STACKS}," in \
+      *,dotnet,*) \
+        curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
+        && chmod +x /tmp/dotnet-install.sh \
+        && /tmp/dotnet-install.sh --channel "$DOTNET_CHANNEL" --install-dir /usr/share/dotnet \
+        && ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet \
+        && rm -f /tmp/dotnet-install.sh ;; \
+    esac
 
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
     && chown -R node:node /workspace /opt/mirabilis /home/node

@@ -25,12 +25,13 @@ for the threat model.
 ## Commands
 
 ```
-mirabilis            the only command — opens a menu: launch / update / plugins / harness / sign-in / theme
+mirabilis            the only command — opens a menu: launch / update / plugins / harness / stack / sign-in / theme
 ```
 
 Every run opens the menu, highlighting anything stale (the workspace container, the
-mirabilis repo, the neuro-matrix harness); pick **launch** to drop into Claude. Update
-and sign-in live in the menu, not as subcommands. `mirabilis completion zsh` and
+mirabilis repo, the neuro-matrix harness); pick **launch** to drop into Claude. Update,
+plugin/harness/stack selection and sign-in live in the menu, not as subcommands.
+`mirabilis completion zsh` and
 `mirabilis version` are the only other invocations. The launcher is `src/bin/mirabilis`,
 a thin entrypoint that sources single-responsibility modules in `src/lib/` (util,
 version, proxy, docker, preflight, auth, prompt, menu) — read the relevant `src/lib/*.sh`
@@ -44,14 +45,15 @@ Change a behaviour in its owning file, not by restating it here.
 |---|---|
 | Launcher entrypoint: bash re-exec, config consts, sources `src/lib/`, dispatches | `src/bin/mirabilis` |
 | Launcher modules, one concern each: shared utils · versioning/staleness · egress proxy · docker lifecycle · preflight + fail-fast gate · auth/theme · system-prompt assembly · menu | `src/lib/*.sh` |
-| Image: base, system tools, Python + .NET SDK, RTK binary (pinned) | `docker/Dockerfile` |
+| Image: base, system tools, Python (always), RTK binary (pinned) + optional stacks (.NET) baked when selected via `STACKS` | `docker/Dockerfile` |
 | Volumes, `/workspace` mount, container env, proxy wiring, entrypoint | `docker-compose.yml` |
 | Dev-container engine; Claude Code CLI + `gh` as official Features | `.devcontainer/devcontainer.json` |
 | Container entrypoint: runs per-start setup on every start (incl. auto-restart) | `.devcontainer/entrypoint.sh` |
 | Per-start setup (idempotent): settings seed, theme, trust, git identity (from gh), harness (opt-out) + plugins from catalog, MCP, apt-list | `.devcontainer/refresh.sh` |
-| Declared apt packages (re-applied at start) | `config/apt-packages.txt` |
+| Ad-hoc extra apt packages (re-applied at start; empty by default — base toolchain is baked) | `config/apt-packages.txt` |
 | Plugin catalog (installed at start unless deselected at first run) | `config/plugins.txt` |
-| Claude settings: sandbox allowlist + filesystem, plugins, theme | `config/settings.json` |
+| Optional stack catalog (baked at build when selected; node + Python are always present) | `config/stacks.txt` |
+| Claude settings: sandbox allowlist + filesystem, plugins, theme. Seeded into the container each start — **this file is the source of truth; in-container edits to seeded keys are overwritten** | `config/settings.json` |
 | Agent-facing sandbox note (prepended to the system prompt) | `config/sandbox-context.md` |
 | Plugin marketplace (installs neuro-matrix, pinned `ref`) | `.claude-plugin/marketplace.json` |
 | MCP registration (Context7) | `src/provision-mcp.sh` |
@@ -69,7 +71,12 @@ code, not config.
 
 A `.devcontainer` driven by `@devcontainers/cli`. The image is built from
 `docker/Dockerfile`; the Claude Code CLI and `gh` are added as official **Features**
-(consumed, not vendored). Egress has two layers: all container traffic is routed
+(consumed, not vendored). The image bakes node + Python and core tooling unconditionally;
+heavy optional stacks (.NET today) are baked only when picked from the catalog
+`config/stacks.txt` (menu **stack** or the first-run wizard); the selection is stored
+host-side in `.env` as `STACKS` and flows into the build as an arg. Anything
+else the agent installs ad-hoc at runtime (I2) — promote it to the catalog in a commit if
+it must persist. Egress has two layers: all container traffic is routed
 through a host-side proxy so it rides your Mac's network, and the agent's Bash is
 separately confined by Claude Code's native sandbox allowlist — no iptables, no
 `NET_ADMIN`. Per-start setup runs in the container **entrypoint** (idempotent), so

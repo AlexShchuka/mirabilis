@@ -102,8 +102,3 @@ if command -v rtk >/dev/null 2>&1; then
   jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "rtk hook claude")' "$DEST" >/dev/null 2>&1 \
     || rtk init -g --auto-patch >/dev/null 2>&1 || true
 fi
-
-if [ -f "$DEST" ] && jq -e . "$DEST" >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  jq 'if (.hooks.PreToolUse) then (.hooks.PreToolUse) |= (map(.hooks |= map(select((.command // "") | startswith("bash /opt/mirabilis/") | not))) | map(select((.hooks | length) > 0))) else . end' "$DEST" > "$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
-fi
