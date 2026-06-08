@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/list"
@@ -12,25 +10,10 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// Status is the menu's view of the workspace, fed as JSON on stdin by the bash orchestrator.
 type Status struct {
-	CommitsBehind int    `json:"commitsBehind"`
-	Stale         bool   `json:"stale"`
-	Harness       string `json:"harness"`
-}
-
-func FromStdin() Status {
-	var s Status
-	fi, err := os.Stdin.Stat()
-	if err != nil || (fi.Mode()&os.ModeCharDevice) != 0 {
-		return s
-	}
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil || len(data) == 0 {
-		return s
-	}
-	_ = json.Unmarshal(data, &s)
-	return s
+	CommitsBehind int
+	Stale         bool
+	Harness       string
 }
 
 type item struct {
@@ -82,14 +65,11 @@ type Model struct {
 
 func New(st Status) Model {
 	items := []list.Item{
-		item{"launch", "Запустить", "запустить Claude в контейнере"},
-		item{"update", "Обновить", "обновить mirabilis и пересобрать"},
+		item{"launch", "Запустить", "пайплайн настройки + Claude в контейнере"},
 		item{"plugins", "Плагины", "выбрать плагины Claude Code"},
 		item{"harness", "Харнес", "neuro-matrix: вкл / выкл / переустановить"},
 		item{"stacks", "Стек", "опциональные стеки сборки"},
 		item{"vscode", "Открыть в VS Code", "подключить /workspace в VS Code"},
-		item{"secrets", "Войти / секреты", "GitHub, Claude, context7, Telegram"},
-		item{"theme", "Тема", "цветовая тема Claude"},
 		item{"quit", "Выход", ""},
 	}
 	l := list.New(items, delegate{}, 0, 0)

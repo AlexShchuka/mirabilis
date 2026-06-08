@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,7 +18,7 @@ func driveTo(t *testing.T, m Model, index int) Model {
 }
 
 func TestEnterDispatchesSelectedAction(t *testing.T) {
-	want := []string{"launch", "update", "plugins", "harness", "stacks", "vscode", "secrets", "theme", "quit"}
+	want := []string{"launch", "plugins", "harness", "stacks", "vscode", "quit"}
 	for i, action := range want {
 		m := driveTo(t, New(Status{}), i)
 		final, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -45,8 +44,8 @@ func TestQuitKeys(t *testing.T) {
 
 func TestItemActionsMatchDispatcher(t *testing.T) {
 	dispatcher := map[string]bool{
-		"launch": true, "update": true, "plugins": true, "harness": true,
-		"stacks": true, "vscode": true, "secrets": true, "theme": true, "quit": true,
+		"launch": true, "plugins": true, "harness": true,
+		"stacks": true, "vscode": true, "quit": true,
 	}
 	m := New(Status{})
 	seen := map[string]bool{}
@@ -63,40 +62,6 @@ func TestItemActionsMatchDispatcher(t *testing.T) {
 	for action := range dispatcher {
 		if !seen[action] {
 			t.Errorf("dispatcher action %q has no menu item", action)
-		}
-	}
-}
-
-func TestStatusUnmarshal(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  Status
-	}{
-		{"valid", `{"commitsBehind":3,"stale":true,"harness":"missing"}`, Status{CommitsBehind: 3, Stale: true, Harness: "missing"}},
-		{"empty object", `{}`, Status{}},
-		{"unknown harness", `{"harness":"unknown"}`, Status{Harness: "unknown"}},
-		{"partial", `{"stale":true}`, Status{Stale: true}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			var s Status
-			if err := json.Unmarshal([]byte(c.input), &s); err != nil {
-				t.Fatalf("unmarshal %q: %v", c.input, err)
-			}
-			if s != c.want {
-				t.Errorf("unmarshal %q = %+v, want %+v", c.input, s, c.want)
-			}
-		})
-	}
-}
-
-func TestStatusUnmarshalGarbage(t *testing.T) {
-	for _, input := range []string{"", "not json", "[1,2,3]", "null"} {
-		var s Status
-		_ = json.Unmarshal([]byte(input), &s)
-		if s != (Status{}) {
-			t.Errorf("garbage %q left non-zero status %+v", input, s)
 		}
 	}
 }
