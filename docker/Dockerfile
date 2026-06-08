@@ -6,6 +6,8 @@ ENV TZ="$TZ" \
     DISABLE_AUTOUPDATER=1 \
     LANG=C.UTF-8
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
