@@ -21,7 +21,7 @@ jobs:
           SHFMT_OPTS: -i 2 -ci
         with:
           sh_checker_checkbashisms_enable: true
-          sh_checker_exclude: test/test_helper src/menu
+          sh_checker_exclude: src/test/test_helper src/menu
 
   hadolint:
     name: dockerfile lint (hadolint)
@@ -50,7 +50,7 @@ jobs:
       - name: run bats
         env:
           BATS_LIB_PATH: /usr/lib
-        run: bats --print-output-on-failure --recursive test
+        run: bats --print-output-on-failure --recursive src/test
 
   go:
     name: go build · vet · test -race

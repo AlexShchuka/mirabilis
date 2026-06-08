@@ -33,7 +33,7 @@ jobs:
       - name: bats
         env:
           BATS_LIB_PATH: /usr/lib
-        run: bats --print-output-on-failure --recursive test
+        run: bats --print-output-on-failure --recursive src/test
       - name: go
         run: |
           if [ -f src/menu/go.mod ]; then

@@ -4,7 +4,7 @@ _load_libs() {
   bats_load_library bats-assert
 }
 
-REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
 export REPO_ROOT
 
 setup_shim_dir() {

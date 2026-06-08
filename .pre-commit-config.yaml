@@ -11,7 +11,7 @@ repos:
     rev: v3.13.1-1
     hooks:
       - id: shfmt
-        args: ["-i", "2", "-d"]
+        args: ["-i", "2", "-ci", "-d"]
 
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
@@ -26,4 +26,4 @@ repos:
         language: system
         entry: bash -c 'command -v checkbashisms >/dev/null 2>&1 && exec checkbashisms "$@" || { echo "checkbashisms not installed (apt-get install devscripts) — skipping"; exit 0; }' --
         types: [shell]
-        exclude: ^(test/test_helper/|src/menu/)
+        exclude: ^(src/test/test_helper/|src/menu/)

@@ -28,7 +28,7 @@ beats reliability beats security-from-exfiltration (`docs/INVARIANTS.md` I8).
 
 `config/` your editable config · `src/` the host launcher (`bin/` + `lib/*.sh` modules +
 `menu/` Go TUI) · `docker/`, `.devcontainer/`, `docker-compose.yml`, `.claude-plugin/` the
-container definition · `docs/` the RU design contract · `test/` the bats suite.
+container definition · `docs/` the RU design contract · `src/test/` the bats suite.
 
 ## Don't
 
