@@ -17,15 +17,12 @@ mass–energy equivalence, E=mc²) reshaped physics in a single year.
 
 - **Isolated by design** — the Docker container is the security boundary; inside, the agent
   has full freedom (root, `sudo`, any file), so it never needs approval prompts.
-- **Autonomous Claude Code** — launches in bypass mode with the neuro-matrix harness that
-  supplies the agent's operating protocol, invariants, and hooks.
+- **Autonomous Claude Code** — launches in bypass mode.
 - **Open egress** — the container reaches the network directly; no host proxy, no in-container
   allowlist. Stopping credential exfiltration is the harness's job; `WebFetch`/`WebSearch` always work.
-- **Persistent memory** — `~/.claude` and your GitHub auth live in volumes that survive
-  rebuilds; path-scoped memory rules load per file type.
+- **Persistent memory** — `~/.claude` live in volumes that survive rebuilds; path-scoped memory rules load per file type.
 - **One TUI menu** — launch, plugins, harness, stack, open in VS Code — all from a single Go
-  terminal UI. "Launch" runs an idempotent setup pipeline (update · build · sign-in · theme ·
-  harness · preflight), each step retried under policy, then drops you into Claude.
+  terminal UI. Each step retried under policy, then drops you into Claude.
 
 ## Requirements
 
