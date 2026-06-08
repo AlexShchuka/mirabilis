@@ -15,3 +15,13 @@ tmp/
 *.key
 .credentials.json
 *.credentials
+docs/
+.github/
+src/menu/
+src/test/
+*.md
+/Makefile
+/Brewfile
+/install.sh
+/mirabilis
+/.editorconfig
