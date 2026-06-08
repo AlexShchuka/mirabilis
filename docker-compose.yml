@@ -25,12 +25,6 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TZ: ${TZ:-Etc/UTC}
       XDG_DATA_HOME: /home/node/.claude/xdg-data
-      HTTP_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
-      HTTPS_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
-      http_proxy: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
-      https_proxy: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}
-      NO_PROXY: localhost,127.0.0.1,::1
-      no_proxy: localhost,127.0.0.1,::1
     volumes:
       - workspace:/workspace
       - claude-home:/home/node/.claude

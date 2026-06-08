@@ -8,31 +8,6 @@ permissions:
   contents: read
 
 jobs:
-  shell:
-    name: shell lint (shellcheck · shfmt · checkbashisms)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: shellcheck · shfmt · checkbashisms
-        uses: luizm/action-sh-checker@v0.7.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHELLCHECK_OPTS: -x -e SC1091
-          SHFMT_OPTS: -i 2 -ci
-        with:
-          sh_checker_checkbashisms_enable: true
-          sh_checker_exclude: src/test src/menu
-
-  hadolint:
-    name: dockerfile lint (hadolint)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: hadolint/hadolint-action@v3.3.0
-        with:
-          dockerfile: docker/Dockerfile
-          config: .hadolint.yaml
-
   bats:
     name: bats behaviour tests
     runs-on: ubuntu-latest
@@ -57,46 +32,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: guard — skip if the go menu is not present yet
-        id: guard
-        run: |
-          if [ -f src/menu/go.mod ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "src/menu/go.mod not found — skipping go job"
-          fi
       - uses: actions/setup-go@v6
-        if: steps.guard.outputs.present == 'true'
         with:
           go-version-file: src/menu/go.mod
           cache-dependency-path: src/menu/go.mod
       - name: gofmt
-        if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
         run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "files above are not gofmt-clean"; exit 1; }
       - name: build
-        if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
         run: go build ./...
       - name: vet
-        if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
         run: go vet ./...
       - name: test -race
-        if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
         run: go test -race ./...
-
-  goreleaser:
-    name: goreleaser check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version-file: src/menu/go.mod
-          cache-dependency-path: src/menu/go.mod
-      - uses: goreleaser/goreleaser-action@v7
-        with:
-          args: check

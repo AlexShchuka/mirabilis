@@ -39,7 +39,7 @@ stub_die() {
 @test "preflight_gate: stops on a critical failure" {
   stub_die
   dxq() { bash /opt/mirabilis/refresh.sh 2>/dev/null || true; }
-  preflight() { printf '%s\037%s' $'\n  sandbox: not enabled in settings' ""; }
+  preflight() { printf '%s\037%s' $'\n  api.anthropic.com: unreachable' ""; }
   run preflight_gate
   assert_failure
   assert_output --partial "STOP"

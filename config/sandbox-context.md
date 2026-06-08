@@ -6,9 +6,9 @@ This note says **where** you are; the neuro-matrix protocol below says **how** t
 - **Permissions:** full autonomy (`--dangerously-skip-permissions`) — no approval prompts.
   The container is the safety boundary; inside it you have full freedom, so act decisively.
   Break your own container and a rebuild restores it.
-- **Egress:** a default-deny allowlist (the native sandbox) confines your Bash to trusted
-  hosts only. `WebSearch` and `WebFetch` go through the Anthropic API and always work. To
-  reach a new host from Bash, add it to `sandbox.network.allowedDomains`.
+- **Egress:** open — the container reaches the network directly (no in-container allowlist).
+  `WebSearch` and `WebFetch` go through the Anthropic API. Behavioural limits (no credential
+  exfiltration) are the **harness's** job, not a network gate.
 - **Storage — know where things live:**
   - `/workspace` — the only place to clone repos and write code; a named volume the sandbox
     owns (not a host folder), opened from your editor via VS Code (Dev Containers attach).

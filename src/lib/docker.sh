@@ -57,14 +57,11 @@ dx() { "$DC" exec --workspace-folder "$REPO" "$@"; }
 dxq() { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
 
 rebuild_image() {
-  stop_proxy
   (cd "$REPO" && . "$REPO/src/env.sh" && docker compose -p mirabilis -f docker-compose.yml down) >/dev/null 2>&1 || true
   docker image rm mirabilis:local >/dev/null 2>&1 || true
-  ensure_proxy
 }
 
 prepare_container() {
-  ensure_proxy
   if container_running && ! is_stale; then
     return 0
   fi

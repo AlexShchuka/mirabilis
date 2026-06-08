@@ -7,56 +7,6 @@
     "padding": 0,
     "refreshInterval": 10
   },
-  "sandbox": {
-    "enabled": true,
-    "failIfUnavailable": true,
-    "allowUnsandboxedCommands": false,
-    "enableWeakerNestedSandbox": true,
-    "filesystem": {
-      "allowWrite": ["/"]
-    },
-    "network": {
-      "allowedDomains": [
-        "host.docker.internal",
-        "api.anthropic.com",
-        "claude.ai",
-        "console.anthropic.com",
-        "statsig.anthropic.com",
-        "sentry.io",
-        "github.com",
-        "api.github.com",
-        "codeload.github.com",
-        "objects.githubusercontent.com",
-        "raw.githubusercontent.com",
-        "api.githubcopilot.com",
-        "registry.npmjs.org",
-        "pypi.org",
-        "files.pythonhosted.org",
-        "proxy.golang.org",
-        "sum.golang.org",
-        "api.nuget.org",
-        "www.nuget.org",
-        "dot.net",
-        "dotnetcli.azureedge.net",
-        "builds.dotnet.microsoft.com",
-        "dotnetcli.blob.core.windows.net",
-        "aka.ms",
-        "deb.debian.org",
-        "security.debian.org",
-        "mcp.context7.com",
-        "context7.com",
-        "api.telegram.org",
-        "export.arxiv.org",
-        "arxiv.org",
-        "huggingface.co",
-        "cdn-lfs.huggingface.co",
-        "cdn-lfs-us-1.huggingface.co",
-        "cdn-lfs-eu-1.huggingface.co",
-        "cas-bridge.xethub.hf.co",
-        "download.pytorch.org"
-      ]
-    }
-  },
   "includeCoAuthoredBy": true,
   "hooks": {
     "Stop": [

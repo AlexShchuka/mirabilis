@@ -4,7 +4,7 @@
 **autonomous AI coding agent** in an isolated Docker sandbox. You get full bypass autonomy
 behind a container boundary, the
 [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) agent harness preinstalled,
-persistent memory, and a configurable egress allowlist — a personal, open-source workspace
+persistent memory, and open egress — a personal, open-source workspace
 where the agent can build, research, and learn without touching your Mac.
 
 ## Why mirabilis
@@ -13,8 +13,8 @@ where the agent can build, research, and learn without touching your Mac.
   has full freedom (root, `sudo`, any file), so it never needs approval prompts.
 - **Autonomous Claude Code** — launches in bypass mode with the neuro-matrix harness that
   supplies the agent's operating protocol, invariants, and hooks.
-- **Configurable egress allowlist** — container traffic rides a host proxy and the agent's
-  Bash is confined to an explicit list of trusted hosts; `WebFetch`/`WebSearch` always work.
+- **Open egress** — the container reaches the network directly; no host proxy, no in-container
+  allowlist. Stopping credential exfiltration is the harness's job; `WebFetch`/`WebSearch` always work.
 - **Persistent memory** — `~/.claude` and your GitHub auth live in volumes that survive
   rebuilds; path-scoped memory rules load per file type.
 - **One TUI menu** — launch, update, plugins, harness, stack, open in VS Code, sign-in and

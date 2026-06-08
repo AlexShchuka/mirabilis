@@ -28,7 +28,6 @@ do_update() {
 
 do_secrets() {
   ensure_docker
-  ensure_proxy
   container_running || dc_up
   ensure_github
   ensure_claude
@@ -44,7 +43,6 @@ do_secrets() {
 
 do_theme() {
   ensure_docker
-  ensure_proxy
   container_running || dc_up
   local cur th
   cur="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-theme" 2>/dev/null' || true)"
@@ -55,7 +53,6 @@ do_theme() {
 
 do_harness() {
   ensure_docker
-  ensure_proxy
   container_running || dc_up
   local cur sel
   cur="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
@@ -87,7 +84,6 @@ harness_reinstall() {
 
 do_plugins() {
   ensure_docker
-  ensure_proxy
   container_running || dc_up
   local catalog_csv enabled_csv chosen
   catalog_csv="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null | tr "\n" "," | sed "s/,*$//"')"
@@ -155,10 +151,41 @@ do_stacks() {
   fi
 }
 
+resolve_code() {
+  if command -v code >/dev/null 2>&1; then
+    command -v code
+    return 0
+  fi
+  local b
+  for b in \
+    "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+    "$HOME/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" \
+    "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"; do
+    [ -x "$b" ] && {
+      printf '%s' "$b"
+      return 0
+    }
+  done
+  return 1
+}
+
+offer_code_on_path() {
+  local src="$1" dir
+  for dir in ${MIRABILIS_BIN_DIRS:-/opt/homebrew/bin /usr/local/bin}; do
+    if [ -d "$dir" ] && [ -w "$dir" ] && [ ! -e "$dir/code" ]; then
+      ln -sf "$src" "$dir/code" 2>/dev/null &&
+        echo "mirabilis: linked 'code' onto your PATH ($dir/code) — set up for next time." >&2
+      return 0
+    fi
+  done
+}
+
 do_vscode() {
   ensure_docker
-  command -v code >/dev/null 2>&1 || die "the 'code' command is not on PATH — in VS Code run \"Shell Command: Install 'code' command in PATH\", then retry."
-  ensure_proxy
+  local code_bin
+  code_bin="$(resolve_code)" ||
+    die "VS Code not found — install it from https://code.visualstudio.com, then run mirabilis again."
+  case "$code_bin" in */Contents/Resources/app/bin/code) offer_code_on_path "$code_bin" ;; esac
   container_running || {
     echo "mirabilis: workspace is not running — starting it…" >&2
     dc_up
@@ -169,7 +196,7 @@ do_vscode() {
   hex="$(printf '{"containerName":"/%s"}' "$name" | od -An -tx1 | tr -d ' \n')"
   uri="vscode-remote://attached-container+${hex}/workspace"
   echo "mirabilis: opening /workspace in VS Code (attached to container '$name')…" >&2
-  code --folder-uri "$uri" || die "VS Code failed to open — is the Dev Containers extension installed?"
+  "$code_bin" --folder-uri "$uri" || die "VS Code failed to open — is the Dev Containers extension installed?"
 }
 
 compose_container_name() {
@@ -178,7 +205,7 @@ compose_container_name() {
 
 first_run_stacks() {
   [ -f "$REPO/.env" ] && grep -q '^STACKS=' "$REPO/.env" && return 0
-  echo "mirabilis: первый запуск — выбери опциональные стеки (node + python уже в базе)." >&2
+  echo "mirabilis: первый запуск — выбери опциональные стеки (node + python + go уже в базе)." >&2
   select_stacks || stacks_save ""
 }
 

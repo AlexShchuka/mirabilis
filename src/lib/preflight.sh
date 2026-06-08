@@ -1,22 +1,15 @@
 #!/usr/bin/env bash
 
 preflight() {
-  local host_ip cont_ip code sb mcp hc crit="" warn=""
+  local cont_ip code mcp hc crit="" warn=""
   cont_ip="$(dxq curl -s -m 8 https://api.ipify.org || true)"
-  host_ip="$(curl -s -m 8 https://api.ipify.org 2>/dev/null || true)"
-  if [ -z "$cont_ip" ]; then
-    crit="$crit"$'\n'"  egress: the container has no outbound — is the proxy up?"
-  elif [ -n "$host_ip" ] && [ "$cont_ip" != "$host_ip" ]; then
-    warn="$warn"$'\n'"  egress: container exits $cont_ip, host exits $host_ip — not routing through your host"
-  fi
+  [ -n "$cont_ip" ] || crit="$crit"$'\n'"  egress: the container has no outbound network"
   code="$(dxq curl -s -o /dev/null -w '%{http_code}' -m 12 https://api.anthropic.com/v1/models || true)"
   case "${code:-000}" in
     200 | 401 | 403) ;;
     000) crit="$crit"$'\n'"  api.anthropic.com: unreachable" ;;
     *) crit="$crit"$'\n'"  api.anthropic.com: HTTP $code" ;;
   esac
-  sb="$(dxq bash -lc 'jq -r ".sandbox.enabled" ~/.claude/settings.json 2>/dev/null' || true)"
-  [ "$sb" = true ] || crit="$crit"$'\n'"  sandbox: not enabled in settings"
   hc="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
   if [ "$hc" = skip ]; then
     warn="$warn"$'\n'"  neuro-matrix: harness disabled — running bare (no protocol)"
@@ -48,5 +41,5 @@ preflight_gate() {
     printf 'mirabilis: STOP — critical environment failure:%s\n' "$crit" >&2
     die "egress and Claude access are required — fix the above and run mirabilis again"
   fi
-  printf 'mirabilis: healthy — egress via your host\n' >&2
+  printf 'mirabilis: healthy — egress reachable\n' >&2
 }

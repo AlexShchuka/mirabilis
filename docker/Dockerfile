@@ -15,7 +15,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq less sudo tini \
-      bubblewrap socat \
       ripgrep unzip tzdata \
       python3 python3-venv python3-pip
 
@@ -55,20 +54,17 @@ RUN case ",${STACKS}," in \
 ENV GOROOT=/usr/local/go
 ENV GOPATH=/home/node/go
 ENV PATH=$PATH:/usr/local/go/bin:/home/node/go/bin
-RUN case ",${STACKS}," in \
-      *,go,*) \
-        ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.dev/VERSION?m=text | head -n1)" \
-        && arch="$(dpkg --print-architecture)" \
-        && case "$arch" in \
-             arm64) goarch=arm64 ;; \
-             amd64) goarch=amd64 ;; \
-             *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
-           esac \
-        && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/go.tar.gz "https://go.dev/dl/${ver}.linux-${goarch}.tar.gz" \
-        && rm -rf /usr/local/go \
-        && tar -C /usr/local -xzf /tmp/go.tar.gz \
-        && rm -f /tmp/go.tar.gz ;; \
-    esac
+RUN ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.dev/VERSION?m=text | head -n1)" \
+    && arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         arm64) goarch=arm64 ;; \
+         amd64) goarch=amd64 ;; \
+         *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/go.tar.gz "https://go.dev/dl/${ver}.linux-${goarch}.tar.gz" \
+    && rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm -f /tmp/go.tar.gz
 
 ENV MIRABILIS_STACKS=$STACKS
 

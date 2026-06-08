@@ -13,16 +13,11 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 DC="$REPO/src/dc.sh"
 TOKEN="$REPO/src/token.sh"
 SANDBOX_PROMPT="/opt/mirabilis/config/sandbox-context.md"
-PROXY_PORT="${MIRABILIS_PROXY_PORT:-38128}"
-PROXY_RUN="${TMPDIR:-/tmp}/mirabilis-proxy"
-PROXY_PID="$PROXY_RUN.pid"
-PROXY_CONF="$PROXY_RUN.conf"
-PROXY_LOG="$PROXY_RUN.log"
 BUILD_LOG="${TMPDIR:-/tmp}/mirabilis-build.log"
 
 export DOCKER_CLI_HINTS=false
 
-for _lib in util version proxy docker preflight auth prompt menu; do
+for _lib in util version docker preflight auth prompt menu; do
   . "$REPO/src/lib/$_lib.sh"
 done
 unset _lib

@@ -28,15 +28,13 @@ jobs:
         run: npm install -g @devcontainers/cli
       - name: devcontainer up
         run: devcontainer up --workspace-folder .
-      - name: assert settings seeded
-        run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox.network.allowedDomains | length > 0" "$HOME/.claude/settings.json"'
-      - name: assert sandbox tools present
-        run: devcontainer exec --workspace-folder . bash -lc 'command -v bwrap && command -v socat'
+      - name: assert settings seeded (no in-container sandbox)
+        run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
       - name: assert workspace trusted
         run: devcontainer exec --workspace-folder . bash -lc 'jq -e ".projects[\"/workspace\"].hasTrustDialogAccepted == true" "$HOME/.claude.json"'
 
   tests:
-    name: re-run lint + bats + go (best-effort)
+    name: re-run bats + go (best-effort)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
