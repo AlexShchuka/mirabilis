@@ -7,6 +7,12 @@ behind a container boundary, the
 persistent memory, and open egress — a personal, open-source workspace
 where the agent can build, research, and learn without touching your Mac.
 
+## The name
+
+*mirabilis* honors Einstein's *annus mirabilis* — his 1905 "miracle year", when four
+landmark papers (special relativity, the photoelectric effect, Brownian motion, and
+mass–energy equivalence, E=mc²) reshaped physics in a single year.
+
 ## Why mirabilis
 
 - **Isolated by design** — the Docker container is the security boundary; inside, the agent
@@ -40,26 +46,10 @@ and Claude (native flows, saved in the sandbox). After that, run it from anywher
 mirabilis
 ```
 
-Prefer to clone it yourself (e.g. to develop mirabilis)?
-`git clone https://github.com/AlexShchuka/mirabilis.git && cd mirabilis && make bootstrap install`
-does the same.
-
-## Open in VS Code
-
-The menu's **Open in VS Code** item attaches VS Code to the running container at
-`/workspace` (Dev Containers attach) — that is also how you bring files into the sandbox.
-
 ## Documentation
 
 - [`AGENTS.md`](AGENTS.md) — what the repo is, boundaries, and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture and invariants (RU).
-
-## The name
-
-*mirabilis* honors Einstein's *annus mirabilis* — his 1905 "miracle year", when four
-landmark papers (special relativity, the photoelectric effect, Brownian motion, and
-mass–energy equivalence, E=mc²) reshaped physics in a single year.
 
 ## License
 
