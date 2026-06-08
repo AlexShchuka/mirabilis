@@ -11,11 +11,6 @@ ensure_tools() {
   }
 }
 
-ensure_extras() {
-  command -v gum >/dev/null 2>&1 \
-    || echo "mirabilis: optional tool 'gum' is missing — run 'make bootstrap' for the full menu." >&2
-}
-
 ensure_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
   command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI is missing — run 'make bootstrap'."
@@ -23,23 +18,26 @@ ensure_docker() {
   [ -d /Applications/Docker.app ] || die "Docker daemon is not running — start Docker Desktop."
   echo "mirabilis: starting Docker Desktop…" >&2
   open -a Docker
-  for _ in {1..60}; do docker info >/dev/null 2>&1 && return 0; sleep 2; done
+  for _ in {1..60}; do
+    docker info >/dev/null 2>&1 && return 0
+    sleep 2
+  done
   die "Docker did not come up — open Docker Desktop and run 'mirabilis' again."
 }
 
 dc_up() {
   local rc=0
   if [ -t 2 ]; then
-    : > "$BUILD_LOG"
+    : >"$BUILD_LOG"
     printf 'mirabilis: building the workspace… (full log: %s)\n' "$BUILD_LOG" >&2
-    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 </dev/null &
+    "$DC" up --workspace-folder "$REPO" >"$BUILD_LOG" 2>&1 </dev/null &
     local pid=$! n=0 cols line
     local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
     cols="$(tput cols 2>/dev/null || echo 80)"
     while kill -0 "$pid" 2>/dev/null; do
       line="$(tail -n1 "$BUILD_LOG" 2>/dev/null | tr -d '\r' | sed -E 's/^\[[0-9T:.Z+-]+\] *//; s/^#[0-9]+ [0-9.]+ +//')"
       printf '\r\033[2K\033[36m%s\033[0m \033[2m%.*s\033[0m' \
-        "${frames[n % 10]}" "$(( cols > 12 ? cols - 4 : 8 ))" "${line:-starting…}" >&2
+        "${frames[n % 10]}" "$((cols > 12 ? cols - 4 : 8))" "${line:-starting…}" >&2
       n=$((n + 1))
       sleep 0.2
     done
@@ -47,7 +45,7 @@ dc_up() {
     printf '\r\033[2K' >&2
   else
     echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
-    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 || rc=$?
+    "$DC" up --workspace-folder "$REPO" >"$BUILD_LOG" 2>&1 || rc=$?
   fi
   if [ "$rc" -ne 0 ]; then
     echo "mirabilis: workspace failed to start — last 40 log lines:" >&2
@@ -55,12 +53,12 @@ dc_up() {
     die "full build log: $BUILD_LOG"
   fi
 }
-dx()      { "$DC" exec --workspace-folder "$REPO" "$@"; }
-dxq()     { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
+dx() { "$DC" exec --workspace-folder "$REPO" "$@"; }
+dxq() { "$DC" exec --workspace-folder "$REPO" "$@" </dev/null 2>/dev/null; }
 
 rebuild_image() {
   stop_proxy
-  ( cd "$REPO" && . "$REPO/src/env.sh" && docker compose -p mirabilis -f docker-compose.yml down ) >/dev/null 2>&1 || true
+  (cd "$REPO" && . "$REPO/src/env.sh" && docker compose -p mirabilis -f docker-compose.yml down) >/dev/null 2>&1 || true
   docker image rm mirabilis:local >/dev/null 2>&1 || true
   ensure_proxy
 }

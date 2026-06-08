@@ -1,4 +1,8 @@
 github@claude-plugins-official
-claude-code-setup@claude-plugins-official
 claude-md-management@claude-plugins-official
-chrome-devtools-mcp@claude-plugins-official
+code-review@claude-plugins-official
+security-guidance@claude-plugins-official
+commit-commands@claude-plugins-official
+frontend-design@claude-plugins-official
+typescript-lsp@claude-plugins-official
+pyright-lsp@claude-plugins-official

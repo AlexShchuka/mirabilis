@@ -32,6 +32,8 @@
         "registry.npmjs.org",
         "pypi.org",
         "files.pythonhosted.org",
+        "proxy.golang.org",
+        "sum.golang.org",
         "api.nuget.org",
         "www.nuget.org",
         "dot.net",
@@ -42,9 +44,43 @@
         "deb.debian.org",
         "security.debian.org",
         "mcp.context7.com",
-        "context7.com"
+        "context7.com",
+        "api.telegram.org",
+        "export.arxiv.org",
+        "arxiv.org",
+        "huggingface.co",
+        "cdn-lfs.huggingface.co",
+        "cdn-lfs-us-1.huggingface.co",
+        "cdn-lfs-eu-1.huggingface.co",
+        "cas-bridge.xethub.hf.co",
+        "download.pytorch.org"
       ]
     }
   },
-  "includeCoAuthoredBy": true
+  "includeCoAuthoredBy": true,
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /opt/mirabilis/config/hooks/telegram-notify.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /opt/mirabilis/config/hooks/telegram-notify.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
 }

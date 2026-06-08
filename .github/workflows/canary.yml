@@ -1,0 +1,60 @@
+name: canary
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: rebuild container image (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: docker build (default stacks)
+        run: docker build -f docker/Dockerfile -t mirabilis:canary .
+
+  devcontainer:
+    name: devcontainer up + configured assertions (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: install devcontainer CLI
+        run: npm install -g @devcontainers/cli
+      - name: devcontainer up
+        run: devcontainer up --workspace-folder .
+      - name: assert settings seeded
+        run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox.network.allowedDomains | length > 0" "$HOME/.claude/settings.json"'
+      - name: assert sandbox tools present
+        run: devcontainer exec --workspace-folder . bash -lc 'command -v bwrap && command -v socat'
+      - name: assert workspace trusted
+        run: devcontainer exec --workspace-folder . bash -lc 'jq -e ".projects[\"/workspace\"].hasTrustDialogAccepted == true" "$HOME/.claude.json"'
+
+  tests:
+    name: re-run lint + bats + go (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: install jq
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends jq
+      - name: setup bats + helper libs
+        uses: bats-core/bats-action@4.0.0
+        with:
+          bats-version: latest
+      - name: bats
+        env:
+          BATS_LIB_PATH: /usr/lib
+        run: bats --print-output-on-failure --recursive src/test
+      - name: go
+        run: |
+          if [ -f src/menu/go.mod ]; then
+            cd src/menu && go mod download && go build ./... && go vet ./... && go test -race ./...
+          else
+            echo "src/menu/go.mod not found — skipping go"
+          fi

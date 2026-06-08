@@ -29,10 +29,10 @@ unset _lib
 
 main() {
   case "${1:-}" in
-    completion)           print_completion "${2:-zsh}" ;;
-    version|-v|--version) echo "mirabilis $(repo_version)" ;;
-    help|-h|--help)       echo "mirabilis — autonomous Claude Code workspace. Run 'mirabilis' (opens the menu: launch / update / plugins / harness / stack / sign-in / theme)." >&2 ;;
-    *)                    menu ;;
+    completion) print_completion "${2:-zsh}" ;;
+    version | -v | --version) echo "mirabilis $(repo_version)" ;;
+    help | -h | --help) echo "mirabilis — autonomous Claude Code workspace. Run 'mirabilis' (opens the menu: launch / update / plugins / harness / stack / open in VS Code / sign-in / theme)." >&2 ;;
+    *) menu ;;
   esac
 }
 
