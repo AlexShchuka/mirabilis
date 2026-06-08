@@ -18,6 +18,23 @@ jobs:
       - name: docker build (default stacks)
         run: docker build -f docker/Dockerfile -t mirabilis:canary .
 
+  devcontainer:
+    name: devcontainer up + configured assertions (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: install devcontainer CLI
+        run: npm install -g @devcontainers/cli
+      - name: devcontainer up
+        run: devcontainer up --workspace-folder .
+      - name: assert settings seeded
+        run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox.network.allowedDomains | length > 0" "$HOME/.claude/settings.json"'
+      - name: assert sandbox tools present
+        run: devcontainer exec --workspace-folder . bash -lc 'command -v bwrap && command -v socat'
+      - name: assert workspace trusted
+        run: devcontainer exec --workspace-folder . bash -lc 'jq -e ".projects[\"/workspace\"].hasTrustDialogAccepted == true" "$HOME/.claude.json"'
+
   tests:
     name: re-run lint + bats + go (best-effort)
     runs-on: ubuntu-latest
