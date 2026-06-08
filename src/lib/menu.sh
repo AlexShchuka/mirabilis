@@ -171,7 +171,7 @@ resolve_code() {
 
 offer_code_on_path() {
   local src="$1" dir
-  for dir in /opt/homebrew/bin /usr/local/bin; do
+  for dir in ${MIRABILIS_BIN_DIRS:-/opt/homebrew/bin /usr/local/bin}; do
     if [ -d "$dir" ] && [ -w "$dir" ] && [ ! -e "$dir/code" ]; then
       ln -sf "$src" "$dir/code" 2>/dev/null &&
         echo "mirabilis: linked 'code' onto your PATH ($dir/code) — set up for next time." >&2

@@ -20,3 +20,4 @@ src/menu/bin/
 # runtime MCP config (not part of the repo)
 .mcp.json
 /src/menu/menu
+.claude/

@@ -74,13 +74,13 @@ flowchart LR
   **дело харнеса neuro-matrix** [ВЛАДЕЛЕЦ] (его инварианты + хуки в отдельном репозитории), а не песочницы
   mirabilis. Прежний `deny`-набор песочницы снят вместе с гейтом.
 - [x] Формат declared-list + allowlist реестров — **v1 задан**: `config/apt-packages.txt` + домены
-  PyPI/npm/NuGet/.NET/debian в `config/settings.json`.
+  PyPI/npm/NuGet/.NET/debian в `config/settings.json` (egress-allowlist впоследствии снят D39 — сеть открыта).
 - [x] **Переход к I1:** подкоманды `update/down/restart/token/check` свёрнуты — единственная команда
   `mirabilis` открывает меню.
 - [x] Конвенция структуры `/workspace` — **снята** [ВЛАДЕЛЕЦ]: раскладка свободная, фиксированный набор
   папок не навязывается. Память **глобальная** (`~/.claude` + нативный per-project контекст Claude);
   пер-папочной изоляции памяти нет.
 - [x] Дистрибуция (конфиг упаковки): `.goreleaser.yaml` (schema v2) собирает `mirabilis-menu`, `goreleaser check`
-  в CI — **сделано** (D38). Публикация `brew`-формулы и создание tap-репозитория `AlexShchuka/homebrew-mirabilis`
+  в CI — **сделано** (D38), затем **снято D39** (goreleaser убран, дистрибуция отложена). Публикация `brew`-формулы и создание tap-репозитория `AlexShchuka/homebrew-mirabilis`
   пока в виде заглушки `homebrew_casks` — **отложено на следующий PR** (clone+make остаётся мостом).
 - [ ] Бэкап/синк `/workspace` и памяти за пределами тома (named-volume).

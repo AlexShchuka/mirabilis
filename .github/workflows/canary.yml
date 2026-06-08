@@ -34,7 +34,7 @@ jobs:
         run: devcontainer exec --workspace-folder . bash -lc 'jq -e ".projects[\"/workspace\"].hasTrustDialogAccepted == true" "$HOME/.claude.json"'
 
   tests:
-    name: re-run lint + bats + go (best-effort)
+    name: re-run bats + go (best-effort)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:

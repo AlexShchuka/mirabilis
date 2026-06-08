@@ -82,7 +82,7 @@ type Model struct {
 
 func New(st Status) Model {
 	items := []list.Item{
-		item{"launch", "Запустить", "запустить Claude в песочнице"},
+		item{"launch", "Запустить", "запустить Claude в контейнере"},
 		item{"update", "Обновить", "обновить mirabilis и пересобрать"},
 		item{"plugins", "Плагины", "выбрать плагины Claude Code"},
 		item{"harness", "Харнес", "neuro-matrix: вкл / выкл / переустановить"},

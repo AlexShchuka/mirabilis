@@ -28,3 +28,19 @@ load 'lib_loader'
   assert_success
   assert_output --partial "Visual Studio Code.app"
 }
+
+@test "offer_code_on_path: links code into a writable bin dir that lacks it" {
+  bindir="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bindir"
+  MIRABILIS_BIN_DIRS="$bindir" offer_code_on_path "/some/path/code"
+  assert [ -L "$bindir/code" ]
+}
+
+@test "offer_code_on_path: leaves an existing code untouched" {
+  bindir="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bindir"
+  printf 'orig' >"$bindir/code"
+  MIRABILIS_BIN_DIRS="$bindir" offer_code_on_path "/some/path/code"
+  run cat "$bindir/code"
+  assert_output "orig"
+}
