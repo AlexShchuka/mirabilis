@@ -16,8 +16,8 @@ ensure_claude() {
 
 set_theme() {
   local th="$1"
-  case "$th" in auto|dark|light|dark-daltonized|light-daltonized) ;; *) return 0 ;; esac
+  case "$th" in auto | dark | light | dark-daltonized | light-daltonized) ;; *) return 0 ;; esac
   dx bash -lc "printf '%s\n' '$th' > \"\$HOME/.claude/.mirabilis-theme\"" || true
-  dx bash -lc "tmp=\$(mktemp); jq --arg t '$th' '.theme=\$t' \"\$HOME/.claude/settings.json\" > \"\$tmp\" && mv \"\$tmp\" \"\$HOME/.claude/settings.json\" || rm -f \"\$tmp\"" \
-    && echo "mirabilis: theme set to $th." >&2 || echo "mirabilis: theme saved for next launch." >&2
+  dx bash -lc "tmp=\$(mktemp); jq --arg t '$th' '.theme=\$t' \"\$HOME/.claude/settings.json\" > \"\$tmp\" && mv \"\$tmp\" \"\$HOME/.claude/settings.json\" || rm -f \"\$tmp\"" &&
+    echo "mirabilis: theme set to $th." >&2 || echo "mirabilis: theme saved for next launch." >&2
 }

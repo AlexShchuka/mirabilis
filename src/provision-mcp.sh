@@ -2,7 +2,10 @@
 set -uo pipefail
 
 log() { printf '[mcp] %s\n' "$*" >&2; }
-command -v claude >/dev/null 2>&1 || { log "claude not on PATH; skipping"; exit 0; }
+command -v claude >/dev/null 2>&1 || {
+  log "claude not on PATH; skipping"
+  exit 0
+}
 
 reg() {
   local name="$1" transport="$2" url="$3" header="${4:-}"

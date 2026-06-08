@@ -7,8 +7,8 @@ setup() {
   FAKE_OPT="$BATS_TEST_TMPDIR/opt/mirabilis"
   mkdir -p "$FAKE_HOME/.claude" "$FAKE_OPT/config" "$FAKE_OPT/marketplace/.claude-plugin"
   cp "$REPO_ROOT/config/settings.json" "$FAKE_OPT/config/settings.json"
-  : > "$FAKE_OPT/config/apt-packages.txt"
-  : > "$FAKE_OPT/config/plugins.txt"
+  : >"$FAKE_OPT/config/apt-packages.txt"
+  : >"$FAKE_OPT/config/plugins.txt"
 
   for c in sudo gh claude rtk dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
   make_shim provision-mcp.sh 'exit 0'
@@ -19,8 +19,8 @@ setup() {
 
 run_refresh() {
   HOME="$FAKE_HOME" \
-  PATH="$SHIM_DIR:$PATH" \
-  bash -c '
+    PATH="$SHIM_DIR:$PATH" \
+    bash -c '
     set -uo pipefail
     sed "s#/opt/mirabilis#'"$FAKE_OPT"'#g; s#/usr/local/bin/provision-mcp.sh#provision-mcp.sh#g; s#/usr/local/bin/git-identity.sh#git-identity.sh#g" "'"$REFRESH"'" > "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
     bash "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"

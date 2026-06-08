@@ -4,13 +4,13 @@ setup() {
   setup_shim_dir
   TOKEN="$REPO_ROOT/src/token.sh"
   export KC_STORE="$BATS_TEST_TMPDIR/kc"
-  : > "$KC_STORE"
+  : >"$KC_STORE"
   make_shim uname 'echo Darwin'
   make_security_shim
 }
 
 make_security_shim() {
-  cat > "$SHIM_DIR/security" <<'SH'
+  cat >"$SHIM_DIR/security" <<'SH'
 #!/usr/bin/env bash
 sub="$1"; shift
 svc=""; acct=""

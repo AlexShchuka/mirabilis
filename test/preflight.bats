@@ -8,7 +8,10 @@ setup() {
 load 'lib_loader'
 
 stub_die() {
-  die() { echo "DIE: $*" >&2; return 1; }
+  die() {
+    echo "DIE: $*" >&2
+    return 1
+  }
 }
 
 @test "preflight_gate: passes when no crit and no warn" {

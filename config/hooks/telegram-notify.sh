@@ -14,14 +14,14 @@ fi
 if [ -z "$event" ]; then
   case "$payload" in
     *'"hook_event_name"'*'"Notification"'*) event="Notification" ;;
-    *'"hook_event_name"'*'"Stop"'*)         event="Stop" ;;
+    *'"hook_event_name"'*'"Stop"'*) event="Stop" ;;
   esac
 fi
 
 case "$event" in
   Notification) text="❓ mirabilis: нужен твой ответ" ;;
-  Stop)         text="✅ mirabilis: задача завершена" ;;
-  *)            exit 0 ;;
+  Stop) text="✅ mirabilis: задача завершена" ;;
+  *) exit 0 ;;
 esac
 
 curl -fsS -m 10 -o /dev/null \

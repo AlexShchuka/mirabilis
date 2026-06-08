@@ -5,14 +5,16 @@ do_launch() {
   prepare_container "$(container_version)"
   first_run_setup
   preflight_gate
-  local ght; ght="$(dxq gh auth token || true)"
+  local ght
+  ght="$(dxq gh auth token || true)"
   [ -n "$ght" ] || echo "mirabilis: WARN — no GitHub token available; gh and the GitHub MCP may be limited." >&2
   exec "$DC" exec --workspace-folder "$REPO" env GITHUB_PERSONAL_ACCESS_TOKEN="$ght" COLORTERM=truecolor TERM=xterm-256color claude --dangerously-skip-permissions --append-system-prompt-file "$(system_prompt_file)"
 }
 
 do_update() {
   ensure_docker
-  local behind; behind="$(repo_behind)"
+  local behind
+  behind="$(repo_behind)"
   if [ "${behind:-0}" -gt 0 ]; then
     echo "mirabilis: $behind commit(s) behind origin/main — updating source…" >&2
     pull_latest || echo "mirabilis: rebuilding the current source instead." >&2
@@ -60,12 +62,16 @@ do_harness() {
   [ "$cur" = skip ] && cur=off || cur=on
   sel="$("$(menu_bin)" harness --current "$cur")" || return 0
   case "$sel" in
-    off)       dx bash -lc 'echo skip > "$HOME/.claude/.mirabilis-harness"' || true
-               echo "mirabilis: harness will be OFF at next start." >&2 ;;
-    on)        dx bash -lc 'echo install > "$HOME/.claude/.mirabilis-harness"' || true
-               echo "mirabilis: harness will be ON at next start." >&2 ;;
+    off)
+      dx bash -lc 'echo skip > "$HOME/.claude/.mirabilis-harness"' || true
+      echo "mirabilis: harness will be OFF at next start." >&2
+      ;;
+    on)
+      dx bash -lc 'echo install > "$HOME/.claude/.mirabilis-harness"' || true
+      echo "mirabilis: harness will be ON at next start." >&2
+      ;;
     reinstall) harness_reinstall ;;
-    *)         return 0 ;;
+    *) return 0 ;;
   esac
 }
 
@@ -85,7 +91,10 @@ do_plugins() {
   container_running || dc_up
   local catalog_csv enabled_csv chosen dis cat_all
   catalog_csv="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null | tr "\n" "," | sed "s/,*$//"')"
-  [ -n "$catalog_csv" ] || { echo "mirabilis: no plugin catalog found." >&2; return 0; }
+  [ -n "$catalog_csv" ] || {
+    echo "mirabilis: no plugin catalog found." >&2
+    return 0
+  }
   enabled_csv="$(dxq bash -lc '
     cat_all="$(sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null)"
     dis="$(cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null)"
@@ -106,20 +115,24 @@ do_plugins() {
 stacks_catalog() { sed -e '/^#/d' -e '/^[[:space:]]*$/d' "$REPO/config/stacks.txt" 2>/dev/null; }
 stacks_current() { [ -f "$REPO/.env" ] && sed -n 's/^STACKS=//p' "$REPO/.env" | tail -n1; }
 stacks_save() {
-  local f="$REPO/.env" tmp line; tmp="$(mktemp)"
+  local f="$REPO/.env" tmp line
+  tmp="$(mktemp)"
   if [ -f "$f" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
-      case "$line" in STACKS=*) ;; *) printf '%s\n' "$line" >> "$tmp" ;; esac
-    done < "$f"
+      case "$line" in STACKS=*) ;; *) printf '%s\n' "$line" >>"$tmp" ;; esac
+    done <"$f"
   fi
-  printf 'STACKS=%s\n' "$1" >> "$tmp"
+  printf 'STACKS=%s\n' "$1" >>"$tmp"
   mv "$tmp" "$f"
 }
 
 select_stacks() {
   local catalog_csv current chosen
   catalog_csv="$(stacks_catalog | tr '\n' ',' | sed 's/,*$//')"
-  [ -n "$catalog_csv" ] || { echo "mirabilis: no stack catalog found." >&2; return 1; }
+  [ -n "$catalog_csv" ] || {
+    echo "mirabilis: no stack catalog found." >&2
+    return 1
+  }
   current="$(stacks_current)"
   chosen="$("$(menu_bin)" stacks --options "$catalog_csv" --selected "${current:-}")" || return 1
   stacks_save "$chosen"
@@ -142,7 +155,10 @@ do_vscode() {
   ensure_docker
   command -v code >/dev/null 2>&1 || die "the 'code' command is not on PATH — in VS Code run \"Shell Command: Install 'code' command in PATH\", then retry."
   ensure_proxy
-  container_running || { echo "mirabilis: workspace is not running — starting it…" >&2; dc_up; }
+  container_running || {
+    echo "mirabilis: workspace is not running — starting it…" >&2
+    dc_up
+  }
   local name hex uri
   name="$(compose_container_name)"
   [ -n "$name" ] || die "could not determine the container name from docker-compose.yml."
@@ -178,22 +194,26 @@ menu() {
     status="$(menu_status_json)"
     choice="$(printf '%s' "$status" | "$(menu_bin)")" || choice=quit
     case "$choice" in
-      update)   do_update ;;
-      plugins)  do_plugins ;;
-      harness)  do_harness ;;
-      stacks)   do_stacks ;;
-      vscode)   do_vscode ;;
-      secrets)  do_secrets ;;
-      theme)    do_theme ;;
-      quit)     exit 0 ;;
-      launch|*) do_launch; exit $? ;;
+      update) do_update ;;
+      plugins) do_plugins ;;
+      harness) do_harness ;;
+      stacks) do_stacks ;;
+      vscode) do_vscode ;;
+      secrets) do_secrets ;;
+      theme) do_theme ;;
+      quit) exit 0 ;;
+      launch | *)
+        do_launch
+        exit $?
+        ;;
     esac
   done
 }
 
 menu_status_json() {
   local behind nm hc harness_val stale
-  behind="$(repo_behind)"; case "$behind" in *[!0-9]*) behind=0 ;; esac
+  behind="$(repo_behind)"
+  case "$behind" in *[!0-9]*) behind=0 ;; esac
   hc="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
   nm="$(nm_status)"
   if [ "$hc" = skip ]; then
@@ -214,6 +234,6 @@ menu_status_json() {
 print_completion() {
   case "${1:-zsh}" in
     zsh) cat "$REPO/src/completions/_mirabilis" ;;
-    *)   die "only zsh completion is bundled" ;;
+    *) die "only zsh completion is bundled" ;;
   esac
 }

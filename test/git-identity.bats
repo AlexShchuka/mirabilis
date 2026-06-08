@@ -3,7 +3,7 @@ setup() {
   _load_libs
   setup_shim_dir
   export SHIM_LOG="$BATS_TEST_TMPDIR/calls.log"
-  : > "$SHIM_LOG"
+  : >"$SHIM_LOG"
   SCRIPT="$REPO_ROOT/src/git-identity.sh"
 }
 
