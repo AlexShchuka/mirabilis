@@ -10,7 +10,7 @@ setup() {
   : >"$FAKE_OPT/config/apt-packages.txt"
   : >"$FAKE_OPT/config/plugins.txt"
 
-  for c in sudo gh claude rtk dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
+  for c in sudo gh git claude rtk dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
   make_shim provision-mcp.sh 'exit 0'
   make_shim git-identity.sh 'exit 0'
 
@@ -22,7 +22,7 @@ run_refresh() {
     PATH="$SHIM_DIR:$PATH" \
     bash -c '
     set -uo pipefail
-    sed "s#/opt/mirabilis#'"$FAKE_OPT"'#g; s#/usr/local/bin/provision-mcp.sh#provision-mcp.sh#g; s#/usr/local/bin/git-identity.sh#git-identity.sh#g" "'"$REFRESH"'" > "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
+    sed "s#/opt/mirabilis#'"$FAKE_OPT"'#g; s#/usr/local/bin/provision-mcp.sh#provision-mcp.sh#g; s#/usr/local/bin/git-identity.sh#git-identity.sh#g; s#^export HOME=/home/node#export HOME='"$FAKE_HOME"'#g" "'"$REFRESH"'" > "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
     bash "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
   '
 }
@@ -36,9 +36,10 @@ run_refresh() {
 
 @test "refresh is idempotent: settings.json stable across two runs" {
   run_refresh
-  cp "$FAKE_HOME/.claude/settings.json" "$BATS_TEST_TMPDIR/first.json"
+  jq --sort-keys . "$FAKE_HOME/.claude/settings.json" >"$BATS_TEST_TMPDIR/first.json"
   run_refresh
-  run diff "$BATS_TEST_TMPDIR/first.json" "$FAKE_HOME/.claude/settings.json"
+  jq --sort-keys . "$FAKE_HOME/.claude/settings.json" >"$BATS_TEST_TMPDIR/second.json"
+  run diff "$BATS_TEST_TMPDIR/first.json" "$BATS_TEST_TMPDIR/second.json"
   assert_success
 }
 

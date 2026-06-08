@@ -29,8 +29,10 @@ setup() {
 
 @test "exits 0 silently when gh is missing" {
   rm -f "$SHIM_DIR/gh"
-  PATH="$SHIM_DIR" run bash "$SCRIPT"
+  PATH="$SHIM_DIR" run "$(command -v bash)" "$SCRIPT"
   assert_success
+  run cat "$SHIM_LOG"
+  refute_output --partial 'config'
 }
 
 @test "exits 0 when gh api user is empty" {
