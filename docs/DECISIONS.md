@@ -38,13 +38,14 @@
 | D28 | python | оба уровня: интерпретатор в apt-list, venv в volume | F1; интерпретатор теперь печётся в образ как обязательная база (уточнено D30) |
 | D29 | I/O/процессы | добавить отдельный раздел | F2 |
 | D30 | Стек (python/.NET/…) | node + python — обязательная база (всегда стоит); тяжёлые опциональные (.NET) — выбор в меню «как плагины» (каталог `config/stacks.txt`, выбор в `.env`→build-arg `STACKS`); прочее Клод ставит ad-hoc (I2), постоянное — промоут в коммит | лёгкая коробка под нужное; «обязательное стоит, необязательное выбираешь» (#34) |
-| D31 | Меню/UI | Go-TUI (Bubble Tea + Bubbles `list` + Huh); `gum` убран; Bash — оркестратор+статус, Go — только рендер | один инструмент TUI; SRP: Go без docker/gh-вызовов |
+| D31 | Меню/UI | Go-TUI (Bubble Tea + Bubbles `list` + Lip Gloss + Huh); `gum` убран; Bash — оркестратор+статус, Go — только рендер | один инструмент TUI; SRP: Go без docker/gh-вызовов |
 | D32 | Конфигурация ≠ действие | выбор в меню пишет состояние; применение — при старте | → I9; предсказуемость, нет «тихих» мутаций |
 | D33 | Импорт файлов | отдельный пункт снят; файлы — через VS Code attach в `/workspace` | KISS; `code --folder-uri` уже открывает workspace |
 | D34 | Уведомления | односторонний Telegram-зуммер (`Stop`/`Notification` → `sendMessage`); официальный bidirectional-плагин отклонён | → I-Telegram; зуммер ≠ канал управления; отвечает владелец в терминале |
 | D35 | Плагины/MCP | набор: github, claude-md-management, code-review, security-guidance, commit-commands, frontend-design, typescript-lsp, pyright-lsp; MCP: context7+sequential-thinking+arxiv+docling; skill interview-coach; убраны claude-code-setup, chrome-devtools-mcp | каждый привязан к реальному UC; csharp-lsp/Playwright/jupyter исключены |
 | D36 | Память по типам файлов | `~/.claude/rules/*.md` с `paths:`-glob (path-scoped), seed no-clobber; теги `#dev/#science/#interview/#study` | один контейнер на много стеков → правила грузятся условно |
 | D37 | harness reinstall | узкий пункт меню переустанавливает только neuro-matrix | не задевает остальной seed (I9) |
+| D38 | Упаковка (GoReleaser) | конфиг `.goreleaser.yaml` (schema v2) — в репозитории СЕЙЧАС: сборка `mirabilis-menu` (darwin/linux × arm64/amd64), архивы, `goreleaser check` в CI; `homebrew_casks` указывает на БУДУЩИЙ tap `AlexShchuka/homebrew-mirabilis` (репозиторий tap и публикация формулы пока не создаются) | конфиг — дешёвый и проверяемый сейчас; публикация (release/tap) отложена, без version-pin (use-latest) |
 
 ## 2. Снятые противоречия
 
@@ -90,8 +91,10 @@
 I1 реализован: `bin/mirabilis` свёрнут в единственную команду → меню (обновить/войти/настройки);
 подкоманды `update/down/restart/token/check` убраны; `AGENTS.md` приведён к этой реальности. Тем же PR:
 единый идемпотентный entrypoint (H2), fail-fast preflight на всех путях (I7/H1/M2/M3),
-Python + .NET SDK (пин 10.0) в образ и allowlist реестров (P2/F1), пиннинг RTK и single-source
-`DISABLE_AUTOUPDATER` (H3/M7), удалён мёртвый `VERSION` (L3). brew-дистрибуция (P4) — отдельный следующий PR.
+Python в обязательную базу и allowlist реестров (P2/F1), пиннинг RTK и single-source
+`DISABLE_AUTOUPDATER` (H3/M7), удалён мёртвый `VERSION` (L3). .NET — не печётся безусловно: это
+**опциональный** build-arg стек (`config/stacks.txt` → `STACKS`), без зашитой версии (use-latest);
+актуальное решение — D30. Конфиг упаковки (GoReleaser) — в этом PR (D38); публикация brew-формулы/tap — отдельный следующий PR.
 
 Затем — новое решение [ВЛАДЕЛЕЦ], отменяющее прежний консент-гейт. Внутренняя защита файлов
 УДАЛЕНА целиком: нет консент-гейта (`scripts/consent-gate.sh`), нет `config/protected-paths`,

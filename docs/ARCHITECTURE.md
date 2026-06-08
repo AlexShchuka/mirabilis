@@ -49,7 +49,7 @@ flowchart LR
 > Декомпозиция предложена ассистентом из существующего кода + целей; не диктовалась дословно.
 
 > [ИИ]-переход (PR «coherent box»): интерактивный UI вынесен в Go-бинарь (Bubble Tea + Bubbles
-> `list` + Huh), `gum` убран; Bash остаётся оркестратором (docker/proxy/Keychain/preflight) и
+> `list` + Lip Gloss + Huh), `gum` убран; Bash остаётся оркестратором (docker/proxy/Keychain/preflight) и
 > считает статус, Go только рендерит и печатает выбор. Пункты меню пишут декларативное состояние,
 > применение — при старте (I9). Egress-allowlist расширен (`api.telegram.org`, arXiv/HF/PyTorch
 > для MCP).
@@ -58,7 +58,7 @@ flowchart LR
 flowchart TB
   subgraph HOST["macOS (хост)"]
     LCH[Хост-лаунчер\nsrc/bin/mirabilis]
-    PRX[Egress-прокси\ntinyproxy]
+    PRX[Транспорт-прокси\ntinyproxy — труба, не фильтр]
     KC[(Keychain — секреты)]
   end
   subgraph DOCKER["Docker"]
@@ -76,7 +76,7 @@ flowchart TB
   CT --- VOL
   CT --- GHV
   CT --- WS
-  CLAUDE -->|HTTP(S)_PROXY| PRX --> NET([Интернет: allowlist реестров])
+  CLAUDE -->|"Bash-трафик: нативный allowlist (sandbox.network.allowedDomains)"| PRX -->|транспорт| NET([Интернет])
 ```
 
 ## 3. Жизненный цикл и оркестрация
@@ -140,10 +140,14 @@ flowchart LR
 
 - **Чтение / research [ВЛАДЕЛЕЦ]:** `WebFetch` Клода достаточно (идёт по Anthropic API). [ИИ]: `WebSearch`
   — туда же, как дополнение (владельцем не оговаривался).
-- **Установка пакетов [ВЛАДЕЛЕЦ]:** реестры (pypi/nuget/debian/MS) в allowlist + ad-hoc (добавлением домена в allowlist); `WebFetch`
+- **Установка пакетов [ВЛАДЕЛЕЦ]:** реестры (pypi/nuget/debian/MS/go) в allowlist + ad-hoc (добавлением домена в allowlist); `WebFetch`
   пакетным менеджерам **не помогает** (см. T4 в [DECISIONS.md](DECISIONS.md)).
-- **Изоляция (I5) [ВЛАДЕЛЕЦ]:** контейнер не влияет на Mac. [ИИ]-замечание: сетевой egress идёт через
-  хост-прокси, поэтому полностью «нулевым» для хоста его называть нельзя (прокся живёт на хосте);
+- **Где живёт фильтр egress [ИИ] (сверено с [SECURITY.md](../SECURITY.md)):** собственно ограничение egress — это
+  **нативный allowlist Claude Code** (`sandbox.network.allowedDomains`, через bubblewrap+socat внутри контейнера),
+  он применяется к Bash-трафику агента. Хостовый `tinyproxy` — **транспортная труба** (`HTTP(S)_PROXY` контейнера),
+  а не доменный фильтр; одного слоя фильтрации, а не двух.
+- **Изоляция (I5) [ВЛАДЕЛЕЦ]:** контейнер не влияет на Mac. [ИИ]-замечание: сетевой трафик идёт через
+  хост-прокси-трубу, поэтому полностью «нулевым» для хоста его называть нельзя (прокся живёт на хосте);
   файловой системы Mac контейнер не касается.
 
 ## 7. Память и структура работы
