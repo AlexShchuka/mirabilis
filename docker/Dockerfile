@@ -70,6 +70,8 @@ RUN case ",${STACKS}," in \
         && rm -f /tmp/go.tar.gz ;; \
     esac
 
+ENV MIRABILIS_STACKS=$STACKS
+
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
     && chown -R node:node /workspace /opt/mirabilis /home/node
 

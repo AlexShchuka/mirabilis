@@ -32,6 +32,8 @@
         "registry.npmjs.org",
         "pypi.org",
         "files.pythonhosted.org",
+        "proxy.golang.org",
+        "sum.golang.org",
         "api.nuget.org",
         "www.nuget.org",
         "dot.net",

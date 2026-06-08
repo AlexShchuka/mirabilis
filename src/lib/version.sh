@@ -2,6 +2,7 @@
 
 repo_version() { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
 container_version() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mirabilis 2>/dev/null | sed -n 's/^MIRABILIS_VERSION=//p' | tr -d '[:space:]'; }
+container_stacks() { docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' mirabilis 2>/dev/null | sed -n 's/^MIRABILIS_STACKS=//p' | tr -d '[:space:]'; }
 container_exists() { docker container inspect mirabilis >/dev/null 2>&1; }
 container_running() { [ "$(docker container inspect -f '{{.State.Running}}' mirabilis 2>/dev/null)" = "true" ]; }
 
@@ -10,6 +11,7 @@ is_stale() {
   src="$(repo_version)"
   cont="$(container_version)"
   [ -z "$cont" ] && return 0
+  [ "$(container_stacks)" != "$(stacks_current)" ] && return 0
   [ "$src" = unknown ] && return 1
   [ "$cont" != "$src" ]
 }
