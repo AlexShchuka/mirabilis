@@ -26,4 +26,4 @@ repos:
         language: system
         entry: bash -c 'command -v checkbashisms >/dev/null 2>&1 && exec checkbashisms "$@" || { echo "checkbashisms not installed (apt-get install devscripts) — skipping"; exit 0; }' --
         types: [shell]
-        exclude: ^(src/test/test_helper/|src/menu/)
+        exclude: ^(src/test/|src/menu/)

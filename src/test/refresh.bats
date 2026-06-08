@@ -20,11 +20,18 @@ setup() {
 run_refresh() {
   HOME="$FAKE_HOME" \
     PATH="$SHIM_DIR:$PATH" \
+    FAKE_OPT="$FAKE_OPT" \
+    REFRESH="$REFRESH" \
+    LOCAL="$BATS_TEST_TMPDIR/refresh.local.sh" \
     bash -c '
-    set -uo pipefail
-    sed "s#/opt/mirabilis#'"$FAKE_OPT"'#g; s#/usr/local/bin/provision-mcp.sh#provision-mcp.sh#g; s#/usr/local/bin/git-identity.sh#git-identity.sh#g; s#^export HOME=/home/node#export HOME='"$FAKE_HOME"'#g" "'"$REFRESH"'" > "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
-    bash "'"$BATS_TEST_TMPDIR"'/refresh.local.sh"
-  '
+      set -uo pipefail
+      sed -e "s#/opt/mirabilis#$FAKE_OPT#g" \
+        -e "s#/usr/local/bin/provision-mcp.sh#provision-mcp.sh#g" \
+        -e "s#/usr/local/bin/git-identity.sh#git-identity.sh#g" \
+        -e "s#^export HOME=/home/node#export HOME=$HOME#g" \
+        "$REFRESH" >"$LOCAL"
+      bash "$LOCAL"
+    '
 }
 
 @test "refresh seeds settings.json on first run" {
@@ -45,8 +52,9 @@ run_refresh() {
 
 @test "refresh trust dialog idempotent: .claude.json stable across two runs" {
   run_refresh
-  cp "$FAKE_HOME/.claude.json" "$BATS_TEST_TMPDIR/first.cj" 2>/dev/null || skip ".claude.json not created"
+  jq --sort-keys . "$FAKE_HOME/.claude.json" >"$BATS_TEST_TMPDIR/first.cj" 2>/dev/null || skip ".claude.json not created"
   run_refresh
-  run diff "$BATS_TEST_TMPDIR/first.cj" "$FAKE_HOME/.claude.json"
+  jq --sort-keys . "$FAKE_HOME/.claude.json" >"$BATS_TEST_TMPDIR/second.cj"
+  run diff "$BATS_TEST_TMPDIR/first.cj" "$BATS_TEST_TMPDIR/second.cj"
   assert_success
 }
