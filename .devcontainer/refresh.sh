@@ -44,6 +44,17 @@ else
   printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$CJSON"
 fi
 
+RULES_SRC=/opt/mirabilis/config/memory/rules
+RULES_DST="$HOME/.claude/rules"
+if [ -d "$RULES_SRC" ]; then
+  mkdir -p "$RULES_DST"
+  for f in "$RULES_SRC"/*.md; do
+    [ -e "$f" ] || continue
+    dst="$RULES_DST/$(basename "$f")"
+    [ -e "$dst" ] || cp "$f" "$dst"
+  done
+fi
+
 GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
 if [ -n "$GITHUB_TOKEN" ]; then
   export GITHUB_TOKEN GH_TOKEN="$GITHUB_TOKEN"
@@ -95,6 +106,18 @@ fi
 
 NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
 [ -n "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"
+
+SKILLS_DIR="$HOME/.claude/skills"
+IC_DIR="$SKILLS_DIR/interview-coach"
+if command -v git >/dev/null 2>&1; then
+  mkdir -p "$SKILLS_DIR"
+  if [ -d "$IC_DIR/.git" ]; then
+    git -C "$IC_DIR" pull --ff-only >/dev/null 2>&1 || true
+  elif [ ! -e "$IC_DIR" ]; then
+    git clone --depth 1 https://github.com/noamseg/interview-coach-skill.git "$IC_DIR" >/dev/null 2>&1 \
+      || echo "[refresh] WARN: interview-coach skill not installed — check network" >&2
+  fi
+fi
 
 /usr/local/bin/provision-mcp.sh || true
 

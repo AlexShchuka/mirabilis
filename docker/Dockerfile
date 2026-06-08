@@ -34,6 +34,9 @@ RUN arch="$(dpkg --print-architecture)" \
 
 RUN npm install -g ccstatusline@2.2.19
 
+RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://astral.sh/uv/install.sh \
+    | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+
 ARG STACKS=
 ARG DOTNET_CHANNEL=10.0
 ENV DOTNET_ROOT=/usr/share/dotnet
@@ -47,6 +50,24 @@ RUN case ",${STACKS}," in \
         && rm -f /tmp/dotnet-install.sh ;; \
     esac
 
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/home/node/go
+ENV PATH=$PATH:/usr/local/go/bin:/home/node/go/bin
+RUN case ",${STACKS}," in \
+      *,go,*) \
+        ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.dev/VERSION?m=text | head -n1)" \
+        && arch="$(dpkg --print-architecture)" \
+        && case "$arch" in \
+             arm64) goarch=arm64 ;; \
+             amd64) goarch=amd64 ;; \
+             *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+           esac \
+        && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/go.tar.gz "https://go.dev/dl/${ver}.linux-${goarch}.tar.gz" \
+        && rm -rf /usr/local/go \
+        && tar -C /usr/local -xzf /tmp/go.tar.gz \
+        && rm -f /tmp/go.tar.gz ;; \
+    esac
+
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
@@ -54,9 +75,10 @@ COPY config/                    /opt/mirabilis/config/
 COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY src/provision-mcp.sh       /usr/local/bin/provision-mcp.sh
 COPY src/git-identity.sh        /usr/local/bin/git-identity.sh
+COPY src/harness-reinstall.sh   /usr/local/bin/harness-reinstall.sh
 COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
 COPY .devcontainer/entrypoint.sh /opt/mirabilis/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/git-identity.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/git-identity.sh /usr/local/bin/harness-reinstall.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh /opt/mirabilis/config/hooks/telegram-notify.sh
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

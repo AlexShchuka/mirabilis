@@ -1,0 +1,29 @@
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        args: ["-x", "-e", "SC1091"]
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.13.1-1
+    hooks:
+      - id: shfmt
+        args: ["-i", "2", "-d"]
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint-docker
+        files: ^docker/Dockerfile$
+
+  - repo: local
+    hooks:
+      - id: checkbashisms
+        name: checkbashisms
+        language: system
+        entry: bash -c 'command -v checkbashisms >/dev/null 2>&1 && exec checkbashisms "$@" || { echo "checkbashisms not installed (apt-get install devscripts) — skipping"; exit 0; }' --
+        types: [shell]
+        exclude: ^(test/test_helper/|src/menu/)

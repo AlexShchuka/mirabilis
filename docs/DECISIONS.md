@@ -38,6 +38,13 @@
 | D28 | python | оба уровня: интерпретатор в apt-list, venv в volume | F1; интерпретатор теперь печётся в образ как обязательная база (уточнено D30) |
 | D29 | I/O/процессы | добавить отдельный раздел | F2 |
 | D30 | Стек (python/.NET/…) | node + python — обязательная база (всегда стоит); тяжёлые опциональные (.NET) — выбор в меню «как плагины» (каталог `config/stacks.txt`, выбор в `.env`→build-arg `STACKS`); прочее Клод ставит ad-hoc (I2), постоянное — промоут в коммит | лёгкая коробка под нужное; «обязательное стоит, необязательное выбираешь» (#34) |
+| D31 | Меню/UI | Go-TUI (Bubble Tea + Bubbles `list` + Huh); `gum` убран; Bash — оркестратор+статус, Go — только рендер | один инструмент TUI; SRP: Go без docker/gh-вызовов |
+| D32 | Конфигурация ≠ действие | выбор в меню пишет состояние; применение — при старте | → I9; предсказуемость, нет «тихих» мутаций |
+| D33 | Импорт файлов | отдельный пункт снят; файлы — через VS Code attach в `/workspace` | KISS; `code --folder-uri` уже открывает workspace |
+| D34 | Уведомления | односторонний Telegram-зуммер (`Stop`/`Notification` → `sendMessage`); официальный bidirectional-плагин отклонён | → I-Telegram; зуммер ≠ канал управления; отвечает владелец в терминале |
+| D35 | Плагины/MCP | набор: github, claude-md-management, code-review, security-guidance, commit-commands, frontend-design, typescript-lsp, pyright-lsp; MCP: context7+sequential-thinking+arxiv+docling; skill interview-coach; убраны claude-code-setup, chrome-devtools-mcp | каждый привязан к реальному UC; csharp-lsp/Playwright/jupyter исключены |
+| D36 | Память по типам файлов | `~/.claude/rules/*.md` с `paths:`-glob (path-scoped), seed no-clobber; теги `#dev/#science/#interview/#study` | один контейнер на много стеков → правила грузятся условно |
+| D37 | harness reinstall | узкий пункт меню переустанавливает только neuro-matrix | не задевает остальной seed (I9) |
 
 ## 2. Снятые противоречия
 
@@ -64,6 +71,7 @@
 | F4 | точность | разведены два механизма персистентности → [ARCHITECTURE.md](ARCHITECTURE.md) §5 |
 | F5 | пробел | предложена конвенция структуры `/workspace` ([ИИ]) — впоследствии СНЯТА владельцем (свободная раскладка) |
 | F6 | сверка | историческое: зона согласия сводилась к одной формулировке (I6) — впоследствии ОТМЕНЕНА (D7); граница = контейнер |
+| F7 | hygiene | AGENTS.md/sandbox-context минимизированы (arXiv 2602.11988: минимальный контекст лучше); HOW — у харнеса |
 
 ## 4. Исправленные ошибки ассистента [ИИ]
 

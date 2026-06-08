@@ -19,7 +19,7 @@ else
   git clone "$REPO_URL" "$DEST"
 fi
 
-say "installing prerequisites (Docker Desktop, devcontainer CLI, gum, tinyproxy)…"
+say "installing prerequisites (Docker Desktop, devcontainer CLI, Go, tinyproxy)…"
 make -C "$DEST" bootstrap
 say "putting the 'mirabilis' command on your PATH…"
 make -C "$DEST" install

@@ -11,11 +11,6 @@ ensure_tools() {
   }
 }
 
-ensure_extras() {
-  command -v gum >/dev/null 2>&1 \
-    || echo "mirabilis: optional tool 'gum' is missing — run 'make bootstrap' for the full menu." >&2
-}
-
 ensure_docker() {
   command -v docker >/dev/null 2>&1 || die "Docker is not installed — run 'make bootstrap'."
   command -v devcontainer >/dev/null 2>&1 || die "devcontainer CLI is missing — run 'make bootstrap'."

@@ -21,6 +21,8 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GH_TOKEN: ${GITHUB_TOKEN:-}
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TZ: ${TZ:-Etc/UTC}
       XDG_DATA_HOME: /home/node/.claude/xdg-data
       HTTP_PROXY: http://host.docker.internal:${MIRABILIS_PROXY_PORT:-38128}

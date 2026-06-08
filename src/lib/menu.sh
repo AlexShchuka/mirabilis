@@ -30,22 +30,24 @@ do_secrets() {
   container_running || dc_up
   ensure_github
   ensure_claude
-  if [ -x "$TOKEN" ]; then
-    confirm "mirabilis: set/replace the context7 API key?" && "$TOKEN" set context7 || true
-  fi
+  [ -x "$TOKEN" ] || return 0
+  local chosen id
+  chosen="$("$(menu_bin)" secrets)" || return 0
+  [ -n "$chosen" ] || return 0
+  printf '%s\n' "$chosen" | while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    "$TOKEN" set "$id" </dev/tty || true
+  done
 }
 
 do_theme() {
   ensure_docker
   ensure_proxy
   container_running || dc_up
-  local th
-  if have_gum; then
-    th="$(gum choose --header "Theme" auto dark light dark-daltonized light-daltonized || true)"
-  else
-    printf 'theme (auto/dark/light): ' >/dev/tty 2>/dev/null || return 0
-    read -r th </dev/tty 2>/dev/null || return 0
-  fi
+  local cur th
+  cur="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-theme" 2>/dev/null' || true)"
+  [ -n "$cur" ] || cur=auto
+  th="$("$(menu_bin)" theme --current "$cur")" || return 0
   set_theme "$th"
 }
 
@@ -56,36 +58,49 @@ do_harness() {
   local cur sel
   cur="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
   [ "$cur" = skip ] && cur=off || cur=on
-  if have_gum; then
-    sel="$(gum choose --header "neuro-matrix harness (сейчас: $cur)" "Включить" "Выключить" || return 0)"
-  else
-    printf 'харнес on/off [%s]: ' "$cur" >/dev/tty 2>/dev/null || return 0
-    read -r sel </dev/tty 2>/dev/null || return 0
-  fi
+  sel="$("$(menu_bin)" harness --current "$cur")" || return 0
   case "$sel" in
-    "Выключить"|off) dx bash -lc 'echo skip > "$HOME/.claude/.mirabilis-harness"' || true ;;
-    "Включить"|on)   dx bash -lc 'echo install > "$HOME/.claude/.mirabilis-harness"' || true ;;
-    *)               return 0 ;;
+    off)       dx bash -lc 'echo skip > "$HOME/.claude/.mirabilis-harness"' || true
+               echo "mirabilis: harness will be OFF at next start." >&2 ;;
+    on)        dx bash -lc 'echo install > "$HOME/.claude/.mirabilis-harness"' || true
+               echo "mirabilis: harness will be ON at next start." >&2 ;;
+    reinstall) harness_reinstall ;;
+    *)         return 0 ;;
   esac
-  dxq bash /opt/mirabilis/refresh.sh || true
-  echo "mirabilis: harness setting saved." >&2
+}
+
+harness_reinstall() {
+  dx bash -lc 'echo install > "$HOME/.claude/.mirabilis-harness"' || true
+  echo "mirabilis: reinstalling neuro-matrix only (nothing else is touched)…" >&2
+  if dxq bash /usr/local/bin/harness-reinstall.sh; then
+    echo "mirabilis: neuro-matrix reinstalled." >&2
+  else
+    echo "mirabilis: WARN — harness reinstall reported a problem (check git/network/token)." >&2
+  fi
 }
 
 do_plugins() {
   ensure_docker
   ensure_proxy
   container_running || dc_up
-  have_gum || { echo "mirabilis: gum required for the plugin menu — run 'make bootstrap'." >&2; return 0; }
-  local catalog preselect chosen dis rc=0
-  catalog="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null')"
-  [ -n "$catalog" ] || { echo "mirabilis: no plugin catalog found." >&2; return 0; }
-  preselect="$(printf '%s' "$catalog" | tr '\n' ',' | sed 's/,*$//')"
-  chosen="$(printf '%s\n' "$catalog" | gum choose --no-limit --selected "$preselect" --header "Плагины (пробел — переключить, Enter — ок)")" || rc=$?
-  [ "$rc" -eq 0 ] || return 0
-  if [ -z "$chosen" ]; then dis="$catalog"; else dis="$(printf '%s\n' "$catalog" | grep -vxF "$chosen" || true)"; fi
-  dx env MDIS="$dis" bash -lc 'printf "%s" "$MDIS" > "$HOME/.claude/.mirabilis-plugins-disabled"' || true
-  dxq bash /opt/mirabilis/refresh.sh || true
-  echo "mirabilis: plugin selection saved." >&2
+  local catalog_csv enabled_csv chosen dis cat_all
+  catalog_csv="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null | tr "\n" "," | sed "s/,*$//"')"
+  [ -n "$catalog_csv" ] || { echo "mirabilis: no plugin catalog found." >&2; return 0; }
+  enabled_csv="$(dxq bash -lc '
+    cat_all="$(sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null)"
+    dis="$(cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null)"
+    printf "%s\n" "$cat_all" | while IFS= read -r p; do
+      printf "%s\n" "$dis" | grep -qxF "$p" || printf "%s," "$p"
+    done | sed "s/,*$//"
+  ' || true)"
+  chosen="$("$(menu_bin)" plugins --options "$catalog_csv" --selected "$enabled_csv")" || return 0
+  dx env MCAT="$catalog_csv" MCHOSEN="$chosen" bash -lc '
+    printf "%s" "$MCAT" | tr "," "\n" | while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      printf "%s\n" "$MCHOSEN" | tr "," "\n" | grep -qxF "$p" || printf "%s\n" "$p"
+    done > "$HOME/.claude/.mirabilis-plugins-disabled" || true
+  ' || true
+  echo "mirabilis: plugin selection saved (applied at next start)." >&2
 }
 
 stacks_catalog() { sed -e '/^#/d' -e '/^[[:space:]]*$/d' "$REPO/config/stacks.txt" 2>/dev/null; }
@@ -100,38 +115,54 @@ stacks_save() {
   printf 'STACKS=%s\n' "$1" >> "$tmp"
   mv "$tmp" "$f"
 }
+
 select_stacks() {
-  local catalog chosen
-  catalog="$(stacks_catalog)"
-  [ -n "$catalog" ] || { echo "mirabilis: no stack catalog found." >&2; return 1; }
-  chosen="$(printf '%s\n' "$catalog" | gum choose --no-limit --selected "$(stacks_current)" \
-    --header "Опциональные стеки (node + python уже в базе; пробел — выбрать, Enter — ок)")" || return 1
-  stacks_save "$(printf '%s' "$chosen" | tr '\n' ',' | sed 's/,*$//')"
+  local catalog_csv current chosen
+  catalog_csv="$(stacks_catalog | tr '\n' ',' | sed 's/,*$//')"
+  [ -n "$catalog_csv" ] || { echo "mirabilis: no stack catalog found." >&2; return 1; }
+  current="$(stacks_current)"
+  chosen="$("$(menu_bin)" stacks --options "$catalog_csv" --selected "${current:-}")" || return 1
+  stacks_save "$chosen"
 }
 
 do_stacks() {
   ensure_docker
-  have_gum || { echo "mirabilis: gum required for the stack menu — run 'make bootstrap'." >&2; return 0; }
   local before after
   before="$(stacks_current)"
   select_stacks || return 0
   after="$(stacks_current)"
-  [ "$before" = "$after" ] && { echo "mirabilis: stack selection unchanged." >&2; return 0; }
-  echo "mirabilis: stack changed → ${after:-none} — rebuilding the image…" >&2
-  rebuild_image
-  dc_up
-  echo "mirabilis: stack updated." >&2
+  if [ "$before" = "$after" ]; then
+    echo "mirabilis: stack selection unchanged." >&2
+  else
+    echo "mirabilis: stack changed → ${after:-none} — workspace marked stale; it rebuilds on next launch." >&2
+  fi
+}
+
+do_vscode() {
+  ensure_docker
+  command -v code >/dev/null 2>&1 || die "the 'code' command is not on PATH — in VS Code run \"Shell Command: Install 'code' command in PATH\", then retry."
+  ensure_proxy
+  container_running || { echo "mirabilis: workspace is not running — starting it…" >&2; dc_up; }
+  local name hex uri
+  name="$(compose_container_name)"
+  [ -n "$name" ] || die "could not determine the container name from docker-compose.yml."
+  hex="$(printf '{"containerName":"/%s"}' "$name" | od -An -tx1 | tr -d ' \n')"
+  uri="vscode-remote://attached-container+${hex}/workspace"
+  echo "mirabilis: opening /workspace in VS Code (attached to container '$name')…" >&2
+  code --folder-uri "$uri" || die "VS Code failed to open — is the Dev Containers extension installed?"
+}
+
+compose_container_name() {
+  sed -n 's/^[[:space:]]*container_name:[[:space:]]*//p' "$REPO/docker-compose.yml" | head -n1 | tr -d '"'"'"' \t\r'
 }
 
 first_run_stacks() {
-  have_gum || return 0
   [ -f "$REPO/.env" ] && grep -q '^STACKS=' "$REPO/.env" && return 0
   echo "mirabilis: первый запуск — выбери опциональные стеки (node + python уже в базе)." >&2
   select_stacks || stacks_save ""
 }
 
 first_run_setup() {
-  have_gum || return 0
   dxq bash -lc 'test -f "$HOME/.claude/.mirabilis-setup-done"' && return 0
   echo "mirabilis: первый запуск — выбери, что предустановить." >&2
   do_harness
@@ -141,38 +172,43 @@ first_run_setup() {
 
 menu() {
   ensure_tools
-  ensure_extras
   ensure_docker
-  local behind nm hc header choice n
+  local status choice
   while true; do
-    behind="$(repo_behind)"
-    nm="$(nm_status)"
-    hc="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
-    header="mirabilis"
-    container_exists && is_stale && header="$header · workspace: stale (rebuild on launch)"
-    [ "${behind:-0}" -gt 0 ] && header="$header · mirabilis: $behind behind origin/main"
-    if [ "$hc" = skip ]; then header="$header · neuro-matrix: off"
-    elif [ "$nm" = missing ]; then header="$header · neuro-matrix: missing"; fi
-    if have_gum; then
-      choice="$(gum choose --header "$header" "Запустить" "Обновить" "Плагины" "Харнес" "Стек" "Войти / секреты" "Тема" "Выход" || echo Выход)"
-    else
-      echo "$header" >&2
-      echo "  1) Запустить  2) Обновить  3) Плагины  4) Харнес  5) Стек  6) Войти / секреты  7) Тема  8) Выход" >&2
-      printf 'выбор [1]: ' >/dev/tty 2>/dev/null || { do_launch; return; }
-      read -r n </dev/tty 2>/dev/null || n=1
-      case "${n:-1}" in 2) choice=Обновить ;; 3) choice=Плагины ;; 4) choice=Харнес ;; 5) choice=Стек ;; 6) choice="Войти / секреты" ;; 7) choice=Тема ;; 8) choice=Выход ;; *) choice=Запустить ;; esac
-    fi
+    status="$(menu_status_json)"
+    choice="$(printf '%s' "$status" | "$(menu_bin)")" || choice=quit
     case "$choice" in
-      "Обновить")        do_update ;;
-      "Плагины")         do_plugins ;;
-      "Харнес")          do_harness ;;
-      "Стек")            do_stacks ;;
-      "Войти / секреты") do_secrets ;;
-      "Тема")            do_theme ;;
-      "Выход")           exit 0 ;;
-      *)                 do_launch; exit $? ;;
+      update)   do_update ;;
+      plugins)  do_plugins ;;
+      harness)  do_harness ;;
+      stacks)   do_stacks ;;
+      vscode)   do_vscode ;;
+      secrets)  do_secrets ;;
+      theme)    do_theme ;;
+      quit)     exit 0 ;;
+      launch|*) do_launch; exit $? ;;
     esac
   done
+}
+
+menu_status_json() {
+  local behind nm hc harness_val stale
+  behind="$(repo_behind)"; case "$behind" in *[!0-9]*) behind=0 ;; esac
+  hc="$(dxq bash -lc 'cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null' || true)"
+  nm="$(nm_status)"
+  if [ "$hc" = skip ]; then
+    harness_val=off
+  elif [ "$nm" = missing ]; then
+    harness_val=missing
+  else
+    harness_val=on
+  fi
+  if container_exists && is_stale; then stale=true; else stale=false; fi
+  jq -n \
+    --argjson commitsBehind "${behind:-0}" \
+    --argjson stale "$stale" \
+    --arg harness "$harness_val" \
+    '{"commitsBehind":$commitsBehind,"stale":$stale,"harness":$harness}'
 }
 
 print_completion() {
