@@ -17,8 +17,9 @@ where the agent can build, research, and learn without touching your Mac.
   allowlist. Stopping credential exfiltration is the harness's job; `WebFetch`/`WebSearch` always work.
 - **Persistent memory** — `~/.claude` and your GitHub auth live in volumes that survive
   rebuilds; path-scoped memory rules load per file type.
-- **One TUI menu** — launch, update, plugins, harness, stack, open in VS Code, sign-in and
-  secrets, theme — all from a single Go terminal UI.
+- **One TUI menu** — launch, plugins, harness, stack, open in VS Code — all from a single Go
+  terminal UI. "Launch" runs an idempotent setup pipeline (update · build · sign-in · theme ·
+  harness · preflight), each step retried under policy, then drops you into Claude.
 
 ## Requirements
 
@@ -52,7 +53,7 @@ The menu's **Open in VS Code** item attaches VS Code to the running container at
 
 - [`AGENTS.md`](AGENTS.md) — what the repo is, boundaries, and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
-- [`docs/`](docs/) — the full design contract (RU): vision, invariants, architecture, UX.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture and invariants (RU).
 
 ## The name
 

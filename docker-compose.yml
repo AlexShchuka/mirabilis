@@ -17,10 +17,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GH_TOKEN: ${GITHUB_TOKEN:-}
-      CONTEXT7_API_KEY: ${CONTEXT7_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TZ: ${TZ:-Etc/UTC}

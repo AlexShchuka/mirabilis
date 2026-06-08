@@ -30,11 +30,7 @@ reg_stdio() {
   fi
 }
 
-if [[ -n "${CONTEXT7_API_KEY:-}" ]]; then
-  reg context7 http "https://mcp.context7.com/mcp" "CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}"
-else
-  reg context7 http "https://mcp.context7.com/mcp"
-fi
+reg context7 http "https://mcp.context7.com/mcp"
 
 reg_stdio sequential-thinking npx -y @modelcontextprotocol/server-sequential-thinking
 

@@ -1,6 +1,5 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-DC := ./src/dc.sh
 PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 BINDIR ?= $(PREFIX)/bin
 MENU_SRC := src/menu
@@ -28,15 +27,14 @@ menu:
 install: menu
 	@test -w "$(BINDIR)" || test -w "$(dir $(BINDIR))" || { printf 'mirabilis: %s is not writable — retry with a writable PATH dir, e.g. "make install PREFIX=$$(brew --prefix)", or run "sudo make install"\n' "$(BINDIR)" >&2; exit 1; }
 	@mkdir -p $(BINDIR)
-	@printf '#!/usr/bin/env bash\nexec "%s/src/bin/mirabilis" "$$@"\n' "$(CURDIR)" > $(BINDIR)/mirabilis
-	@chmod 0755 $(BINDIR)/mirabilis
+	@ln -sf "$(CURDIR)/$(MENU_BIN)" $(BINDIR)/mirabilis
 	@printf 'installed %s/mirabilis — run: mirabilis\n' "$(BINDIR)"
 
 uninstall:
 	@rm -f $(BINDIR)/mirabilis && printf 'removed %s/mirabilis\n' "$(BINDIR)"
 
 up:
-	@$(DC) up --workspace-folder .
+	@. ./src/env.sh && devcontainer up --workspace-folder .
 
 down:
 	@. ./src/env.sh && docker compose -p mirabilis -f docker-compose.yml down

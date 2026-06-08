@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,45 +9,53 @@ import (
 )
 
 func main() {
-	args := os.Args[1:]
-	if len(args) == 0 {
-		runMainMenu()
-		return
-	}
-	var err error
-	switch args[0] {
-	case "plugins":
-		err = RunPlugins(args[1:])
-	case "secrets":
-		err = RunSecrets(args[1:])
-	case "theme":
-		err = RunTheme(args[1:])
-	case "stacks":
-		err = RunStacks(args[1:])
-	case "harness":
-		err = RunHarness(args[1:])
-	default:
-		fmt.Fprintf(os.Stderr, "mirabilis-menu: unknown subcommand %q\n", args[0])
+	if len(os.Args) > 1 {
+
+		if os.Args[1] == "stacks" {
+			if err := RunStacks(); err != nil {
+				fmt.Fprintf(os.Stderr, "mirabilis: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+		fmt.Fprintf(os.Stderr, "mirabilis: unknown argument %q — just run 'mirabilis'\n", os.Args[1])
 		os.Exit(2)
 	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mirabilis-menu: %v\n", err)
+	if err := runMenu(); err != nil {
+		fmt.Fprintf(os.Stderr, "mirabilis: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func runMainMenu() {
-	st := FromStdin()
-	m := New(st)
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
-	final, err := p.Run()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mirabilis-menu: %v\n", err)
-		os.Exit(1)
+func runMenu() error {
+	ctx := context.Background()
+	r := newExecRunner()
+	if err := ensureDocker(ctx); err != nil {
+		return err
 	}
-	action := Action(final)
-	if action == "" {
-		action = "quit"
+	for {
+		st := computeStatus(ctx, r)
+		final, err := tea.NewProgram(New(st), tea.WithOutput(os.Stderr)).Run()
+		if err != nil {
+			return err
+		}
+		var actErr error
+		switch Action(final) {
+		case "launch":
+			return RunPipeline()
+		case "plugins":
+			actErr = doPlugins(ctx, r)
+		case "harness":
+			actErr = doHarness(ctx, r)
+		case "stacks":
+			actErr = RunStacks()
+		case "vscode":
+			actErr = doVSCode(ctx, r)
+		default:
+			return nil
+		}
+		if actErr != nil {
+			fmt.Fprintf(os.Stderr, "mirabilis: %v\n", actErr)
+		}
 	}
-	fmt.Println(action)
 }

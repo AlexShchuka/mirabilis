@@ -3,14 +3,14 @@
 **mirabilis** is a personal, open-source macOS dev container that runs Claude Code with
 full autonomy, the [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) harness
 preinstalled, persistent memory, and open egress. `CLAUDE.md` is a
-symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`. Design contract
-(RU): `docs/`.
+symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`. Architecture and
+invariants (RU): `docs/ARCHITECTURE.md`.
 
 ## Non-goals
 
 Not a multi-user platform, not a hosted service, not reproducible (use-latest, no version
 pinning except GitHub Actions refs), not a security gate against the agent itself. KISS
-beats reliability beats security-from-exfiltration (`docs/INVARIANTS.md` I8).
+beats reliability beats security-from-exfiltration (`docs/ARCHITECTURE.md` I8).
 
 ## Boundaries
 
@@ -26,16 +26,19 @@ beats reliability beats security-from-exfiltration (`docs/INVARIANTS.md` I8).
 
 ## Layout
 
-`config/` your editable config · `src/` the host launcher (`bin/` + `lib/*.sh` modules +
-`menu/` Go TUI) · `docker/`, `.devcontainer/`, `docker-compose.yml`, `.claude-plugin/` the
-container definition · `docs/` the RU design contract · `src/test/` the bats suite.
+`config/` your editable config · `src/menu/` the Go TUI host launcher (a single binary —
+the menu, the launch pipeline, Docker/devcontainer/Keychain orchestration all live here) ·
+`src/*.sh` container-side provisioning · `docker/`, `.devcontainer/`, `docker-compose.yml`,
+`.claude-plugin/` the container definition · `docs/ARCHITECTURE.md` architecture + invariants (RU) ·
+`src/test/` the bats suite.
 
 ## Don't
 
 - No comments in code or config — prose lives in `.md` only (shell, Dockerfile, Makefile,
   JSON, YAML, `.env`).
-- Never commit secrets. Sign-in is native and persists in volumes; tokens live in the
-  macOS Keychain (`src/token.sh`). If a token appears in a diff, stop.
+- Never commit secrets. Sign-in is native and persists in volumes; the only host-side
+  secret is the optional Telegram token, read from the macOS Keychain in `src/menu/host.go`.
+  If a token appears in a diff, stop.
 - Don't push to `main`; branch and open a PR.
 - Don't restate a behaviour here — change it in its owning file.
 

@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
-exec "$(cd "$(dirname "$0")" && pwd)/src/bin/mirabilis" "$@"
+set -euo pipefail
+d="$(cd "$(dirname "$0")" && pwd)"
+make -C "$d" menu >/dev/null
+exec "$d/src/menu/bin/mirabilis-menu" "$@"
