@@ -1,22 +1,86 @@
-package mainmenu
+package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/AlexShchuka/mirabilis/src/menu/internal/status"
+	"charm.land/lipgloss/v2"
 )
+
+// Status is the menu's view of the workspace, fed as JSON on stdin by the bash orchestrator.
+type Status struct {
+	CommitsBehind int    `json:"commitsBehind"`
+	Stale         bool   `json:"stale"`
+	Harness       string `json:"harness"`
+}
+
+func FromStdin() Status {
+	var s Status
+	fi, err := os.Stdin.Stat()
+	if err != nil || (fi.Mode()&os.ModeCharDevice) != 0 {
+		return s
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil || len(data) == 0 {
+		return s
+	}
+	_ = json.Unmarshal(data, &s)
+	return s
+}
+
+type item struct {
+	action string
+	title  string
+	desc   string
+}
+
+func (i item) FilterValue() string { return i.title }
+func (i item) Title() string       { return i.title }
+func (i item) Description() string { return i.desc }
+
+const titleWidth = 19
+
+var (
+	selTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	normTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	hintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+)
+
+type delegate struct{}
+
+func (d delegate) Height() int                             { return 1 }
+func (d delegate) Spacing() int                            { return 0 }
+func (d delegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d delegate) Render(w io.Writer, m list.Model, index int, it list.Item) {
+	row, ok := it.(item)
+	if !ok {
+		return
+	}
+	cursor := "  "
+	ts := normTitle
+	if index == m.Index() {
+		cursor = "> "
+		ts = selTitle
+	}
+	out := cursor + ts.Width(titleWidth).Render(row.title)
+	if row.desc != "" {
+		out += hintStyle.Render(row.desc)
+	}
+	fmt.Fprint(w, out)
+}
 
 type Model struct {
 	list   list.Model
 	action string
-	st     status.Status
 }
 
-func New(st status.Status) Model {
+func New(st Status) Model {
 	items := []list.Item{
 		item{"launch", "Запустить", "запустить Claude в песочнице"},
 		item{"update", "Обновить", "обновить mirabilis и пересобрать"},
@@ -32,11 +96,12 @@ func New(st status.Status) Model {
 	l.Title = header(st)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
-	l.SetShowHelp(true)
-	return Model{list: l, st: st}
+	l.SetShowHelp(false)
+	l.SetShowPagination(false)
+	return Model{list: l}
 }
 
-func header(st status.Status) string {
+func header(st Status) string {
 	parts := []string{"mirabilis"}
 	if st.Stale {
 		parts = append(parts, "workspace: stale (rebuild on launch)")
@@ -80,7 +145,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
-	return tea.NewView(m.list.View())
+	return tea.NewView(m.list.View() + "\n " + hintStyle.Render("enter · q выход"))
 }
 
 func Action(final tea.Model) string {

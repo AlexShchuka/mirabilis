@@ -37,7 +37,7 @@ run_refresh() {
 @test "refresh seeds settings.json on first run" {
   run_refresh
   assert [ -f "$FAKE_HOME/.claude/settings.json" ]
-  run jq -e '.sandbox.enabled == true' "$FAKE_HOME/.claude/settings.json"
+  run jq -e '.sandbox == null' "$FAKE_HOME/.claude/settings.json"
   assert_success
 }
 

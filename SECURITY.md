@@ -5,25 +5,14 @@
 mirabilis runs an autonomous agent with `--dangerously-skip-permissions`. The
 container is the security boundary, and the design assumes **trusted code only**:
 
-- The agent runs as a **non-root** user; the container confines command execution.
-- The agent's Bash egress is a **default-deny allowlist** via Claude Code's native
-  sandbox (`sandbox.network.allowedDomains`) — configurable, no iptables, no
-  elevated capabilities.
-- The native sandbox needs both **bubblewrap** and **socat** installed in the
-  image (`docker/Dockerfile`) — bubblewrap for filesystem/process isolation,
-  socat for the egress allowlist; with `sandbox.failIfUnavailable: true` a missing
-  dependency makes Claude refuse to start. Bubblewrap must create user namespaces.
-  Docker blocks that by default, so the container runs with `seccomp=unconfined`
-  (`docker-compose.yml`). This relaxes the **outer** container's syscall
-  filtering — acceptable under the trusted-code model above, since the inner
-  sandbox still enforces the egress allowlist and filesystem confinement, and no
-  Linux capabilities are added. For untrusted code, pair it with a stronger
-  boundary (microVM).
-- The sandbox confines spawned Bash commands (the main exfiltration vector). The
-  Claude process and MCP traffic go to known hosts but are not themselves
-  allowlist-confined. The sandbox does **not** perform TLS inspection, so
-  domain-fronting to an allowlisted host is theoretically possible — acceptable
-  for trusted repos only.
+- The agent has **full freedom inside the container** — root, `sudo`, any file. mirabilis
+  does not gate writes or commands inside; the boundary is the container plus host isolation.
+- **Egress is open** — the container reaches the network directly. There is no in-container
+  allowlist: exfiltration-hardening is intentionally out of scope (simplicity > security-from-
+  exfiltration). Preventing credential exfiltration is the **harness's** behavioural job.
+- The container runs with `seccomp=unconfined` (`docker-compose.yml`) for unrestricted
+  in-container syscalls — acceptable under the trusted-code model; no extra Linux
+  capabilities are added.
 
 Do not point mirabilis at untrusted code. For untrusted workloads you need a
 stronger isolation boundary (microVM) than a container provides.
