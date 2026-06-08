@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/src/menu/internal/status"
 )
@@ -49,6 +49,8 @@ func header(st status.Status) string {
 		parts = append(parts, "neuro-matrix: off")
 	case "missing":
 		parts = append(parts, "neuro-matrix: missing")
+	case "unknown":
+		parts = append(parts, "neuro-matrix: unknown")
 	}
 	return strings.Join(parts, " · ")
 }

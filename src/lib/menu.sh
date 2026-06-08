@@ -103,13 +103,17 @@ do_plugins() {
     done | sed "s/,*$//"
   ' || true)"
   chosen="$("$(menu_bin)" plugins --options "$catalog_csv" --selected "$enabled_csv")" || return 0
-  dx env MCAT="$catalog_csv" MCHOSEN="$chosen" bash -lc '
+  if dx env MCAT="$catalog_csv" MCHOSEN="$chosen" bash -lc '
+    tmp="$(mktemp)"
     printf "%s" "$MCAT" | tr "," "\n" | while IFS= read -r p; do
       [ -n "$p" ] || continue
       printf "%s\n" "$MCHOSEN" | tr "," "\n" | grep -qxF "$p" || printf "%s\n" "$p"
-    done > "$HOME/.claude/.mirabilis-plugins-disabled" || true
-  ' || true
-  echo "mirabilis: plugin selection saved (applied at next start)." >&2
+    done >"$tmp" && mv "$tmp" "$HOME/.claude/.mirabilis-plugins-disabled" || { rm -f "$tmp"; exit 1; }
+  '; then
+    echo "mirabilis: plugin selection saved (applied at next start)." >&2
+  else
+    echo "mirabilis: WARN — could not save plugin selection; previous selection preserved." >&2
+  fi
 }
 
 stacks_catalog() { sed -e '/^#/d' -e '/^[[:space:]]*$/d' "$REPO/config/stacks.txt" 2>/dev/null; }
@@ -218,6 +222,8 @@ menu_status_json() {
   nm="$(nm_status)"
   if [ "$hc" = skip ]; then
     harness_val=off
+  elif ! container_running; then
+    harness_val=unknown
   elif [ "$nm" = missing ]; then
     harness_val=missing
   else
