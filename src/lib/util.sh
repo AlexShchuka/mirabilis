@@ -4,7 +4,7 @@ die() {
   echo "mirabilis: $*" >&2
   exit 1
 }
-open_host_url() { command -v open >/dev/null 2>&1 && open "$1" >/dev/null 2>&1 || true; }
+open_host_url() { { command -v open >/dev/null 2>&1 && open "$1" >/dev/null 2>&1; } || true; }
 
 menu_bin() {
   if [ -n "${MIRABILIS_MENU_BIN:-}" ] && [ -x "$MIRABILIS_MENU_BIN" ]; then

@@ -24,7 +24,8 @@ claude plugin list 2>/dev/null | grep -q neuro-matrix ||
     exit 1
   }
 
-NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
+NM_DIR="$(printf '%s\n' "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ | sort -V | tail -n1)"
+[ -d "$NM_DIR" ] || NM_DIR=""
 [ -n "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"
 
 log "neuro-matrix reinstalled"

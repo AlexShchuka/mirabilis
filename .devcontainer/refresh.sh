@@ -8,7 +8,11 @@ DEST="$HOME/.claude/settings.json"
 if [ -f "$SEED" ]; then
   if [ -f "$DEST" ]; then
     tmp="$(mktemp)"
-    jq -s '.[0] * .[1]' "$DEST" "$SEED" >"$tmp" && mv "$tmp" "$DEST" || cp "$SEED" "$DEST"
+    if jq -s '.[0] * .[1]' "$DEST" "$SEED" >"$tmp"; then
+      mv "$tmp" "$DEST"
+    else
+      cp "$SEED" "$DEST"
+    fi
   else
     cp "$SEED" "$DEST"
   fi
@@ -19,27 +23,35 @@ if [ -f "$THEME_FILE" ] && [ -f "$DEST" ]; then
   th="$(cat "$THEME_FILE" 2>/dev/null)"
   if [ -n "$th" ]; then
     tmp="$(mktemp)"
-    jq --arg t "$th" '.theme = $t' "$DEST" >"$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
+    if jq --arg t "$th" '.theme = $t' "$DEST" >"$tmp"; then
+      mv "$tmp" "$DEST"
+    else
+      rm -f "$tmp"
+    fi
   fi
 fi
 
 APT_LIST=/opt/mirabilis/config/apt-packages.txt
 if [ -f "$APT_LIST" ]; then
-  missing=""
+  missing=()
   while IFS= read -r pkg; do
     [ -n "$pkg" ] || continue
-    dpkg -s "$pkg" >/dev/null 2>&1 || missing="$missing $pkg"
+    dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
   done <"$APT_LIST"
-  if [ -n "$missing" ]; then
-    sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends $missing >/dev/null 2>&1 ||
-      echo "[refresh] WARN: declared apt packages not fully applied:$missing" >&2
+  if [ "${#missing[@]}" -gt 0 ]; then
+    sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends "${missing[@]}" >/dev/null 2>&1 ||
+      echo "[refresh] WARN: declared apt packages not fully applied: ${missing[*]}" >&2
   fi
 fi
 
 CJSON="$HOME/.claude.json"
 if [ -f "$CJSON" ]; then
   tmp="$(mktemp)"
-  jq '.projects["/workspace"].hasTrustDialogAccepted = true' "$CJSON" >"$tmp" && mv "$tmp" "$CJSON" || rm -f "$tmp"
+  if jq '.projects["/workspace"].hasTrustDialogAccepted = true' "$CJSON" >"$tmp"; then
+    mv "$tmp" "$CJSON"
+  else
+    rm -f "$tmp"
+  fi
 else
   printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' >"$CJSON"
 fi
@@ -101,10 +113,15 @@ if command -v jq >/dev/null 2>&1 && [ -f "$DEST" ]; then
   )"
   obj="$(printf '%s\n' "$enabled" | jq -R . | jq -s 'map(select(length>0)) | reduce .[] as $p ({}; .[$p]=true)')"
   tmp="$(mktemp)"
-  jq --argjson e "$obj" '.enabledPlugins = $e' "$DEST" >"$tmp" && mv "$tmp" "$DEST" || rm -f "$tmp"
+  if jq --argjson e "$obj" '.enabledPlugins = $e' "$DEST" >"$tmp"; then
+    mv "$tmp" "$DEST"
+  else
+    rm -f "$tmp"
+  fi
 fi
 
-NM_DIR="$(ls -1d "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ 2>/dev/null | sort -V | tail -n1)"
+NM_DIR="$(printf '%s\n' "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ | sort -V | tail -n1)"
+[ -d "$NM_DIR" ] || NM_DIR=""
 [ -n "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"
 
 SKILLS_DIR="$HOME/.claude/skills"

@@ -89,7 +89,7 @@ do_plugins() {
   ensure_docker
   ensure_proxy
   container_running || dc_up
-  local catalog_csv enabled_csv chosen dis cat_all
+  local catalog_csv enabled_csv chosen
   catalog_csv="$(dxq bash -lc 'sed -e "/^#/d" -e "/^[[:space:]]*\$/d" /opt/mirabilis/config/plugins.txt 2>/dev/null | tr "\n" "," | sed "s/,*$//"')"
   [ -n "$catalog_csv" ] || {
     echo "mirabilis: no plugin catalog found." >&2

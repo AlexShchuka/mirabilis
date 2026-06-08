@@ -10,12 +10,12 @@ command -v claude >/dev/null 2>&1 || {
 reg() {
   local name="$1" transport="$2" url="$3" header="${4:-}"
   claude mcp remove "$name" --scope user >/dev/null 2>&1 || true
-  if [[ -n "$header" ]]; then
-    claude mcp add --scope user --transport "$transport" "$name" "$url" --header "$header" \
-      >/dev/null 2>&1 && log "registered $name ($transport)" || log "WARN: failed to register $name"
+  local args=(--scope user --transport "$transport" "$name" "$url")
+  [[ -n "$header" ]] && args+=(--header "$header")
+  if claude mcp add "${args[@]}" >/dev/null 2>&1; then
+    log "registered $name ($transport)"
   else
-    claude mcp add --scope user --transport "$transport" "$name" "$url" \
-      >/dev/null 2>&1 && log "registered $name ($transport)" || log "WARN: failed to register $name"
+    log "WARN: failed to register $name"
   fi
 }
 
@@ -23,8 +23,11 @@ reg_stdio() {
   local name="$1"
   shift
   claude mcp remove "$name" --scope user >/dev/null 2>&1 || true
-  claude mcp add --scope user --transport stdio "$name" -- "$@" \
-    >/dev/null 2>&1 && log "registered $name (stdio)" || log "WARN: failed to register $name"
+  if claude mcp add --scope user --transport stdio "$name" -- "$@" >/dev/null 2>&1; then
+    log "registered $name (stdio)"
+  else
+    log "WARN: failed to register $name"
+  fi
 }
 
 if [[ -n "${CONTEXT7_API_KEY:-}" ]]; then

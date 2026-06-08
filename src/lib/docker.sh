@@ -30,7 +30,7 @@ dc_up() {
   if [ -t 2 ]; then
     : >"$BUILD_LOG"
     printf 'mirabilis: building the workspace… (full log: %s)\n' "$BUILD_LOG" >&2
-    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 </dev/null &
+    "$DC" up --workspace-folder "$REPO" >"$BUILD_LOG" 2>&1 </dev/null &
     local pid=$! n=0 cols line
     local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
     cols="$(tput cols 2>/dev/null || echo 80)"
@@ -45,7 +45,7 @@ dc_up() {
     printf '\r\033[2K' >&2
   else
     echo "mirabilis: building / starting the workspace (log: $BUILD_LOG)…" >&2
-    "$DC" up --workspace-folder "$REPO" "$@" >"$BUILD_LOG" 2>&1 || rc=$?
+    "$DC" up --workspace-folder "$REPO" >"$BUILD_LOG" 2>&1 || rc=$?
   fi
   if [ "$rc" -ne 0 ]; then
     echo "mirabilis: workspace failed to start — last 40 log lines:" >&2
