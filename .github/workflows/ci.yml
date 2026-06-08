@@ -71,10 +71,10 @@ jobs:
         with:
           go-version-file: src/menu/go.mod
           cache-dependency-path: src/menu/go.mod
-      - name: deps (generate go.sum)
+      - name: gofmt
         if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
-        run: go mod download
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "files above are not gofmt-clean"; exit 1; }
       - name: build
         if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
@@ -87,3 +87,16 @@ jobs:
         if: steps.guard.outputs.present == 'true'
         working-directory: src/menu
         run: go test -race ./...
+
+  goreleaser:
+    name: goreleaser check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: src/menu/go.mod
+          cache-dependency-path: src/menu/go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          args: check

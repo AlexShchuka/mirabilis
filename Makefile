@@ -23,7 +23,7 @@ bootstrap:
 
 menu:
 	@mkdir -p $(dir $(MENU_BIN))
-	cd $(MENU_SRC) && go mod tidy && go build -o bin/mirabilis-menu .
+	cd $(MENU_SRC) && go build -mod=readonly -o bin/mirabilis-menu .
 
 install: menu
 	@test -w "$(BINDIR)" || test -w "$(dir $(BINDIR))" || { printf 'mirabilis: %s is not writable — retry with a writable PATH dir, e.g. "make install PREFIX=$$(brew --prefix)", or run "sudo make install"\n' "$(BINDIR)" >&2; exit 1; }

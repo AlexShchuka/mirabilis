@@ -27,3 +27,9 @@ repos:
         entry: bash -c 'command -v checkbashisms >/dev/null 2>&1 && exec checkbashisms "$@" || { echo "checkbashisms not installed (apt-get install devscripts) — skipping"; exit 0; }' --
         types: [shell]
         exclude: ^(src/test/|src/menu/)
+      - id: go-menu
+        name: go menu (gofmt · vet · build)
+        language: system
+        pass_filenames: false
+        files: ^src/menu/.*\.go$
+        entry: bash -c 'cd src/menu && test -z "$(gofmt -l .)" && go vet ./... && go build ./...'
