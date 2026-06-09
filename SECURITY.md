@@ -10,9 +10,12 @@ container is the security boundary, and the design assumes **trusted code only**
 - **Egress is open** — the container reaches the network directly. There is no in-container
   allowlist: exfiltration-hardening is intentionally out of scope (simplicity > security-from-
   exfiltration). Preventing credential exfiltration is the **harness's** behavioural job.
-- The container runs with `seccomp=unconfined` (`docker-compose.yml`) for unrestricted
-  in-container syscalls — acceptable under the trusted-code model; no extra Linux
-  capabilities are added.
+- The container runs under Docker's **default seccomp profile** with `cap_drop: ALL` and an
+  explicit add-back list (`docker-compose.yml`), narrowing the kernel attack surface for
+  container escape while staying within the trusted-code model. Notable primitives removed —
+  by the seccomp profile: user/mount namespaces via `unshare` (gated on CAP_SYS_ADMIN, which
+  is not added back), `io_uring`, `keyctl`; by dropped capabilities: device `mknod`, raw
+  sockets, `chroot`.
 
 Do not point mirabilis at untrusted code. For untrusted workloads you need a
 stronger isolation boundary (microVM) than a container provides.
