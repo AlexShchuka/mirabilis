@@ -25,7 +25,7 @@ beats reliability beats security-from-exfiltration.
 
 ## Layout
 
-`config/` editable config (settings seed, plugins, stacks, apt-packages, memory rules) ·
+`config/` editable config (settings seed, plugins, stacks, memory rules) ·
 `cmd/mirabilis/` the single binary entry point — role dispatch (TUI / provision / hook) ·
 `internal/` Go packages: TUI host launcher (`internal/app`), pipeline engine
 (`internal/pipeline`), provisioner (`internal/provision`), OS seam and Docker primitives
