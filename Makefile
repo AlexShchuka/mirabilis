@@ -4,7 +4,7 @@ PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 BINDIR ?= $(PREFIX)/bin
 BIN := bin/mirabilis
 LINUX_BIN := .build/mirabilis-linux
-GOARCH_LINUX := $(shell case "$$(uname -m)" in arm64|aarch64) echo arm64;; *) echo amd64;; esac)
+GOARCH_LINUX := $(if $(filter arm64 aarch64,$(shell uname -m)),arm64,amd64)
 export MIRABILIS_VERSION := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 -include .env
 export STACKS
