@@ -3,92 +3,67 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	huh "charm.land/huh/v2"
+	tea "charm.land/bubbletea/v2"
 )
 
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
+func pluginCatalog(ctx context.Context, r Runner) []string {
+	raw, _ := r.Container(ctx, "bash", "-lc", `sed -e '/^#/d' -e '/^[[:space:]]*$/d' /opt/mirabilis/config/plugins.txt 2>/dev/null`)
+	return splitLines(raw)
 }
 
-func doPlugins(ctx context.Context, r Runner) error {
-	raw, _ := r.Container(ctx, "bash", "-lc", `sed -e '/^#/d' -e '/^[[:space:]]*$/d' /opt/mirabilis/config/plugins.txt 2>/dev/null`)
-	catalog := splitLines(raw)
-	if len(catalog) == 0 {
-		return errors.New("plugins: no catalog found")
-	}
-	disabledRaw, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null`)
-	disabled := splitLines(disabledRaw)
+func pluginsDisabled(ctx context.Context, r Runner) []string {
+	raw, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null`)
+	return splitLines(raw)
+}
 
-	opts := make([]huh.Option[string], 0, len(catalog))
-	for _, p := range catalog {
-		opts = append(opts, huh.NewOption(p, p).Selected(!contains(disabled, p)))
-	}
-	var chosen []string
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewMultiSelect[string]().
-			Title("Плагины (пробел — переключить, Enter — ок)").
-			Options(opts...).Value(&chosen)))
-	ok, err := runForm(form)
-	if err != nil && !errors.Is(err, huh.ErrUserAborted) {
-		return err
-	}
-	if !ok {
-		return nil
-	}
-	var newDisabled []string
-	for _, p := range catalog {
-		if !contains(chosen, p) {
-			newDisabled = append(newDisabled, p)
-		}
-	}
-	_, err = r.Container(ctx, "env", "MDIS="+strings.Join(newDisabled, "\n"),
+func writePluginsDisabled(ctx context.Context, r Runner, disabled []string) error {
+	_, err := r.Container(ctx, "env", "MDIS="+strings.Join(disabled, "\n"),
 		"bash", "-lc", `printf '%s' "$MDIS" > "$HOME/.claude/.mirabilis-plugins-disabled"`)
 	return err
 }
 
-func doHarness(ctx context.Context, r Runner) error {
-	cur := "on"
-	if pref, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`); strings.TrimSpace(pref) == "skip" {
-		cur = "off"
-	}
-	choice := cur
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewSelect[string]().Title("neuro-matrix харнес").
-			Options(
-				huh.NewOption("Включить", "on"),
-				huh.NewOption("Выключить", "off"),
-				huh.NewOption("Переустановить", "reinstall"),
-			).Value(&choice)))
-	ok, err := runForm(form)
-	if err != nil && !errors.Is(err, huh.ErrUserAborted) {
-		return err
-	}
-	if !ok {
-		return nil
-	}
+func applyHarness(ctx context.Context, r Runner, choice string) error {
 	switch choice {
 	case "off":
-		_, err = r.Container(ctx, "bash", "-lc", `echo skip > "$HOME/.claude/.mirabilis-harness"`)
+		_, err := r.Container(ctx, "bash", "-lc", `echo skip > "$HOME/.claude/.mirabilis-harness"`)
+		return err
 	case "on":
-		_, err = r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`)
+		_, err := r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`)
+		return err
 	case "reinstall":
-		_, _ = r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`)
-		_, err = r.Container(ctx, "bash", "/usr/local/bin/harness-reinstall.sh")
+		if _, err := r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`); err != nil {
+			return err
+		}
+		_, err := r.Container(ctx, "bash", "/usr/local/bin/harness-reinstall.sh")
+		return err
 	}
-	return err
+	return nil
+}
+
+func resetAll(ctx context.Context, r Runner) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", "mirabilis",
+		"-f", filepath.Join(r.Repo(), "docker-compose.yml"),
+		"down", "--rmi", "local", "-v")
+	cmd.Env = composeEnv(r.Repo())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("docker compose down failed: %s", lastLines(string(out), 12))
+	}
+	return nil
+}
+
+func doVSCodeCmd(ctx context.Context, r Runner) tea.Cmd {
+	return func() tea.Msg {
+		if err := doVSCode(ctx, r); err != nil {
+			return backToMenuMsg{notice: "VS Code: " + err.Error()}
+		}
+		return backToMenuMsg{}
+	}
 }
 
 func doVSCode(ctx context.Context, r Runner) error {

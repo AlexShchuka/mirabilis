@@ -53,11 +53,3 @@ func containerCmd(r Runner, args ...string) *exec.Cmd {
 	cmd.Env = composeEnv(r.Repo())
 	return cmd
 }
-
-func selfCmd(sub ...string) *exec.Cmd {
-	self, err := os.Executable()
-	if err != nil {
-		self = "mirabilis-menu"
-	}
-	return exec.Command(self, sub...)
-}
