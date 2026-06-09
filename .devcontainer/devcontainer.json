@@ -9,7 +9,8 @@
     "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "initializeCommand": "bash .devcontainer/initialize.sh",
+  "onCreateCommand": "mirabilis provision --phase create",
+  "postStartCommand": "mirabilis provision --phase start",
   "customizations": {
     "vscode": {
       "extensions": ["anthropic.claude-code"]

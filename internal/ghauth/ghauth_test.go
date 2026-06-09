@@ -1,0 +1,61 @@
+package ghauth
+
+import (
+	"context"
+	"testing"
+
+	"github.com/AlexShchuka/mirabilis/internal/runner"
+)
+
+func TestParseUserCode(t *testing.T) {
+	tests := []struct {
+		give string
+		want string
+	}{
+		{give: "! First copy your one-time code: ABCD-1234", want: "ABCD-1234"},
+		{give: "code: 2741-EE59 now", want: "2741-EE59"},
+		{give: "no code here", want: ""},
+		{give: "lowercase abcd-1234 is ignored", want: ""},
+	}
+	for _, tt := range tests {
+		if got := ParseUserCode(tt.give); got != tt.want {
+			t.Errorf("ParseUserCode(%q) = %q, want %q", tt.give, got, tt.want)
+		}
+	}
+}
+
+func TestParseDeviceURL(t *testing.T) {
+	tests := []struct {
+		give string
+		want string
+	}{
+		{give: "Open https://github.com/login/device to continue", want: "https://github.com/login/device"},
+		{give: "go to https://github.com/login/device.", want: "https://github.com/login/device"},
+		{give: "no url", want: ""},
+	}
+	for _, tt := range tests {
+		if got := ParseDeviceURL(tt.give); got != tt.want {
+			t.Errorf("ParseDeviceURL(%q) = %q, want %q", tt.give, got, tt.want)
+		}
+	}
+}
+
+func TestOnLineCapturesAndOpensOnce(t *testing.T) {
+	g := New(context.Background(), &runner.FakeRunner{}, 80, 24)
+
+	g.onLine("! First copy your one-time code: ABCD-1234")
+	if g.code != "ABCD-1234" {
+		t.Errorf("code = %q, want ABCD-1234", g.code)
+	}
+	if g.opened {
+		t.Error("must not open the browser before the URL is known")
+	}
+
+	g.onLine("Open https://github.com/login/device")
+	if g.url != "https://github.com/login/device" {
+		t.Errorf("url = %q, want the device URL", g.url)
+	}
+	if !g.opened {
+		t.Error("should open the browser once both code and URL are known")
+	}
+}

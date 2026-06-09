@@ -1,0 +1,59 @@
+package ui
+
+const (
+	PipelineTitle  = "mirabilis — launch"
+	LabelDone      = "done"
+	HintAnyKeyMenu = "any key — back to menu"
+	HintEscCancel  = "esc — cancel"
+
+	GHAuthTitle         = "GitHub sign-in"
+	GHAuthLabelCode     = "  code:  "
+	GHAuthLabelURL      = "  URL:   "
+	GHAuthStatusWaiting = "requesting device code from GitHub…"
+	GHAuthStatusOpened  = "browser opened on host — confirm sign-in and enter the code"
+	GHAuthStatusNoOpen  = "could not open browser — open the URL manually"
+
+	MenuHint = "enter · q quit"
+
+	MenuActionLaunch  = "Launch"
+	MenuActionPlugins = "Plugins"
+	MenuActionHarness = "Harness"
+	MenuActionStacks  = "Stacks"
+	MenuActionVSCode  = "Open in VS Code"
+	MenuActionReset   = "Reset"
+	MenuActionQuit    = "Quit"
+
+	MenuDescLaunch       = "setup pipeline + Claude in container"
+	MenuDescPlugins      = "select Claude Code plugins"
+	MenuDescHarness      = "neuro-matrix: on / off / reinstall"
+	MenuDescStacks       = "optional build stacks"
+	MenuDescVSCode       = "attach /workspace in VS Code"
+	MenuDescReset        = "container, image and volumes — permanent"
+	MenuDescContainerOff = "container not running — Launch first"
+
+	MenuHarnessOff     = "neuro-matrix: off"
+	MenuHarnessMissing = "neuro-matrix: missing"
+	MenuHarnessUnknown = "neuro-matrix: unknown"
+	MenuStale          = "workspace: stale (rebuild on launch)"
+
+	NoticePluginsUnavailable = "plugins: catalog unavailable"
+	NoticeStacksUnavailable  = "stacks: catalog unavailable"
+	NoticeLaunchCanceled     = "launch canceled"
+	NoticePluginsErr         = "plugins: "
+	NoticeHarnessErr         = "harness: "
+	NoticeResetErr           = "reset: "
+	NoticeStacksErr          = "stacks: "
+	NoticeVSCodeErr          = "VS Code: "
+	NoticeResetDone          = "everything removed — next launch will rebuild the sandbox"
+
+	FormTitlePlugins  = "Plugins (space — toggle, Enter — ok)"
+	FormTitleHarness  = "neuro-matrix harness"
+	FormOptHarnessOn  = "Enable"
+	FormOptHarnessOff = "Disable"
+	FormOptHarnessRe  = "Reinstall"
+	FormTitleReset    = "Delete everything?"
+	FormDescReset     = "Container, image and volumes (/workspace code, ~/.claude memory and auth, gh) will be permanently erased."
+	FormConfirmReset  = "Delete everything"
+	FormCancelReset   = "Cancel"
+	FormTitleStacks   = "Optional stacks (node + python + go already in base)"
+)
