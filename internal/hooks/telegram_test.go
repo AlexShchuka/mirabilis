@@ -50,9 +50,21 @@ func TestEventName(t *testing.T) {
 }
 
 func TestEventNameFallbackSubstring(t *testing.T) {
-	got := eventName([]byte(`{"hook_event_name":"Notification","broken`))
-	if got != "Notification" {
-		t.Errorf("substring fallback: got %q, want Notification", got)
+	tests := []struct {
+		give string
+		want string
+	}{
+		{`{"hook_event_name":"Notification","broken`, "Notification"},
+		{`{"hook_event_name":"Stop","broken`, "Stop"},
+		{`{"msg":"please send Notification","hook_event_name":"Stop","broken`, "Stop"},
+		{`{"hook_event_name":"Stop"`, "Stop"},
+		{`{"msg":"please send Notification"}`, ""},
+	}
+	for _, tt := range tests {
+		got := eventName([]byte(tt.give))
+		if got != tt.want {
+			t.Errorf("eventName(%q) = %q, want %q", tt.give, got, tt.want)
+		}
 	}
 }
 
