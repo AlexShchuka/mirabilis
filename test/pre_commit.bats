@@ -59,6 +59,15 @@ setup() {
     [[ "$output" == *"gitleaks not found"* ]] || [[ "$stderr" == *"gitleaks not found"* ]]
 }
 
+@test "go vet failure exits 1" {
+    command -v go >/dev/null || skip "go not available"
+    printf 'package main\n\nimport "fmt"\n\nfunc main() { fmt.Printf("%%d", "not an int") }\n' > "$SANDBOX/vetbad.go"
+    printf 'module sandbox\ngo 1.21\n' > "$SANDBOX/go.mod"
+    git -C "$SANDBOX" add vetbad.go go.mod
+    run sh -c "cd '$SANDBOX' && sh '$HOOK'"
+    [ "$status" -eq 1 ]
+}
+
 @test "staging .githooks/pre-commit itself exits 0" {
     cp "$HOOK" "$SANDBOX/pre-commit"
     git -C "$SANDBOX" add pre-commit

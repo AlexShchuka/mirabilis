@@ -49,7 +49,7 @@ func TestEventName(t *testing.T) {
 	}
 }
 
-func TestEventNameFallbackSubstring(t *testing.T) {
+func TestEventNameFallback(t *testing.T) {
 	tests := []struct {
 		give string
 		want string
