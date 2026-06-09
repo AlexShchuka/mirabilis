@@ -4,7 +4,7 @@ services:
   mirabilis:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: .devcontainer/Dockerfile
       args:
         TZ: ${TZ:-Etc/UTC}
         MIRABILIS_VERSION: ${MIRABILIS_VERSION:-unknown}
