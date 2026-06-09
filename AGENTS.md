@@ -52,6 +52,7 @@ Operating agreement for working **on this repo** (complements the harness's gene
 6. **No churn.** One coherent landing, not a sequence of rewrites.
 
 The mechanical toolchain (`go test`, bats — see `.github/workflows/ci.yml`) is the source of
-mechanical rules; don't duplicate them in prose. **How** to work in general lives in the
+mechanical rules; don't duplicate them in prose. Go code follows the
+[Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md). **How** to work in general lives in the
 neuro-matrix harness; this file says **what** the repo is, plus the repo-specific principles
 above.
