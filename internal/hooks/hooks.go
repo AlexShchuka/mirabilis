@@ -10,11 +10,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 )
+
+var eventNameRe = regexp.MustCompile(`"hook_event_name"\s*:\s*"([^"]*)"`)
 
 func eventName(data []byte) string {
 	if len(data) == 0 {
@@ -26,14 +29,8 @@ func eventName(data []byte) string {
 	if err := json.Unmarshal(data, &v); err == nil && v.HookEventName != "" {
 		return v.HookEventName
 	}
-	s := string(data)
-	if strings.Contains(s, `"hook_event_name"`) {
-		if strings.Contains(s, `"Notification"`) {
-			return "Notification"
-		}
-		if strings.Contains(s, `"Stop"`) {
-			return "Stop"
-		}
+	if m := eventNameRe.FindSubmatch(data); m != nil {
+		return string(m[1])
 	}
 	return ""
 }
