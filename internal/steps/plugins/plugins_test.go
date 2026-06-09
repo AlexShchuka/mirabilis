@@ -2,8 +2,10 @@ package plugins
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -90,6 +92,98 @@ func TestCheckSkipsWhenSetsEqual(t *testing.T) {
 				t.Errorf("Check = %v, want %v", got, tt.wantSatisfied)
 			}
 		})
+	}
+}
+
+func TestRun_Success(t *testing.T) {
+	dir := t.TempDir()
+	var calls []string
+	r := &runner.FakeRunner{
+		RepoVal: dir,
+		ContFunc: func(args []string) (string, error) {
+			calls = append(calls, strings.Join(args, " "))
+			return "", nil
+		},
+	}
+	impl := step{}
+	if err := impl.Run(context.Background(), r); err != nil {
+		t.Errorf("Run success = %v, want nil", err)
+	}
+	if len(calls) < 2 {
+		t.Fatalf("Run success: expected at least 2 container calls, got %d: %v", len(calls), calls)
+	}
+	mdisFound := false
+	provisionFound := false
+	for _, c := range calls {
+		if strings.Contains(c, "MDIS=") {
+			mdisFound = true
+		}
+		if strings.Contains(c, "mirabilis provision --phase plugins") {
+			provisionFound = true
+		}
+	}
+	if !mdisFound {
+		t.Errorf("Run success: MDIS write call not found; got %v", calls)
+	}
+	if !provisionFound {
+		t.Errorf("Run success: provision --phase plugins call not found; got %v", calls)
+	}
+}
+
+func TestRun_FirstCallError(t *testing.T) {
+	dir := t.TempDir()
+	callCount := 0
+	r := &runner.FakeRunner{
+		RepoVal: dir,
+		ContFunc: func(args []string) (string, error) {
+			callCount++
+			if callCount == 1 {
+				return "", fmt.Errorf("env write failed")
+			}
+			return "", nil
+		},
+	}
+	impl := step{}
+	err := impl.Run(context.Background(), r)
+	if err == nil {
+		t.Error("Run first-call error: expected non-nil error, got nil")
+	}
+	if callCount != 1 {
+		t.Errorf("Run first-call error: expected exactly 1 call before return, got %d", callCount)
+	}
+}
+
+func TestRun_SecondCallError(t *testing.T) {
+	dir := t.TempDir()
+	callCount := 0
+	r := &runner.FakeRunner{
+		RepoVal: dir,
+		ContFunc: func(args []string) (string, error) {
+			callCount++
+			if callCount == 2 {
+				return "", fmt.Errorf("provision failed")
+			}
+			return "", nil
+		},
+	}
+	impl := step{}
+	err := impl.Run(context.Background(), r)
+	if err == nil {
+		t.Error("Run second-call error: expected non-nil error, got nil")
+	}
+}
+
+func TestSteps_NameAndDeps(t *testing.T) {
+	registered := Steps()
+	if len(registered) != 1 {
+		t.Fatalf("Steps() len = %d, want 1", len(registered))
+	}
+	meta := registered[0].Meta
+	if meta.Name != "plugins" {
+		t.Errorf("Steps()[0].Name = %q, want plugins", meta.Name)
+	}
+	if len(meta.Deps) != 1 || meta.Deps[0] != "prepare" {
+		t.Errorf("Steps()[0].Deps = %v, want [prepare]", meta.Deps)
 	}
 }
 

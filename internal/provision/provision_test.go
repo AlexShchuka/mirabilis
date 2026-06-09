@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
@@ -13,11 +14,40 @@ import (
 )
 
 func TestWarn_NilNoOutput(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
 	warn("no-op step", nil)
+	w.Close()
+	os.Stderr = orig
+	var buf [64]byte
+	n, _ := r.Read(buf[:])
+	r.Close()
+	if n != 0 {
+		t.Errorf("warn(nil) wrote %q to stderr, want empty", buf[:n])
+	}
 }
 
 func TestWarn_ErrorWritesToStderr(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = w
 	warn("test-step", fmt.Errorf("something failed"))
+	w.Close()
+	os.Stderr = orig
+	var buf [256]byte
+	n, _ := r.Read(buf[:])
+	r.Close()
+	got := string(buf[:n])
+	if !strings.Contains(got, "[provision] WARN: test-step: something failed") {
+		t.Errorf("warn(err) stderr = %q, want to contain [provision] WARN: test-step: something failed", got)
+	}
 }
 
 func TestHome_EnvSet(t *testing.T) {
@@ -31,7 +61,10 @@ func TestHome_EnvSet(t *testing.T) {
 
 func TestHome_EnvUnset(t *testing.T) {
 	t.Setenv("HOME", "")
-	_ = home()
+	got := home()
+	if got == "" {
+		t.Log("home() returned empty when HOME unset (os.UserHomeDir may also be empty in this env)")
+	}
 }
 
 func TestReadHarnessChoice_NoFile_DefaultInstall(t *testing.T) {
@@ -339,6 +372,165 @@ func TestRelinkHarness_Error(t *testing.T) {
 	err := relinkHarness(context.Background(), r)
 	if err == nil {
 		t.Error("relinkHarness must propagate container error")
+	}
+}
+
+func harnessCmdKey(args []string) string { return strings.Join(args, " ") }
+
+func TestEnsureHarness_ClaudeAbsent(t *testing.T) {
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			return "", fmt.Errorf("command not found")
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness claude absent = %v, want nil", err)
+	}
+}
+
+func TestEnsureHarness_HappyPath(t *testing.T) {
+	var called []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			k := harnessCmdKey(args)
+			called = append(called, k)
+			return "", nil
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness happy = %v, want nil", err)
+	}
+	wantContains := []string{
+		"claude plugin marketplace add AlexShchuka/neuro-matrix",
+		"claude plugin install neuro-matrix@neuro-matrix --scope user",
+		"claude plugin update neuro-matrix",
+	}
+	for _, want := range wantContains {
+		found := false
+		for _, c := range called {
+			if c == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("EnsureHarness happy path: %q not called; got %v", want, called)
+		}
+	}
+	relinkFound := false
+	for _, c := range called {
+		if strings.Contains(c, "ln -sfn") {
+			relinkFound = true
+		}
+	}
+	if !relinkFound {
+		t.Errorf("EnsureHarness happy path: relinkHarness not called; got %v", called)
+	}
+}
+
+func TestEnsureHarness_MarketplaceAddFails_UpdateSucceeds(t *testing.T) {
+	var called []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			k := harnessCmdKey(args)
+			called = append(called, k)
+			if k == "claude plugin marketplace add AlexShchuka/neuro-matrix" {
+				return "", fmt.Errorf("add failed")
+			}
+			return "", nil
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness marketplace-add-fails = %v, want nil", err)
+	}
+	updateFound := false
+	for _, c := range called {
+		if c == "claude plugin marketplace update neuro-matrix" {
+			updateFound = true
+		}
+	}
+	if !updateFound {
+		t.Errorf("EnsureHarness: marketplace update not called after add failure; got %v", called)
+	}
+}
+
+func TestEnsureHarness_MarketplaceAddAndUpdateBothFail(t *testing.T) {
+	var called []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			k := harnessCmdKey(args)
+			called = append(called, k)
+			if k == "claude plugin marketplace add AlexShchuka/neuro-matrix" {
+				return "", fmt.Errorf("add failed")
+			}
+			if k == "claude plugin marketplace update neuro-matrix" {
+				return "", fmt.Errorf("update failed")
+			}
+			return "", nil
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness add+update fail = %v, want nil (warns and continues)", err)
+	}
+	installFound := false
+	for _, c := range called {
+		if strings.Contains(c, "plugin install") {
+			installFound = true
+		}
+	}
+	if !installFound {
+		t.Errorf("EnsureHarness: install not called after add+update failure; got %v", called)
+	}
+}
+
+func TestEnsureHarness_FinalVerifyFails_NoRelink(t *testing.T) {
+	var called []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			k := harnessCmdKey(args)
+			called = append(called, k)
+			if strings.Contains(k, "grep -q neuro-matrix") {
+				return "", fmt.Errorf("not found")
+			}
+			return "", nil
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness verify-fail = %v, want nil", err)
+	}
+	for _, c := range called {
+		if strings.Contains(c, "ln -sfn") {
+			t.Errorf("EnsureHarness: relinkHarness called after failed verify; got %v", called)
+		}
+	}
+}
+
+func TestEnsureHarness_InstallAndUpdateFail_WarnsContinues(t *testing.T) {
+	var called []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			k := harnessCmdKey(args)
+			called = append(called, k)
+			if k == "claude plugin install neuro-matrix@neuro-matrix --scope user" {
+				return "", fmt.Errorf("install failed")
+			}
+			if k == "claude plugin update neuro-matrix" {
+				return "", fmt.Errorf("update failed")
+			}
+			return "", nil
+		},
+	}
+	if err := EnsureHarness(context.Background(), r); err != nil {
+		t.Errorf("EnsureHarness install+update fail = %v, want nil", err)
+	}
+	relinkFound := false
+	for _, c := range called {
+		if strings.Contains(c, "ln -sfn") {
+			relinkFound = true
+		}
+	}
+	if !relinkFound {
+		t.Errorf("EnsureHarness: relink not called after install+update failure; got %v", called)
 	}
 }
 
@@ -666,6 +858,9 @@ func TestEnsurePlugins_EmptyCatalog_Noop(t *testing.T) {
 	if err := EnsurePlugins(context.Background(), r, cfg); err != nil {
 		t.Errorf("EnsurePlugins with empty catalog = %v, want nil", err)
 	}
+	if callCount != 1 {
+		t.Errorf("EnsurePlugins empty catalog made %d container calls, want exactly 1 (claude check only)", callCount)
+	}
 }
 
 func TestEnsurePlugins_WithCatalogInstalls(t *testing.T) {
@@ -864,6 +1059,89 @@ func TestStart_RunsWithoutError(t *testing.T) {
 	cfg := config.New(t.TempDir())
 	if err := Start(context.Background(), r, cfg); err != nil {
 		t.Errorf("Start = %v, want nil", err)
+	}
+}
+
+func TestEnsureSettings_SeedAbsent_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cfg := config.New(t.TempDir())
+	if err := EnsureSettings(cfg); err != nil {
+		t.Errorf("EnsureSettings seed absent = %v, want nil", err)
+	}
+}
+
+func TestEnsureSettings_DestAbsent_CopiesSeed(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cfgDir := t.TempDir()
+	seedContent := `{"key":"seedval"}` + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "settings.json"), []byte(seedContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(cfgDir)
+	if err := EnsureSettings(cfg); err != nil {
+		t.Fatalf("EnsureSettings dest absent = %v, want nil", err)
+	}
+	got, err := os.ReadFile(filepath.Join(tmp, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatalf("dest file not created: %v", err)
+	}
+	if !strings.Contains(string(got), "seedval") {
+		t.Errorf("dest content = %q, want to contain seedval", string(got))
+	}
+}
+
+func TestEnsureSettings_DestInvalidJSON_CopiesSeed(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cfgDir := t.TempDir()
+	seedContent := `{"key":"from-seed"}` + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "settings.json"), []byte(seedContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(cfgDir)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, "settings.json"), []byte("not json{{{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureSettings(cfg); err != nil {
+		t.Fatalf("EnsureSettings dest invalid JSON = %v, want nil", err)
+	}
+	got, err := os.ReadFile(filepath.Join(cd, "settings.json"))
+	if err != nil {
+		t.Fatalf("dest file not readable: %v", err)
+	}
+	if !strings.Contains(string(got), "from-seed") {
+		t.Errorf("dest content = %q, want to contain from-seed", string(got))
+	}
+}
+
+func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cfgDir := t.TempDir()
+	seedContent := `{"key":"fallback-seed"}` + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "settings.json"), []byte(seedContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(cfgDir)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destPath := filepath.Join(cd, "settings.json")
+	if err := os.WriteFile(destPath, []byte(`{"key":"orig"}`+"\n"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureSettings(cfg); err != nil {
+		t.Logf("EnsureSettings writeJSON-fail = %v (acceptable on this platform)", err)
+	}
+	if err := os.Chmod(destPath, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

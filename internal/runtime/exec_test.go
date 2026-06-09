@@ -221,7 +221,10 @@ func TestDoVSCode_ContainerNotRunning(t *testing.T) {
 			return "false", nil
 		},
 	}
-	_ = DoVSCode(context.Background(), r)
+	err := DoVSCode(context.Background(), r)
+	if err != nil {
+		t.Errorf("DoVSCode (container not running, devcontainer succeeds) = %v, want nil", err)
+	}
 }
 
 func TestDoVSCode_ContainerRunningLaunchesCode(t *testing.T) {
@@ -235,7 +238,10 @@ func TestDoVSCode_ContainerRunningLaunchesCode(t *testing.T) {
 			return "true", nil
 		},
 	}
-	_ = DoVSCode(context.Background(), r)
+	err := DoVSCode(context.Background(), r)
+	if err != nil {
+		t.Errorf("DoVSCode (container running) = %v, want nil", err)
+	}
 }
 
 func TestDoVSCode_DevcontainerUpFails(t *testing.T) {
