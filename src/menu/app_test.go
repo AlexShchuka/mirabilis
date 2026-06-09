@@ -96,6 +96,23 @@ func TestAppEscCancelsPipeline(t *testing.T) {
 	}
 }
 
+func TestAppForwardsPipelineMsgsDuringGHAuth(t *testing.T) {
+	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	waiting := asApp(t, mustUpdate(launched, needGHMsg{name: "gh"}))
+	if waiting.phase != phaseGHAuth {
+		t.Fatalf("phase = %v, want ghauth", waiting.phase)
+	}
+	waiting.pipe.byName["harness"].status = stRunning
+
+	a := asApp(t, mustUpdate(waiting, ranMsg{name: "harness", err: nil}))
+	if got := a.pipe.byName["harness"].status; got != stDone {
+		t.Errorf("harness status = %v, want done — its ranMsg was dropped behind the gh screen", got)
+	}
+	if a.phase != phaseGHAuth {
+		t.Errorf("phase = %v, want ghauth — forwarding a step result must not leave the gh screen", a.phase)
+	}
+}
+
 func TestAppRouteReset(t *testing.T) {
 	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"reset"}))
 	if a.phase != phaseForm {
