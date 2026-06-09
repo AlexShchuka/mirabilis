@@ -79,6 +79,16 @@ func TestAppGHDoneResumesPipeline(t *testing.T) {
 	}
 }
 
+func TestAppRouteReset(t *testing.T) {
+	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"reset"}))
+	if a.phase != phaseForm {
+		t.Errorf("phase = %v, want form", a.phase)
+	}
+	if a.form == nil {
+		t.Error("reset should open a confirm form")
+	}
+}
+
 func TestAppQuitFromMenu(t *testing.T) {
 	_, cmd := newTestApp().Update(menuChoiceMsg{"quit"})
 	if cmd == nil {

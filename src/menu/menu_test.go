@@ -32,12 +32,12 @@ func TestMenuItemsDisabled(t *testing.T) {
 		{
 			name: "container down disables container actions",
 			give: Status{ContainerUp: false},
-			want: map[string]bool{"launch": false, "plugins": true, "harness": true, "stacks": false, "vscode": true, "quit": false},
+			want: map[string]bool{"launch": false, "plugins": true, "harness": true, "stacks": false, "vscode": true, "reset": false, "quit": false},
 		},
 		{
 			name: "container up enables everything",
 			give: Status{ContainerUp: true},
-			want: map[string]bool{"launch": false, "plugins": false, "harness": false, "stacks": false, "vscode": false, "quit": false},
+			want: map[string]bool{"launch": false, "plugins": false, "harness": false, "stacks": false, "vscode": false, "reset": false, "quit": false},
 		},
 	}
 	for _, tt := range tests {
@@ -56,7 +56,7 @@ func TestMenuItemsDisabled(t *testing.T) {
 }
 
 func TestMenuEnterDispatchesEnabledAction(t *testing.T) {
-	want := []string{"launch", "plugins", "harness", "stacks", "vscode", "quit"}
+	want := []string{"launch", "plugins", "harness", "stacks", "vscode", "reset", "quit"}
 	for i, action := range want {
 		m := sizedMenu(Status{ContainerUp: true})
 		for j := 0; j < i; j++ {
@@ -78,12 +78,12 @@ func TestMenuNavigationSkipsDisabled(t *testing.T) {
 		t.Errorf("down from launch landed on %q, want stacks", it.action)
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if it, _ := m.selected(); it.action != "quit" {
-		t.Errorf("down from stacks landed on %q, want quit", it.action)
+	if it, _ := m.selected(); it.action != "reset" {
+		t.Errorf("down from stacks landed on %q, want reset", it.action)
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	if it, _ := m.selected(); it.action != "stacks" {
-		t.Errorf("up from quit landed on %q, want stacks", it.action)
+		t.Errorf("up from reset landed on %q, want stacks", it.action)
 	}
 }
 

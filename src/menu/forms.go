@@ -120,6 +120,30 @@ func newHarnessForm(ctx context.Context, r Runner, w, h int) *formScreen {
 	return &formScreen{form: form, apply: apply}
 }
 
+func newResetForm(ctx context.Context, r Runner, w, h int) *formScreen {
+	var confirmed bool
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Удалить всё?").
+			Description("Контейнер, образ и тома (код в /workspace, ~/.claude — память и авторизация, gh) будут стёрты безвозвратно.").
+			Affirmative("Удалить всё").
+			Negative("Отмена").
+			Value(&confirmed),
+	)).WithWidth(w).WithHeight(h)
+	apply := func() tea.Cmd {
+		return func() tea.Msg {
+			if !confirmed {
+				return backToMenuMsg{}
+			}
+			if err := resetAll(ctx, r); err != nil {
+				return backToMenuMsg{notice: "удаление: " + err.Error()}
+			}
+			return backToMenuMsg{notice: "всё удалено — следующий запуск пересоберёт песочницу"}
+		}
+	}
+	return &formScreen{form: form, apply: apply}
+}
+
 func newStacksForm(r Runner, w, h int) *formScreen {
 	catalog := readStackCatalog(r.Repo())
 	if len(catalog) == 0 {

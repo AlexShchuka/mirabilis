@@ -133,6 +133,9 @@ func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 		}
 		a.form, a.phase = f, phaseForm
 		return a, f.Init()
+	case "reset":
+		a.form, a.phase = newResetForm(a.ctx, a.r, a.w, a.h), phaseForm
+		return a, a.form.Init()
 	case "vscode":
 		return a, doVSCodeCmd(a.ctx, a.r)
 	case "quit":

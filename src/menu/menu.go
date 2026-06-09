@@ -95,6 +95,7 @@ func menuItems(st Status) []list.Item {
 		item{action: "harness", title: "Харнес", desc: hd, disabled: hDis},
 		item{action: "stacks", title: "Стек", desc: "опциональные стеки сборки"},
 		item{action: "vscode", title: "Открыть в VS Code", desc: vd, disabled: vDis},
+		item{action: "reset", title: "Удалить всё", desc: "контейнер, образ и тома — безвозвратно"},
 		item{action: "quit", title: "Выход", desc: ""},
 	}
 }

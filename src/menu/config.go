@@ -46,6 +46,17 @@ func applyHarness(ctx context.Context, r Runner, choice string) error {
 	return nil
 }
 
+func resetAll(ctx context.Context, r Runner) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", "mirabilis",
+		"-f", filepath.Join(r.Repo(), "docker-compose.yml"),
+		"down", "--rmi", "local", "-v")
+	cmd.Env = composeEnv(r.Repo())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("docker compose down failed: %s", lastLines(string(out), 12))
+	}
+	return nil
+}
+
 func doVSCodeCmd(ctx context.Context, r Runner) tea.Cmd {
 	return func() tea.Msg {
 		if err := doVSCode(ctx, r); err != nil {
