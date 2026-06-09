@@ -87,7 +87,7 @@ func loginArgs() []string {
 }
 
 func (g *Model) run() {
-	cmd := runtime.ContainerCmd(g.r, loginArgs()...)
+	cmd := runtime.ContainerCmd(g.ctx, g.r, loginArgs()...)
 	cmd.Stdin = strings.NewReader("\n")
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -106,7 +106,14 @@ func (g *Model) run() {
 	pw.Close()
 	sc := bufio.NewScanner(pr)
 	for sc.Scan() {
-		g.linesCh <- sc.Text()
+		select {
+		case <-g.ctx.Done():
+			pr.Close()
+			_ = cmd.Wait()
+			close(g.linesCh)
+			return
+		case g.linesCh <- sc.Text():
+		}
 	}
 	pr.Close()
 	g.doneCh <- cmd.Wait()

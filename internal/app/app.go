@@ -41,6 +41,7 @@ type appModel struct {
 	pipe       *pipeline.Pipeline
 	pipeCancel context.CancelFunc
 	gh         *ghauth.Model
+	ghCancel   context.CancelFunc
 	notice     string
 	pendGH     string
 	h          int
@@ -60,6 +61,10 @@ func (a appModel) Init() tea.Cmd { return a.menu.Init() }
 
 func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "ctrl+c" {
+		if a.ghCancel != nil {
+			a.ghCancel()
+			a.ghCancel = nil
+		}
 		return a, tea.Quit
 	}
 
@@ -84,9 +89,15 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pipeline.NeedGHMsg:
 		a.phase = phaseGHAuth
 		a.pendGH = msg.Name
-		a.gh = ghauth.New(a.ctx, a.r, a.w, a.h)
+		ctx, cancel := context.WithCancel(a.ctx)
+		a.ghCancel = cancel
+		a.gh = ghauth.New(ctx, a.r, a.w, a.h)
 		return a, a.gh.Init()
 	case ghauth.DoneMsg:
+		if a.ghCancel != nil {
+			a.ghCancel()
+			a.ghCancel = nil
+		}
 		if a.pipe == nil {
 			return a.toMenu("")
 		}
@@ -121,6 +132,16 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case phaseForm:
 		return a.updateForm(msg)
 	case phaseGHAuth:
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "esc" {
+			if a.ghCancel != nil {
+				a.ghCancel()
+				a.ghCancel = nil
+			}
+			return a.toMenu(ui.NoticeLaunchCanceled)
+		}
+		if a.gh == nil {
+			return a, nil
+		}
 		var cmd tea.Cmd
 		a.gh, cmd = a.gh.Update(msg)
 		return a, cmd
@@ -176,6 +197,10 @@ func (a appModel) toMenu(notice string) (tea.Model, tea.Cmd) {
 	if a.pipeCancel != nil {
 		a.pipeCancel()
 		a.pipeCancel = nil
+	}
+	if a.ghCancel != nil {
+		a.ghCancel()
+		a.ghCancel = nil
 	}
 	a.phase = phaseMenu
 	a.pipe, a.form, a.gh = nil, nil, nil

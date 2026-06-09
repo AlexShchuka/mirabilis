@@ -3,6 +3,7 @@ package ghauth
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
@@ -61,6 +62,27 @@ func TestLoginArgsRequestWorkflowScope(t *testing.T) {
 	}
 	if !scoped {
 		t.Errorf("loginArgs must request the workflow scope, got %v", args)
+	}
+}
+
+func TestRunExitsCleanlyOnStartError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g := New(ctx, &runner.FakeRunner{}, 80, 24)
+	g.linesCh = make(chan string)
+	g.doneCh = make(chan error, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		g.run()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("run() did not return after process start failure")
 	}
 }
 

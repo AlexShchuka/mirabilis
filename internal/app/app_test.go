@@ -168,6 +168,58 @@ func TestAppCtrlCQuits(t *testing.T) {
 	}
 }
 
+func TestAppGHAuthEscGoesBackToMenu(t *testing.T) {
+	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
+	if waiting.phase != phaseGHAuth {
+		t.Fatalf("phase = %v, want ghauth", waiting.phase)
+	}
+	if waiting.ghCancel == nil {
+		t.Fatal("ghCancel must be set while in phaseGHAuth")
+	}
+
+	canceled := false
+	waiting.ghCancel = func() { canceled = true }
+
+	a := asApp(t, mustUpdate(waiting, tea.KeyPressMsg{Code: tea.KeyEscape}))
+	if !canceled {
+		t.Error("esc in phaseGHAuth must call ghCancel")
+	}
+	if a.phase != phaseMenu {
+		t.Errorf("phase = %v, want menu after esc in ghauth", a.phase)
+	}
+	if a.ghCancel != nil {
+		t.Error("ghCancel must be nil after cancellation")
+	}
+}
+
+func TestAppGHAuthNilGHGuarded(t *testing.T) {
+	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
+	waiting.gh = nil
+
+	a := asApp(t, mustUpdate(waiting, tea.KeyPressMsg{Code: 'x'}))
+	if a.phase != phaseGHAuth {
+		t.Errorf("phase = %v, want ghauth — nil gh must not crash", a.phase)
+	}
+}
+
+func TestAppGHDoneCancelsGHCtx(t *testing.T) {
+	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
+	if waiting.ghCancel == nil {
+		t.Fatal("ghCancel not set")
+	}
+
+	canceled := false
+	waiting.ghCancel = func() { canceled = true }
+
+	asApp(t, mustUpdate(waiting, ghauth.DoneMsg{Err: nil}))
+	if !canceled {
+		t.Error("ghCancel must be called when ghauth.DoneMsg is received")
+	}
+}
+
 func mustUpdate(m tea.Model, msg tea.Msg) tea.Model {
 	next, _ := m.Update(msg)
 	return next

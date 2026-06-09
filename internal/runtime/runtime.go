@@ -22,10 +22,11 @@ const (
 	exitAltScreen     = "\x1b[?1049l"
 	resetScrollRegion = "\x1b[r"
 	showCursor        = "\x1b[?25h"
+	clearScreenHome   = "\x1b[2J\x1b[H"
 )
 
 func resetTerminal(w io.Writer) {
-	_, _ = io.WriteString(w, exitAltScreen+resetScrollRegion+showCursor)
+	_, _ = io.WriteString(w, exitAltScreen+resetScrollRegion+clearScreenHome+showCursor)
 }
 
 var _ runner.Runner = (*execRunner)(nil)
@@ -155,8 +156,8 @@ func keychainGet(name string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func ContainerCmd(r runner.Runner, args ...string) *exec.Cmd {
-	cmd := exec.Command("devcontainer", append([]string{"exec", "--workspace-folder", r.Repo()}, args...)...)
+func ContainerCmd(ctx context.Context, r runner.Runner, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "devcontainer", append([]string{"exec", "--workspace-folder", r.Repo()}, args...)...)
 	cmd.Env = ComposeEnv(r.Repo())
 	return cmd
 }
@@ -278,9 +279,22 @@ func resolveCode() (string, error) {
 	return "", fmt.Errorf("VS Code not found — install it from https://code.visualstudio.com")
 }
 
-func Handoff(r runner.Runner) error {
+func resolveGHToken(r runner.Runner) (string, error) {
 	ctx := context.Background()
-	ght, _ := r.Container(ctx, "gh", "auth", "token")
+	token, err := r.Container(ctx, "gh", "auth", "token")
+	token = strings.TrimSpace(token)
+	if err != nil || token == "" {
+		return "", fmt.Errorf("GitHub token is not available — sign in with gh auth login first")
+	}
+	return token, nil
+}
+
+func Handoff(r runner.Runner) error {
+	ght, err := resolveGHToken(r)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
 	spf, _ := r.Container(ctx, "bash", "-lc", systemPromptScript)
 	if spf = strings.TrimSpace(spf); spf == "" {
 		spf = "/opt/mirabilis/config/sandbox-context.md"
@@ -290,7 +304,7 @@ func Handoff(r runner.Runner) error {
 		return err
 	}
 	resetTerminal(os.Stderr)
-	return syscall.Exec(dk, handoffArgv(dk, strings.TrimSpace(ght), spf), ComposeEnv(r.Repo()))
+	return syscall.Exec(dk, handoffArgv(dk, ght, spf), ComposeEnv(r.Repo()))
 }
 
 func handoffArgv(docker, token, spf string) []string {
