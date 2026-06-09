@@ -270,16 +270,29 @@ func Handoff(r runner.Runner) error {
 		return err
 	}
 	resetTerminal(os.Stderr)
-	return syscall.Exec(dk, handoffArgv(dk, ght, spf), ComposeEnv(r.Repo()))
+	return syscall.Exec(dk, handoffArgv(dk, spf), handoffEnv(ComposeEnv(r.Repo()), ght))
 }
 
-func handoffArgv(docker, token, spf string) []string {
+func handoffArgv(docker, spf string) []string {
 	return []string{
-		docker, "exec", "-it", "mirabilis",
-		"env", "GITHUB_PERSONAL_ACCESS_TOKEN=" + token,
-		"COLORTERM=truecolor", "TERM=xterm-256color",
+		docker, "exec", "-it",
+		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+		"-e", "COLORTERM=truecolor",
+		"-e", "TERM=xterm-256color",
+		"mirabilis",
 		"claude", "--dangerously-skip-permissions", "--append-system-prompt-file", spf,
 	}
+}
+
+func handoffEnv(base []string, token string) []string {
+	out := make([]string, 0, len(base)+1)
+	for _, kv := range base {
+		if strings.HasPrefix(kv, "GITHUB_PERSONAL_ACCESS_TOKEN=") || kv == "GITHUB_PERSONAL_ACCESS_TOKEN" {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, "GITHUB_PERSONAL_ACCESS_TOKEN="+token)
 }
 
 const systemPromptScript = `sbx=/opt/mirabilis/config/sandbox-context.md; out=/tmp/mirabilis-system-prompt.md
