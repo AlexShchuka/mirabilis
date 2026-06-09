@@ -15,8 +15,8 @@ setup() {
   assert_success
 }
 
-@test "statusLine is wired to the vendored statusline script" {
-  run jq -e '.statusLine.command | test("statusline-command.sh")' "$SETTINGS"
+@test "statusLine runs the claude-hud plugin" {
+  run jq -e '.statusLine.command | test("claude-hud") and test("dist/index.js")' "$SETTINGS"
   assert_success
 }
 

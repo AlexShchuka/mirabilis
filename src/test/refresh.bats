@@ -9,9 +9,8 @@ setup() {
   FAKE_OPT="$BATS_TEST_TMPDIR/opt/mirabilis"
   mkdir -p "$FAKE_HOME/.claude" "$FAKE_OPT/config"
   cp "$REPO_ROOT/config/settings.json" "$FAKE_OPT/config/settings.json"
-  cp "$REPO_ROOT/config/statusline-command.sh" "$FAKE_OPT/config/statusline-command.sh"
   : >"$FAKE_OPT/config/apt-packages.txt"
-  : >"$FAKE_OPT/config/plugins.txt"
+  printf 'claude-hud@claude-hud\n' >"$FAKE_OPT/config/plugins.txt"
 
   for c in sudo gh git dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
   log_shim claude 'exit 0'
@@ -47,11 +46,16 @@ run_refresh() {
   assert_success
 }
 
-@test "refresh installs the vendored statusline script" {
+@test "refresh registers the claude-hud plugin marketplace" {
   run_refresh
-  assert [ -f "$FAKE_HOME/.claude/statusline-command.sh" ]
-  run diff "$FAKE_OPT/config/statusline-command.sh" "$FAKE_HOME/.claude/statusline-command.sh"
-  assert_success
+  run cat "$SHIM_LOG"
+  assert_output --partial 'plugin marketplace add jarrodwatts/claude-hud'
+}
+
+@test "refresh installs catalog plugins including claude-hud" {
+  run_refresh
+  run cat "$SHIM_LOG"
+  assert_output --partial 'plugin install claude-hud@claude-hud'
 }
 
 @test "refresh is idempotent: settings.json stable across two runs" {
