@@ -2,7 +2,6 @@ package provision
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,26 +25,24 @@ func EnsureHarness(ctx context.Context, r runner.Runner) error {
 
 	if _, err := r.Container(ctx, "claude", "plugin", "marketplace", "add", "AlexShchuka/neuro-matrix"); err != nil {
 		if _, err2 := r.Container(ctx, "claude", "plugin", "marketplace", "update", "neuro-matrix"); err2 != nil {
-			fmt.Fprintf(os.Stderr, "[provision] WARN: marketplace add/update neuro-matrix: %v\n", err2)
+			warn("marketplace add/update neuro-matrix", err2)
 		}
 	}
 
 	if _, err := r.Container(ctx, "claude", "plugin", "install", "neuro-matrix@neuro-matrix", "--scope", "user"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: plugin install neuro-matrix: %v\n", err)
+		warn("plugin install neuro-matrix", err)
 	}
 
 	if _, err := r.Container(ctx, "claude", "plugin", "update", "neuro-matrix"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: plugin update neuro-matrix: %v\n", err)
+		warn("plugin update neuro-matrix", err)
 	}
 
 	if _, err := r.Container(ctx, "bash", "-lc", "claude plugin list 2>/dev/null | grep -q neuro-matrix"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: neuro-matrix not installed after reinstall — check git/network\n")
+		warn("neuro-matrix not installed after reinstall", err)
 		return nil
 	}
 
-	if err := relinkHarness(ctx, r); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: neuro-matrix symlink: %v\n", err)
-	}
+	warn("neuro-matrix symlink", relinkHarness(ctx, r))
 	return nil
 }
 

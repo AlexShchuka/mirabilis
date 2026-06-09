@@ -9,46 +9,29 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
+func warn(step string, err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[provision] WARN: %s: %v\n", step, err)
+}
+
 func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
-	if err := EnsureSettings(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: settings: %v\n", err)
-	}
-	if err := EnsureTheme(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: theme: %v\n", err)
-	}
-	if err := EnsureAptPackages(ctx, r, cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: apt: %v\n", err)
-	}
-	if err := EnsureMemory(); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: memory: %v\n", err)
-	}
-	if err := EnsureGitIdentity(ctx, r); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: git identity: %v\n", err)
-	}
-	if err := EnsurePlugins(ctx, r, cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: plugins: %v\n", err)
-	}
-	if err := EnsureHudConfig(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: claude-hud config: %v\n", err)
-	}
+	warn("settings", EnsureSettings(cfg))
+	warn("theme", EnsureTheme(cfg))
+	warn("apt", EnsureAptPackages(ctx, r, cfg))
+	warn("memory", EnsureMemory())
+	warn("git identity", EnsureGitIdentity(ctx, r))
+	warn("plugins", EnsurePlugins(ctx, r, cfg))
+	warn("claude-hud config", EnsureHudConfig(cfg))
 	ok, err := HarnessInstalled(ctx, r)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: harness check: %v\n", err)
-	}
+	warn("harness check", err)
 	if !ok {
-		if err := EnsureHarness(ctx, r); err != nil {
-			fmt.Fprintf(os.Stderr, "[provision] WARN: harness: %v\n", err)
-		}
+		warn("harness", EnsureHarness(ctx, r))
 	}
-	if err := EnsureMCP(ctx, r); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: mcp: %v\n", err)
-	}
-	if err := EnsureSkills(ctx, r); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: skills: %v\n", err)
-	}
-	if err := EnsureRTK(ctx, r, cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: rtk: %v\n", err)
-	}
+	warn("mcp", EnsureMCP(ctx, r))
+	warn("skills", EnsureSkills(ctx, r))
+	warn("rtk", EnsureRTK(ctx, r, cfg))
 }
 
 func Create(ctx context.Context, r runner.Runner, cfg config.Config) error {
@@ -58,9 +41,6 @@ func Create(ctx context.Context, r runner.Runner, cfg config.Config) error {
 
 func Start(ctx context.Context, r runner.Runner, cfg config.Config) error {
 	ensureAll(ctx, r, cfg)
-
-	if err := relinkHarness(ctx, r); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: harness symlink re-assert: %v\n", err)
-	}
+	warn("harness symlink re-assert", relinkHarness(ctx, r))
 	return nil
 }

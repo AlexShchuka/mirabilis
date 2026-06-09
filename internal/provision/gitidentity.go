@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -44,14 +43,14 @@ func EnsureGitIdentity(ctx context.Context, r runner.Runner) error {
 	}
 
 	if _, err := r.Host(ctx, "git", "config", "--global", "user.name", name); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: git config user.name: %v\n", err)
+		warn("git config user.name", err)
 	}
 	if _, err := r.Host(ctx, "git", "config", "--global", "user.email", email); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: git config user.email: %v\n", err)
+		warn("git config user.email", err)
 	}
 
 	if _, err := r.Host(ctx, "gh", "auth", "setup-git"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: gh auth setup-git: %v\n", err)
+		warn("gh auth setup-git", err)
 	}
 	return nil
 }

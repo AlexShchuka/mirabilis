@@ -84,7 +84,7 @@ func EnsureSettings(cfg config.Config) error {
 			merged := mergeSettings(dm, sm)
 			delete(merged, "sandbox")
 			if werr := writeJSON(dest, merged); werr != nil {
-				fmt.Fprintf(os.Stderr, "[provision] WARN: write settings: %v; falling back to seed copy\n", werr)
+				warn("write settings", werr)
 				return copyFile(seed, dest)
 			}
 			return nil
@@ -117,12 +117,12 @@ func EnsureTheme(cfg config.Config) error {
 	}
 	m, err := readJSON(dest)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: read settings for theme: %v\n", err)
+		warn("read settings for theme", err)
 		return nil
 	}
 	m["theme"] = th
 	if err := writeJSON(dest, m); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: write settings for theme: %v\n", err)
+		warn("write settings for theme", err)
 	}
 	return nil
 }
