@@ -31,6 +31,9 @@ if [ -f "$THEME_FILE" ] && [ -f "$DEST" ]; then
   fi
 fi
 
+HUD_SRC="$(npm root -g 2>/dev/null)/claude-hud/statusline-command.sh"
+[ -f "$HUD_SRC" ] && cp -f "$HUD_SRC" "$HOME/.claude/statusline-command.sh"
+
 APT_LIST=/opt/mirabilis/config/apt-packages.txt
 if [ -f "$APT_LIST" ]; then
   missing=()
@@ -42,18 +45,6 @@ if [ -f "$APT_LIST" ]; then
     sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends "${missing[@]}" >/dev/null 2>&1 ||
       echo "[refresh] WARN: declared apt packages not fully applied: ${missing[*]}" >&2
   fi
-fi
-
-CJSON="$HOME/.claude.json"
-if [ -f "$CJSON" ]; then
-  tmp="$(mktemp)"
-  if jq '.projects["/workspace"].hasTrustDialogAccepted = true' "$CJSON" >"$tmp"; then
-    mv "$tmp" "$CJSON"
-  else
-    rm -f "$tmp"
-  fi
-else
-  printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' >"$CJSON"
 fi
 
 RULES_SRC=/opt/mirabilis/config/memory/rules

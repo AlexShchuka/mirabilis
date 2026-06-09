@@ -15,8 +15,8 @@ setup() {
   assert_success
 }
 
-@test "statusLine is wired to ccstatusline" {
-  run jq -e '.statusLine.command == "ccstatusline"' "$SETTINGS"
+@test "statusLine is wired to claude-hud" {
+  run jq -e '.statusLine.command | test("statusline-command.sh")' "$SETTINGS"
   assert_success
 }
 

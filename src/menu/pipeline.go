@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
-	"strings"
 
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -22,18 +21,16 @@ const (
 )
 
 type Step struct {
-	Name     string
-	Title    string
-	Deps     []string
-	Retry    RetryPolicy
-	Optional bool
+	Name        string
+	Title       string
+	Deps        []string
+	Retry       RetryPolicy
+	Optional    bool
+	Interactive bool
 
-	Check   func(ctx context.Context, r Runner) (bool, error)
-	Run     func(ctx context.Context, r Runner) error
-	ExecCmd func(r Runner) *exec.Cmd
+	Check func(ctx context.Context, r Runner) (bool, error)
+	Run   func(ctx context.Context, r Runner) error
 }
-
-func (s Step) interactive() bool { return s.ExecCmd != nil }
 
 type stepView struct {
 	step   Step
@@ -53,10 +50,14 @@ type ranMsg struct {
 }
 
 type pipeline struct {
-	ctx    context.Context
-	r      Runner
+	ctx context.Context
+	r   Runner
+
 	views  []*stepView
 	byName map[string]*stepView
+
+	spin     spinner.Model
+	progress progress.Model
 
 	queue       []*stepView
 	interacting bool
@@ -64,7 +65,14 @@ type pipeline struct {
 }
 
 func newPipeline(ctx context.Context, r Runner, steps []Step) *pipeline {
-	p := &pipeline{ctx: ctx, r: r, byName: map[string]*stepView{}}
+	p := &pipeline{
+		ctx:      ctx,
+		r:        r,
+		byName:   map[string]*stepView{},
+		spin:     spinner.New(spinner.WithSpinner(spinner.MiniDot)),
+		progress: progress.New(progress.WithDefaultBlend(), progress.WithoutPercentage()),
+	}
+	p.progress.SetWidth(40)
 	for _, s := range steps {
 		v := &stepView{step: s, status: stPending}
 		p.views = append(p.views, v)
@@ -73,23 +81,24 @@ func newPipeline(ctx context.Context, r Runner, steps []Step) *pipeline {
 	return p
 }
 
-func (p *pipeline) Init() tea.Cmd { return p.advance() }
+func (p *pipeline) Init() tea.Cmd {
+	return tea.Batch(p.spin.Tick, p.advance())
+}
 
 func (p *pipeline) advance() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, v := range p.views {
-		if v.status != stPending || !p.depsReady(v.step) {
-			continue
+		if v.status == stPending && p.depsReady(v.step) {
+			v.status = stRunning
+			cmds = append(cmds, p.checkCmd(v.step))
 		}
-		v.status = stRunning
-		cmds = append(cmds, p.checkCmd(v.step))
 	}
 	if cmd := p.drainInteractive(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-
-	if len(cmds) == 0 && !p.inFlight() {
-		return tea.Quit
+	cmds = append(cmds, p.setProgress())
+	if p.done() {
+		cmds = append(cmds, emit(pipelineDoneMsg{failed: p.failed}))
 	}
 	return tea.Batch(cmds...)
 }
@@ -104,16 +113,35 @@ func (p *pipeline) depsReady(s Step) bool {
 	return true
 }
 
-func (p *pipeline) inFlight() bool {
+func (p *pipeline) done() bool {
 	if p.interacting || len(p.queue) > 0 {
-		return true
+		return false
 	}
 	for _, v := range p.views {
-		if v.status == stRunning {
-			return true
+		switch v.status {
+		case stPending, stRunning, stWaiting:
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+func (p *pipeline) resolved() int {
+	n := 0
+	for _, v := range p.views {
+		switch v.status {
+		case stDone, stSkipped, stFailed:
+			n++
+		}
+	}
+	return n
+}
+
+func (p *pipeline) setProgress() tea.Cmd {
+	if len(p.views) == 0 {
+		return nil
+	}
+	return p.progress.SetPercent(float64(p.resolved()) / float64(len(p.views)))
 }
 
 func (p *pipeline) checkCmd(s Step) tea.Cmd {
@@ -133,13 +161,6 @@ func (p *pipeline) runCmd(s Step) tea.Cmd {
 	}
 }
 
-func (p *pipeline) execCmd(s Step) tea.Cmd {
-	cmd := s.ExecCmd(p.r)
-	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return ranMsg{name: s.Name, err: err}
-	})
-}
-
 func (p *pipeline) drainInteractive() tea.Cmd {
 	if p.interacting || len(p.queue) == 0 {
 		return nil
@@ -148,86 +169,117 @@ func (p *pipeline) drainInteractive() tea.Cmd {
 	p.queue = p.queue[1:]
 	p.interacting = true
 	v.status = stRunning
-	return p.execCmd(v.step)
+	return emit(needGHMsg{name: v.step.Name})
 }
 
-func (p *pipeline) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (p *pipeline) Update(msg tea.Msg) (*pipeline, tea.Cmd) {
 	switch m := msg.(type) {
+	case tea.WindowSizeMsg:
+		p.progress.SetWidth(progressWidth(m.Width))
+		return p, nil
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		p.spin, cmd = p.spin.Update(m)
+		return p, cmd
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		p.progress, cmd = p.progress.Update(m)
+		return p, cmd
 	case checkedMsg:
-		v := p.byName[m.name]
-		switch {
-		case m.err != nil && v.step.Optional:
-			v.status, v.err = stSkipped, m.err
-		case m.err != nil:
-			v.status, v.err = stFailed, m.err
-			p.failed = true
-		case m.satisfied:
-			v.status = stSkipped
-		case v.step.interactive():
-			v.status = stWaiting
-			p.queue = append(p.queue, v)
-		default:
-			return p, tea.Batch(p.runCmd(v.step), p.advance())
-		}
-		return p, p.advance()
-
+		return p, p.onChecked(m)
 	case ranMsg:
-		v := p.byName[m.name]
-		if v.step.interactive() {
-			p.interacting = false
-		}
-		switch {
-		case m.err == nil:
-			v.status = stDone
-		case v.step.Optional:
-			v.status, v.err = stSkipped, m.err
-		default:
-			v.status, v.err = stFailed, m.err
-			p.failed = true
-		}
-		return p, p.advance()
-
-	case tea.KeyPressMsg:
-		if s := m.String(); s == "ctrl+c" {
-			p.failed = true
-			return p, tea.Quit
-		}
+		return p, p.onRan(m)
 	}
 	return p, nil
 }
 
+func (p *pipeline) onChecked(m checkedMsg) tea.Cmd {
+	v, ok := p.byName[m.name]
+	if !ok {
+		return p.advance()
+	}
+	switch {
+	case m.err != nil && v.step.Optional:
+		v.status = stSkipped
+	case m.err != nil:
+		v.status, v.err = stFailed, m.err
+		p.failed = true
+	case m.satisfied:
+		v.status = stSkipped
+	case v.step.Interactive:
+		v.status = stWaiting
+		p.queue = append(p.queue, v)
+	default:
+		return tea.Batch(p.runCmd(v.step), p.advance())
+	}
+	return p.advance()
+}
+
+func (p *pipeline) onRan(m ranMsg) tea.Cmd {
+	v, ok := p.byName[m.name]
+	if !ok {
+		return p.advance()
+	}
+	reTick := false
+	if v.step.Interactive {
+		p.interacting = false
+		reTick = true
+	}
+	switch {
+	case m.err == nil:
+		v.status = stDone
+	case v.step.Optional:
+		v.status = stSkipped
+	default:
+		v.status, v.err = stFailed, m.err
+		p.failed = true
+	}
+	if reTick {
+		return tea.Batch(p.advance(), p.spin.Tick)
+	}
+	return p.advance()
+}
+
 var (
-	okMark   = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	failMark = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	dimMark  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	failMark   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	titleStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 )
 
-func (p *pipeline) View() tea.View {
-	var b strings.Builder
-	b.WriteString(dimMark.Render("mirabilis — launch") + "\n\n")
-	for _, v := range p.views {
-		var glyph string
-		switch v.status {
-		case stDone:
-			glyph = okMark.Render("✔")
-		case stSkipped:
-			glyph = dimMark.Render("•")
-		case stFailed:
-			glyph = failMark.Render("✘")
-		case stRunning:
-			glyph = "▸"
-		case stWaiting:
-			glyph = dimMark.Render("…")
-		default:
-			glyph = dimMark.Render(" ")
-		}
-		line := fmt.Sprintf(" %s %s", glyph, v.step.Title)
-		if v.err != nil {
-			line += dimMark.Render(" — " + v.err.Error())
-		}
-		b.WriteString(line + "\n")
+func (p *pipeline) View() string {
+	label, failure := p.label()
+	bar := p.spin.View() + " " + p.progress.View() + "  " + label
+	out := titleStyle.Render("mirabilis — запуск") + "\n\n" + bar
+	if failure != "" {
+		out += "\n\n" + failMark.Render("✘ ") + failure + "\n " + hintStyle.Render("любая клавиша — в меню")
 	}
-	v := tea.NewView(b.String())
-	v.AltScreen = true
-	return v
+	return out
+}
+
+func (p *pipeline) label() (string, string) {
+	for _, v := range p.views {
+		if v.status == stFailed {
+			msg := v.step.Title
+			if v.err != nil {
+				msg += " — " + v.err.Error()
+			}
+			return v.step.Title, msg
+		}
+	}
+	for _, v := range p.views {
+		if v.status == stRunning || v.status == stWaiting {
+			return v.step.Title + "…", ""
+		}
+	}
+	return "готово", ""
+}
+
+func progressWidth(w int) int {
+	pw := w - 28
+	if pw < 10 {
+		return 10
+	}
+	if pw > 50 {
+		return 50
+	}
+	return pw
 }

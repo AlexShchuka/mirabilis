@@ -2,31 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"syscall"
-
-	tea "charm.land/bubbletea/v2"
 )
-
-func RunPipeline() error {
-	ctx := context.Background()
-	r := newExecRunner()
-	if err := ensureDocker(ctx); err != nil {
-		return err
-	}
-	p := newPipeline(ctx, r, buildSteps())
-	final, err := tea.NewProgram(p, tea.WithOutput(os.Stderr)).Run()
-	if err != nil {
-		return err
-	}
-	if fp, ok := final.(*pipeline); ok && fp.failed {
-		return fmt.Errorf("a launch step failed — see above")
-	}
-	return handoff(r)
-}
 
 func handoff(r Runner) error {
 	ctx := context.Background()

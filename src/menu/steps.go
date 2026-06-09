@@ -17,12 +17,12 @@ func buildSteps() []Step {
 			Check: checkUpToDate, Run: runPull,
 		},
 		{
-			Name: "stacks", Title: "Стеки сборки",
-			Check: checkStacks, ExecCmd: func(r Runner) *exec.Cmd { return selfCmd("stacks") },
+			Name: "prepare", Title: "Контейнер", Deps: []string{"update"}, Retry: retryNet,
+			Check: checkContainerReady, Run: runPrepare,
 		},
 		{
-			Name: "prepare", Title: "Контейнер", Deps: []string{"stacks", "update"}, Retry: retryNet,
-			Check: checkContainerReady, Run: runPrepare,
+			Name: "claude", Title: "Конфиг Claude", Deps: []string{"prepare"}, Retry: retryNone, Optional: true,
+			Check: alwaysRun, Run: seedClaudeConfig,
 		},
 		{
 			Name: "theme", Title: "Тема", Deps: []string{"prepare"}, Retry: retryNone, Optional: true,
@@ -33,10 +33,8 @@ func buildSteps() []Step {
 			Check: checkHarness, Run: runHarness,
 		},
 		{
-			Name: "gh", Title: "GitHub sign-in", Deps: []string{"prepare"}, Optional: true,
-			Check: checkGitHub, ExecCmd: func(r Runner) *exec.Cmd {
-				return containerCmd(r, "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
-			},
+			Name: "gh", Title: "GitHub sign-in", Deps: []string{"prepare"}, Optional: true, Interactive: true,
+			Check: checkGitHub,
 		},
 		{
 			Name: "preflight", Title: "Проверка окружения", Deps: []string{"prepare", "harness", "gh"}, Retry: retryNone,
@@ -79,11 +77,6 @@ func readStacks(repo string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func checkStacks(_ context.Context, r Runner) (bool, error) {
-	_, defined := readStacks(r.Repo())
-	return defined, nil
 }
 
 func readStackCatalog(repo string) []string {
@@ -174,6 +167,17 @@ func lastLines(s string, n int) string {
 		lines = lines[len(lines)-n:]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func seedClaudeConfig(ctx context.Context, r Runner) error {
+	const script = `f="$HOME/.claude.json"
+[ -f "$f" ] || printf '{}' >"$f"
+tmp="$(mktemp)"
+jq '.projects["/workspace"].hasTrustDialogAccepted = true
+  | .hasCompletedOnboarding = true
+  | .bypassPermissionsModeAccepted = true' "$f" >"$tmp" && mv "$tmp" "$f"`
+	_, err := r.Container(ctx, "bash", "-lc", script)
+	return err
 }
 
 func checkTheme(ctx context.Context, r Runner) (bool, error) {

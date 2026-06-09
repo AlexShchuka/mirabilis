@@ -14,12 +14,14 @@ type Status struct {
 	CommitsBehind int
 	Stale         bool
 	Harness       string
+	ContainerUp   bool
 }
 
 type item struct {
-	action string
-	title  string
-	desc   string
+	action   string
+	title    string
+	desc     string
+	disabled bool
 }
 
 func (i item) FilterValue() string { return i.title }
@@ -32,6 +34,7 @@ var (
 	selTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 	normTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	hintStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	offStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 type delegate struct{}
@@ -40,45 +43,60 @@ func (d delegate) Height() int                             { return 1 }
 func (d delegate) Spacing() int                            { return 0 }
 func (d delegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
-func (d delegate) Render(w io.Writer, m list.Model, index int, it list.Item) {
-	row, ok := it.(item)
+func (d delegate) Render(w io.Writer, m list.Model, index int, li list.Item) {
+	row, ok := li.(item)
 	if !ok {
 		return
 	}
-	cursor := "  "
-	ts := normTitle
-	if index == m.Index() {
-		cursor = "> "
-		ts = selTitle
+	cursor, ts, ds := "  ", normTitle, hintStyle
+	switch {
+	case row.disabled:
+		ts, ds = offStyle, offStyle
+	case index == m.Index():
+		cursor, ts = "> ", selTitle
 	}
 	out := cursor + ts.Width(titleWidth).Render(row.title)
 	if row.desc != "" {
-		out += hintStyle.Render(row.desc)
+		out += ds.Render(row.desc)
 	}
 	fmt.Fprint(w, out)
 }
 
-type Model struct {
-	list   list.Model
-	action string
+type menuModel struct {
+	list list.Model
 }
 
-func New(st Status) Model {
-	items := []list.Item{
-		item{"launch", "Запустить", "пайплайн настройки + Claude в контейнере"},
-		item{"plugins", "Плагины", "выбрать плагины Claude Code"},
-		item{"harness", "Харнес", "neuro-matrix: вкл / выкл / переустановить"},
-		item{"stacks", "Стек", "опциональные стеки сборки"},
-		item{"vscode", "Открыть в VS Code", "подключить /workspace в VS Code"},
-		item{"quit", "Выход", ""},
-	}
-	l := list.New(items, delegate{}, 0, 0)
+func newMenu(st Status) menuModel {
+	l := list.New(menuItems(st), delegate{}, 0, 0)
 	l.Title = header(st)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.SetShowHelp(false)
 	l.SetShowPagination(false)
-	return Model{list: l}
+	m := menuModel{list: l}
+	m.skipDisabled(+1)
+	return m
+}
+
+func menuItems(st Status) []list.Item {
+	needUp := !st.ContainerUp
+	gated := func(base string) (string, bool) {
+		if needUp {
+			return "контейнер не запущен — сначала «Запустить»", true
+		}
+		return base, false
+	}
+	pd, pDis := gated("выбрать плагины Claude Code")
+	hd, hDis := gated("neuro-matrix: вкл / выкл / переустановить")
+	vd, vDis := gated("подключить /workspace в VS Code")
+	return []list.Item{
+		item{action: "launch", title: "Запустить", desc: "пайплайн настройки + Claude в контейнере"},
+		item{action: "plugins", title: "Плагины", desc: pd, disabled: pDis},
+		item{action: "harness", title: "Харнес", desc: hd, disabled: hDis},
+		item{action: "stacks", title: "Стек", desc: "опциональные стеки сборки"},
+		item{action: "vscode", title: "Открыть в VS Code", desc: vd, disabled: vDis},
+		item{action: "quit", title: "Выход", desc: ""},
+	}
 }
 
 func header(st Status) string {
@@ -87,7 +105,7 @@ func header(st Status) string {
 		parts = append(parts, "workspace: stale (rebuild on launch)")
 	}
 	if st.CommitsBehind > 0 {
-		parts = append(parts, fmt.Sprintf("mirabilis: %d behind origin/main", st.CommitsBehind))
+		parts = append(parts, fmt.Sprintf("%d behind origin/main", st.CommitsBehind))
 	}
 	switch st.Harness {
 	case "off":
@@ -100,27 +118,36 @@ func header(st Status) string {
 	return strings.Join(parts, " · ")
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m menuModel) Init() tea.Cmd { return nil }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m menuModel) Update(msg tea.Msg) (menuModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		s := m.list.Styles
 		titleH := lipgloss.Height(s.TitleBar.Render(s.Title.Render(m.list.Title)))
 		var d delegate
 		rows := len(m.list.Items()) * (d.Height() + d.Spacing())
-		m.list.SetSize(msg.Width, min(msg.Height, titleH+rows))
+		m.list.SetSize(msg.Width, min(msg.Height, titleH+rows+1))
 		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc", "q":
-			m.action = "quit"
-			return m, tea.Quit
+		case "esc", "q":
+			return m, emit(menuChoiceMsg{"quit"})
 		case "enter":
-			if it, ok := m.list.SelectedItem().(item); ok {
-				m.action = it.action
+			if it, ok := m.list.SelectedItem().(item); ok && !it.disabled {
+				return m, emit(menuChoiceMsg{it.action})
 			}
-			return m, tea.Quit
+			return m, nil
+		case "up", "k":
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			m.skipDisabled(-1)
+			return m, cmd
+		case "down", "j":
+			var cmd tea.Cmd
+			m.list, cmd = m.list.Update(msg)
+			m.skipDisabled(+1)
+			return m, cmd
 		}
 	}
 	var cmd tea.Cmd
@@ -128,15 +155,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() tea.View {
-	v := tea.NewView(m.list.View() + "\n " + hintStyle.Render("enter · q выход"))
-	v.AltScreen = true
-	return v
+func (m *menuModel) skipDisabled(dir int) {
+	n := len(m.list.Items())
+	for tries := 0; tries < n; tries++ {
+		it, ok := m.list.SelectedItem().(item)
+		if !ok || !it.disabled {
+			return
+		}
+		if dir < 0 {
+			m.list.CursorUp()
+		} else {
+			m.list.CursorDown()
+		}
+	}
 }
 
-func Action(final tea.Model) string {
-	if m, ok := final.(Model); ok {
-		return m.action
-	}
-	return ""
+func (m menuModel) selected() (item, bool) {
+	it, ok := m.list.SelectedItem().(item)
+	return it, ok
+}
+
+func (m menuModel) View() string {
+	return m.list.View() + "\n " + hintStyle.Render("enter · q выход")
 }

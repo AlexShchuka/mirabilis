@@ -6,21 +6,21 @@ import (
 )
 
 func TestSplitCSV(t *testing.T) {
-	cases := []struct {
-		in   string
+	tests := []struct {
+		give string
 		want []string
 	}{
-		{"", nil},
-		{"   ", nil},
-		{"a", []string{"a"}},
-		{"a,b,c", []string{"a", "b", "c"}},
-		{" a , b ,c ", []string{"a", "b", "c"}},
-		{"a,,b,", []string{"a", "b"}},
-		{",", []string{}},
+		{give: "", want: nil},
+		{give: "   ", want: nil},
+		{give: "a", want: []string{"a"}},
+		{give: "a,b,c", want: []string{"a", "b", "c"}},
+		{give: " a , b ,c ", want: []string{"a", "b", "c"}},
+		{give: "a,,b,", want: []string{"a", "b"}},
+		{give: ",", want: []string{}},
 	}
-	for _, c := range cases {
-		if got := splitCSV(c.in); !reflect.DeepEqual(got, c.want) {
-			t.Errorf("splitCSV(%q) = %#v, want %#v", c.in, got, c.want)
+	for _, tt := range tests {
+		if got := splitCSV(tt.give); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("splitCSV(%q) = %#v, want %#v", tt.give, got, tt.want)
 		}
 	}
 }

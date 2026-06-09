@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -39,27 +40,27 @@ func argsHave(args []string, want string) bool {
 }
 
 func TestCheckUpToDate(t *testing.T) {
-	cases := []struct {
-		name string
-		out  string
-		err  error
-		want bool
+	tests := []struct {
+		name    string
+		giveOut string
+		giveErr error
+		want    bool
 	}{
-		{"up to date", "0", nil, true},
-		{"behind", "3", nil, false},
-		{"no upstream", "", errors.New("unknown revision"), true},
+		{name: "up to date", giveOut: "0", want: true},
+		{name: "behind", giveOut: "3", want: false},
+		{name: "no upstream", giveErr: errors.New("unknown revision"), want: true},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			r := fakeRunner{host: func(_ string, args []string) (string, error) {
 				if argsHave(args, "rev-list") {
-					return c.out, c.err
+					return tt.giveOut, tt.giveErr
 				}
 				return "", nil
 			}}
 			got, _ := checkUpToDate(context.Background(), r)
-			if got != c.want {
-				t.Errorf("got %v, want %v", got, c.want)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -103,17 +104,6 @@ func TestReadStackCatalogSkipsCommentsAndBlanks(t *testing.T) {
 	}
 }
 
-func TestCheckStacks(t *testing.T) {
-	defined := t.TempDir()
-	_ = os.WriteFile(filepath.Join(defined, ".env"), []byte("STACKS=go\n"), 0o644)
-	if ok, _ := checkStacks(context.Background(), fakeRunner{repo: defined}); !ok {
-		t.Error("checkStacks should be satisfied when .env defines STACKS")
-	}
-	if ok, _ := checkStacks(context.Background(), fakeRunner{repo: t.TempDir()}); ok {
-		t.Error("checkStacks should not be satisfied when STACKS is unset")
-	}
-}
-
 func TestContainerEnvValue(t *testing.T) {
 	r := fakeRunner{host: func(_ string, _ []string) (string, error) {
 		return "PATH=/usr/bin\nMIRABILIS_VERSION=abc123\nMIRABILIS_STACKS=go,dotnet", nil
@@ -130,6 +120,43 @@ func TestSplitLines(t *testing.T) {
 	got := splitLines("a\n\n b \nc\n")
 	if want := []string{"a", "b", "c"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("splitLines = %#v, want %#v", got, want)
+	}
+}
+
+func TestSeedClaudeConfigKeys(t *testing.T) {
+	var script string
+	r := fakeRunner{cont: func(args []string) (string, error) {
+		if len(args) == 3 && args[0] == "bash" && args[1] == "-lc" {
+			script = args[2]
+		}
+		return "", nil
+	}}
+	if err := seedClaudeConfig(context.Background(), r); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"hasTrustDialogAccepted", "hasCompletedOnboarding", "bypassPermissionsModeAccepted"} {
+		if !strings.Contains(script, key) {
+			t.Errorf("seed script is missing %q", key)
+		}
+	}
+}
+
+func TestBuildStepsShape(t *testing.T) {
+	byName := map[string]Step{}
+	for _, s := range buildSteps() {
+		byName[s.Name] = s
+	}
+	if _, ok := byName["stacks"]; ok {
+		t.Error("stacks step should be gone — stacks are configured via the menu")
+	}
+	if gh, ok := byName["gh"]; !ok || !gh.Interactive {
+		t.Error("gh step must exist and be Interactive")
+	}
+	if _, ok := byName["claude"]; !ok {
+		t.Error("claude config step must exist")
+	}
+	if prepare, ok := byName["prepare"]; !ok || contains(prepare.Deps, "stacks") {
+		t.Error("prepare must not depend on a stacks step")
 	}
 }
 

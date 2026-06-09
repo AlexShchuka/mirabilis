@@ -30,8 +30,6 @@ jobs:
         run: devcontainer up --workspace-folder .
       - name: assert settings seeded (no in-container sandbox)
         run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
-      - name: assert workspace trusted
-        run: devcontainer exec --workspace-folder . bash -lc 'jq -e ".projects[\"/workspace\"].hasTrustDialogAccepted == true" "$HOME/.claude.json"'
 
   tests:
     name: re-run bats + go (best-effort)

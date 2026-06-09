@@ -49,12 +49,3 @@ run_refresh() {
   run diff "$BATS_TEST_TMPDIR/first.json" "$BATS_TEST_TMPDIR/second.json"
   assert_success
 }
-
-@test "refresh trust dialog idempotent: .claude.json stable across two runs" {
-  run_refresh
-  jq --sort-keys . "$FAKE_HOME/.claude.json" >"$BATS_TEST_TMPDIR/first.cj" 2>/dev/null || skip ".claude.json not created"
-  run_refresh
-  jq --sort-keys . "$FAKE_HOME/.claude.json" >"$BATS_TEST_TMPDIR/second.cj"
-  run diff "$BATS_TEST_TMPDIR/first.cj" "$BATS_TEST_TMPDIR/second.cj"
-  assert_success
-}

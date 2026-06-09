@@ -14,6 +14,7 @@ func computeStatus(ctx context.Context, r Runner) Status {
 	if containerExists(ctx, r) && isStale(ctx, r) {
 		st.Stale = true
 	}
+	st.ContainerUp = containerRunning(ctx, r)
 	st.Harness = harnessStatus(ctx, r)
 	return st
 }
