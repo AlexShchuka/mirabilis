@@ -83,6 +83,10 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.pipe, cmd = a.pipe.Update(ranMsg{name: a.pendGH, err: msg.err})
 		return a, cmd
+	case checkedMsg:
+		return a.forwardToPipe(msg)
+	case ranMsg:
+		return a.forwardToPipe(msg)
 	}
 
 	switch a.phase {
@@ -174,6 +178,20 @@ func (a appModel) toMenu(notice string) (tea.Model, tea.Cmd) {
 	a.menu = newMenu(computeStatus(a.ctx, a.r))
 	var cmd tea.Cmd
 	a.menu, cmd = a.menu.Update(tea.WindowSizeMsg{Width: a.w, Height: a.h})
+	return a, cmd
+}
+
+// forwardToPipe delivers a pipeline message to the pipeline regardless of the
+// current phase. Step goroutines keep running while an interactive phase (gh
+// sign-in) is on screen; their checkedMsg/ranMsg must still reach the pipeline,
+// otherwise a step that finishes behind the gh screen is lost and the pipeline
+// never completes.
+func (a appModel) forwardToPipe(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if a.pipe == nil {
+		return a, nil
+	}
+	var cmd tea.Cmd
+	a.pipe, cmd = a.pipe.Update(msg)
 	return a, cmd
 }
 
