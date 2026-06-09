@@ -22,13 +22,9 @@ func titleCase(s string) string {
 
 func EnsureMemory() error {
 	memDir := filepath.Join(claudeDir(), "memory")
-	if err := os.MkdirAll(memDir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: mkdir memory: %v\n", err)
-	}
+	warn("mkdir memory", os.MkdirAll(memDir, 0o755))
 	rulesDir := filepath.Join(claudeDir(), "rules")
-	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: mkdir rules: %v\n", err)
-	}
+	warn("mkdir rules", os.MkdirAll(rulesDir, 0o755))
 	for _, cat := range config.MemoryCategories {
 		path := filepath.Join(memDir, cat.Name+".md")
 		if _, err := os.Stat(path); err == nil {

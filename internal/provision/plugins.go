@@ -123,12 +123,12 @@ func writeEnabledPlugins(_ context.Context, _ runner.Runner, cfg config.Config) 
 	}
 	m, err := readJSON(dest)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: read settings for enabledPlugins: %v\n", err)
+		warn("read settings for enabledPlugins", err)
 		return nil
 	}
 	m["enabledPlugins"] = enabled
 	if err := writeJSON(dest, m); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: write enabledPlugins: %v\n", err)
+		warn("write enabledPlugins", err)
 	}
 	return nil
 }

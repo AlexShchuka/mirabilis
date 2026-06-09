@@ -145,3 +145,105 @@ func TestDispatchSessionStart_MissingMemoryDir(t *testing.T) {
 		t.Errorf("Dispatch(session-start) with missing memory dir returned error: %v", err)
 	}
 }
+
+func TestMemoryIndex_DuplicateCategory_FirstWins(t *testing.T) {
+	tmp := t.TempDir()
+
+	writeTestFile(t, tmp, "a-about-me.md", `---
+category: about-me
+memory_type: semantic
+summary: First file.
+max_lines: 80
+---
+
+# About Me
+
+- fact one
+`)
+	writeTestFile(t, tmp, "b-about-me.md", `---
+category: about-me
+memory_type: semantic
+summary: Second file, should be ignored.
+max_lines: 80
+---
+
+# About Me
+
+- fact two
+- fact three
+`)
+
+	idx, err := memoryIndex(tmp)
+	if err != nil {
+		t.Fatalf("memoryIndex: %v", err)
+	}
+
+	if !strings.Contains(idx, "First file") {
+		t.Error("index should contain summary from first file")
+	}
+	if strings.Contains(idx, "Second file") {
+		t.Error("index should not contain summary from second file (duplicate category)")
+	}
+}
+
+func TestMemoryIndex_UnknownAndEmptyCategory_AppendedAfter(t *testing.T) {
+	tmp := t.TempDir()
+
+	writeTestFile(t, tmp, "about-me.md", `---
+category: about-me
+memory_type: semantic
+summary: Known category.
+max_lines: 80
+---
+
+# About Me
+
+- fact one
+`)
+	writeTestFile(t, tmp, "custom-notes.md", `---
+category: custom-notes
+memory_type: episodic
+summary: Unknown category file.
+max_lines: 80
+---
+
+# Custom Notes
+
+- note one
+`)
+	writeTestFile(t, tmp, "no-category.md", `---
+memory_type: semantic
+summary: No category set.
+max_lines: 80
+---
+
+# No Category
+
+- item one
+`)
+
+	idx, err := memoryIndex(tmp)
+	if err != nil {
+		t.Fatalf("memoryIndex: %v", err)
+	}
+
+	aboutPos := strings.Index(idx, "about-me")
+	customPos := strings.Index(idx, "custom-notes")
+	noCatPos := strings.Index(idx, "no-category")
+
+	if aboutPos < 0 {
+		t.Error("index missing about-me")
+	}
+	if customPos < 0 {
+		t.Error("index missing custom-notes (unknown category)")
+	}
+	if noCatPos < 0 {
+		t.Error("index missing no-category (empty category, should use filename stem)")
+	}
+	if aboutPos > customPos {
+		t.Error("canonical category about-me should appear before unknown category custom-notes")
+	}
+	if aboutPos > noCatPos {
+		t.Error("canonical category about-me should appear before no-category entry")
+	}
+}

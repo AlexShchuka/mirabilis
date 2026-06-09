@@ -7,16 +7,11 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
-
-func alwaysRun(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 type claudeStep struct{}
 
-func (claudeStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
-	return alwaysRun(ctx, r)
-}
+func (claudeStep) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 func (claudeStep) Run(ctx context.Context, r runner.Runner) error {
 	const script = `f="$HOME/.claude.json"
@@ -44,24 +39,31 @@ func (themeStep) Run(ctx context.Context, r runner.Runner) error {
 	return err
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:     "claude",
-		Title:    "Claude config",
-		Detail:   "configuring Claude inside the container",
-		Deps:     []string{"prepare"},
-		Retry:    pipeline.RetryNone,
-		Optional: true,
-		Timeout:  30 * time.Second,
-	}, claudeStep{})
-
-	steps.Register(pipeline.StepMeta{
-		Name:     "theme",
-		Title:    "Theme",
-		Detail:   "applying theme",
-		Deps:     []string{"prepare"},
-		Retry:    pipeline.RetryNone,
-		Optional: true,
-		Timeout:  30 * time.Second,
-	}, themeStep{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:     "claude",
+				Title:    "Claude config",
+				Detail:   "configuring Claude inside the container",
+				Deps:     []string{"prepare"},
+				Retry:    pipeline.RetryNone,
+				Optional: true,
+				Timeout:  30 * time.Second,
+			},
+			Impl: claudeStep{},
+		},
+		{
+			Meta: pipeline.StepMeta{
+				Name:     "theme",
+				Title:    "Theme",
+				Detail:   "applying theme",
+				Deps:     []string{"prepare"},
+				Retry:    pipeline.RetryNone,
+				Optional: true,
+				Timeout:  30 * time.Second,
+			},
+			Impl: themeStep{},
+		},
+	}
 }

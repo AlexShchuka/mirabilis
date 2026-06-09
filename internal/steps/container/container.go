@@ -11,7 +11,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 	"github.com/AlexShchuka/mirabilis/internal/runtime"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
 
 type updateStep struct{}
@@ -58,21 +57,28 @@ func (prepareStep) Run(ctx context.Context, r runner.Runner) error {
 	return nil
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:     "update",
-		Title:    "Update (origin/main)",
-		Detail:   "checking origin/main for updates",
-		Retry:    pipeline.RetryNet,
-		Optional: true,
-		Timeout:  60 * time.Second,
-	}, updateStep{})
-
-	steps.Register(pipeline.StepMeta{
-		Name:   "prepare",
-		Title:  "Container",
-		Detail: "starting the container — the first image build may take a few minutes",
-		Deps:   []string{"update"},
-		Retry:  pipeline.RetryNet,
-	}, prepareStep{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:     "update",
+				Title:    "Update (origin/main)",
+				Detail:   "checking origin/main for updates",
+				Retry:    pipeline.RetryNet,
+				Optional: true,
+				Timeout:  60 * time.Second,
+			},
+			Impl: updateStep{},
+		},
+		{
+			Meta: pipeline.StepMeta{
+				Name:   "prepare",
+				Title:  "Container",
+				Detail: "starting the container — the first image build may take a few minutes",
+				Deps:   []string{"update"},
+				Retry:  pipeline.RetryNet,
+			},
+			Impl: prepareStep{},
+		},
+	}
 }

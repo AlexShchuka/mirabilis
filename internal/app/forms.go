@@ -30,16 +30,6 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
 func contains(haystack []string, needle string) bool {
 	for _, h := range haystack {
 		if h == needle {

@@ -8,16 +8,11 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
-
-func alwaysRun(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 type step struct{}
 
-func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
-	return alwaysRun(ctx, r)
-}
+func (step) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 func (step) Run(ctx context.Context, r runner.Runner) error {
 	if ip, _ := r.Container(ctx, "curl", "-s", "-m", "8", "https://api.ipify.org"); strings.TrimSpace(ip) == "" {
@@ -34,13 +29,18 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	}
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:    "preflight",
-		Title:   "Environment check",
-		Detail:  "checking egress to api.anthropic.com",
-		Deps:    []string{"prepare", "harness", "gh"},
-		Retry:   pipeline.RetryNone,
-		Timeout: 60 * time.Second,
-	}, step{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:    "preflight",
+				Title:   "Environment check",
+				Detail:  "checking egress to api.anthropic.com",
+				Deps:    []string{"prepare", "harness", "gh"},
+				Retry:   pipeline.RetryNone,
+				Timeout: 60 * time.Second,
+			},
+			Impl: step{},
+		},
+	}
 }

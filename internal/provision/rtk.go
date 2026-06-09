@@ -2,8 +2,6 @@ package provision
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
@@ -20,7 +18,7 @@ func EnsureRTK(ctx context.Context, r runner.Runner, cfg config.Config) error {
 	}
 
 	if _, err := r.Host(ctx, "timeout", "60", "rtk", "init", "-g", "--auto-patch"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: rtk init: %v\n", err)
+		warn("rtk init", err)
 	}
 	return nil
 }

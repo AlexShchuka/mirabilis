@@ -6,7 +6,6 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
 
 type step struct{}
@@ -20,14 +19,19 @@ func (step) Run(_ context.Context, _ runner.Runner) error {
 	return nil
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:        "gh",
-		Title:       "GitHub sign-in",
-		Detail:      "checking GitHub sign-in",
-		Deps:        []string{"prepare"},
-		Optional:    false,
-		Interactive: true,
-		Timeout:     30 * time.Second,
-	}, step{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:        "gh",
+				Title:       "GitHub sign-in",
+				Detail:      "checking GitHub sign-in",
+				Deps:        []string{"prepare"},
+				Optional:    false,
+				Interactive: true,
+				Timeout:     30 * time.Second,
+			},
+			Impl: step{},
+		},
+	}
 }

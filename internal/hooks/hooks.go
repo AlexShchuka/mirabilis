@@ -148,7 +148,14 @@ func memoryIndex(dir string) (string, error) {
 		fileName string
 		count    int
 	}
+
+	knownCats := make(map[string]bool, len(config.MemoryCategories))
+	for _, cat := range config.MemoryCategories {
+		knownCats[cat.Name] = true
+	}
+
 	byCategory := make(map[string]fileInfo, len(config.MemoryCategories))
+	var extras []fileInfo
 
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == "MEMORY.md" {
@@ -160,7 +167,18 @@ func memoryIndex(dir string) (string, error) {
 		}
 		meta := parseFrontmatter(data)
 		count := countInvariants(data)
-		byCategory[meta.category] = fileInfo{meta: meta, count: count, fileName: e.Name()}
+		fi := fileInfo{meta: meta, count: count, fileName: e.Name()}
+		if knownCats[meta.category] {
+			if _, exists := byCategory[meta.category]; !exists {
+				byCategory[meta.category] = fi
+			}
+		} else {
+			if meta.category == "" {
+				stem := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+				fi.meta.category = stem
+			}
+			extras = append(extras, fi)
+		}
 	}
 
 	var sb strings.Builder
@@ -170,6 +188,10 @@ func memoryIndex(dir string) (string, error) {
 		if !ok {
 			continue
 		}
+		fmt.Fprintf(&sb, "- **%s** (%s, %d) — %s  · memory/%s\n",
+			fi.meta.category, fi.meta.memoryType, fi.count, fi.meta.summary, fi.fileName)
+	}
+	for _, fi := range extras {
 		fmt.Fprintf(&sb, "- **%s** (%s, %d) — %s  · memory/%s\n",
 			fi.meta.category, fi.meta.memoryType, fi.count, fi.meta.summary, fi.fileName)
 	}

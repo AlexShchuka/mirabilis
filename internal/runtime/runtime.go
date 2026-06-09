@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	gort "runtime"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -110,21 +109,12 @@ func ComposeEnv(repo string) []string {
 	return env
 }
 
-var (
-	gitShortOnce sync.Once
-	gitShortVal  string
-)
-
 func GitShort(repo string) string {
-	gitShortOnce.Do(func() {
-		out, err := exec.Command("git", "-C", repo, "rev-parse", "--short", "HEAD").Output()
-		if err != nil {
-			gitShortVal = "unknown"
-			return
-		}
-		gitShortVal = strings.TrimSpace(string(out))
-	})
-	return gitShortVal
+	out, err := exec.Command("git", "-C", repo, "rev-parse", "--short", "HEAD").Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func keychainEnv(name string) string {

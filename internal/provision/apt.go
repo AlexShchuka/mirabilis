@@ -34,7 +34,7 @@ func EnsureAptPackages(ctx context.Context, r runner.Runner, cfg config.Config) 
 	}
 
 	if _, err := r.Host(ctx, "sudo", "apt-get", "update"); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: apt-get update: %v\n", err)
+		warn("apt-get update", err)
 		return nil
 	}
 	args := append([]string{"apt-get", "install", "-y", "--no-install-recommends"}, missing...)
