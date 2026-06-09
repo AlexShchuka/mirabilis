@@ -9,6 +9,7 @@ import (
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/claude"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/container"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/harness"
+	_ "github.com/AlexShchuka/mirabilis/internal/steps/plugins"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/preflight"
 )
 
@@ -18,7 +19,7 @@ func TestRegistryShape(t *testing.T) {
 
 	registered := steps.BuildSteps()
 
-	wantNames := []string{"update", "prepare", "claude", "theme", "harness", "gh", "preflight"}
+	wantNames := []string{"update", "prepare", "claude", "theme", "harness", "plugins", "gh", "preflight"}
 	if len(registered) != len(wantNames) {
 		t.Fatalf("BuildSteps() returned %d steps, want %d", len(registered), len(wantNames))
 	}

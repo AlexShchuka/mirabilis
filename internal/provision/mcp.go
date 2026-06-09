@@ -36,7 +36,7 @@ func EnsureMCP(ctx context.Context, r runner.Runner) error {
 	}
 
 	for _, e := range entries {
-		r.Container(ctx, "claude", "mcp", "remove", e.name, "--scope", "user")
+		_, _ = r.Container(ctx, "claude", "mcp", "remove", e.name, "--scope", "user")
 
 		var addArgs []string
 		addArgs = append(addArgs, "mcp", "add", "--scope", "user", "--transport", e.transport)
@@ -55,6 +55,6 @@ func EnsureMCP(ctx context.Context, r runner.Runner) error {
 		}
 	}
 
-	r.Container(ctx, "claude", "mcp", "list")
+	_, _ = r.Container(ctx, "claude", "mcp", "list")
 	return nil
 }

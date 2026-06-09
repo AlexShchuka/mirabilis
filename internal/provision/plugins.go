@@ -62,7 +62,7 @@ func EnsurePlugins(ctx context.Context, r runner.Runner, cfg config.Config) erro
 		return nil
 	}
 
-	r.Container(ctx, "bash", "-lc", "mkdir -p \"$HOME/.cache/tmp\"")
+	_, _ = r.Container(ctx, "bash", "-lc", "mkdir -p \"$HOME/.cache/tmp\"")
 
 	for _, market := range []string{"anthropics/claude-plugins-official", "jarrodwatts/claude-hud"} {
 		if _, err := r.Container(ctx, "claude", "plugin", "marketplace", "add", market); err != nil {

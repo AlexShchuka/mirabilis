@@ -51,7 +51,9 @@ func runProvision(ctx context.Context, args []string) error {
 		return provision.Create(ctx, r, cfg)
 	case "start":
 		return provision.Start(ctx, r, cfg)
+	case "plugins":
+		return provision.EnsurePlugins(ctx, r, cfg)
 	default:
-		return fmt.Errorf("provision: unknown --phase %q (want create or start)", phase)
+		return fmt.Errorf("provision: unknown --phase %q (want create, start, or plugins)", phase)
 	}
 }

@@ -19,8 +19,8 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 	if err := EnsureAptPackages(ctx, r, cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "[provision] WARN: apt: %v\n", err)
 	}
-	if err := EnsureMemoryRules(cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "[provision] WARN: memory rules: %v\n", err)
+	if err := EnsureMemory(); err != nil {
+		fmt.Fprintf(os.Stderr, "[provision] WARN: memory: %v\n", err)
 	}
 	if err := EnsureGitIdentity(ctx, r); err != nil {
 		fmt.Fprintf(os.Stderr, "[provision] WARN: git identity: %v\n", err)

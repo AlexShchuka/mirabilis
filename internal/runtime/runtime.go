@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,19 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
+
+const (
+	exitAltScreen     = "\x1b[?1049l"
+	resetScrollRegion = "\x1b[r"
+	showCursor        = "\x1b[?25h"
+)
+
+func resetTerminal(w io.Writer) {
+	_, _ = io.WriteString(w, exitAltScreen+resetScrollRegion+showCursor)
+}
+
+var _ runner.Runner = (*execRunner)(nil)
+var _ runner.Runner = (*localRunner)(nil)
 
 type execRunner struct{ repo string }
 
@@ -149,7 +163,7 @@ func ContainerCmd(r runner.Runner, args ...string) *exec.Cmd {
 
 func EnsureDocker(_ context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("Docker is not installed — run 'make bootstrap'")
+		return fmt.Errorf("docker is not installed — run 'make bootstrap'")
 	}
 	if _, err := exec.LookPath("devcontainer"); err != nil {
 		return fmt.Errorf("devcontainer CLI is missing — run 'make bootstrap'")
@@ -158,7 +172,7 @@ func EnsureDocker(_ context.Context) error {
 		return nil
 	}
 	if gort.GOOS != "darwin" {
-		return fmt.Errorf("Docker daemon is not running")
+		return fmt.Errorf("docker daemon is not running")
 	}
 	_ = exec.Command("open", "-a", "Docker").Run()
 	for i := 0; i < 60; i++ {
@@ -167,7 +181,7 @@ func EnsureDocker(_ context.Context) error {
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return fmt.Errorf("Docker did not come up — open Docker Desktop and run mirabilis again")
+	return fmt.Errorf("docker did not come up — open Docker Desktop and run mirabilis again")
 }
 
 func dockerReachable() bool { return exec.Command("docker", "info").Run() == nil }
@@ -275,6 +289,7 @@ func Handoff(r runner.Runner) error {
 	if err != nil {
 		return err
 	}
+	resetTerminal(os.Stderr)
 	return syscall.Exec(dk, handoffArgv(dk, strings.TrimSpace(ght), spf), ComposeEnv(r.Repo()))
 }
 
