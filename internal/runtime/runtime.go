@@ -8,10 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	gort "runtime"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -128,22 +126,10 @@ func keychainEnv(name string) string {
 }
 
 func keychainGet(name string) string {
-	if gort.GOOS != "darwin" {
-		return os.Getenv(keychainEnv(name))
+	if val, ok := keychainLookup(name); ok {
+		return val
 	}
-	account := os.Getenv("MIRABILIS_KEYCHAIN_ACCOUNT")
-	if account == "" {
-		if u := os.Getenv("USER"); u != "" {
-			account = u
-		} else {
-			account = "mirabilis"
-		}
-	}
-	out, err := exec.Command("security", "find-generic-password", "-a", account, "-s", "mirabilis-"+name+"-token", "-w").Output()
-	if err != nil {
-		return os.Getenv(keychainEnv(name))
-	}
-	return strings.TrimSpace(string(out))
+	return os.Getenv(keychainEnv(name))
 }
 
 func ContainerCmd(ctx context.Context, r runner.Runner, args ...string) *exec.Cmd {
@@ -152,7 +138,7 @@ func ContainerCmd(ctx context.Context, r runner.Runner, args ...string) *exec.Cm
 	return cmd
 }
 
-func EnsureDocker(_ context.Context) error {
+func EnsureDocker(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker is not installed — run 'make bootstrap'")
 	}
@@ -162,17 +148,7 @@ func EnsureDocker(_ context.Context) error {
 	if dockerReachable() {
 		return nil
 	}
-	if gort.GOOS != "darwin" {
-		return fmt.Errorf("docker daemon is not running")
-	}
-	_ = exec.Command("open", "-a", "Docker").Run()
-	for i := 0; i < 60; i++ {
-		if dockerReachable() {
-			return nil
-		}
-		time.Sleep(2 * time.Second)
-	}
-	return fmt.Errorf("docker did not come up — open Docker Desktop and run mirabilis again")
+	return tryStartDocker(ctx)
 }
 
 func dockerReachable() bool { return exec.Command("docker", "info").Run() == nil }
