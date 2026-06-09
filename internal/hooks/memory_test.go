@@ -131,8 +131,8 @@ func TestMemoryIndex_MissingDir(t *testing.T) {
 	if err != nil {
 		t.Errorf("memoryIndex missing dir should return nil error, got %v", err)
 	}
-	if idx != "" && idx != "# Sandbox memory index\n\n" {
-		t.Logf("memoryIndex empty dir returned: %q", idx)
+	if idx != "" {
+		t.Errorf("memoryIndex missing dir: got %q, want \"\"", idx)
 	}
 }
 
