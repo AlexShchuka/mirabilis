@@ -14,17 +14,25 @@ func handoff(r Runner) error {
 	if spf = strings.TrimSpace(spf); spf == "" {
 		spf = "/opt/mirabilis/config/sandbox-context.md"
 	}
-	dc, err := exec.LookPath("devcontainer")
+	dk, err := exec.LookPath("docker")
 	if err != nil {
 		return err
 	}
-	argv := []string{
-		dc, "exec", "--workspace-folder", r.Repo(),
-		"env", "GITHUB_PERSONAL_ACCESS_TOKEN=" + strings.TrimSpace(ght),
+	return syscall.Exec(dk, handoffArgv(dk, strings.TrimSpace(ght), spf), composeEnv(r.Repo()))
+}
+
+// handoffArgv launches Claude with `docker exec -it`: the -i/-t flags give it a
+// real PTY whose size and SIGWINCH Docker forwards, so the TUI renders
+// full-height with the input pinned to the bottom like a native terminal.
+// `devcontainer exec` did not propagate a sized PTY through the launcher, so
+// the UI floated.
+func handoffArgv(docker, token, spf string) []string {
+	return []string{
+		docker, "exec", "-it", "mirabilis",
+		"env", "GITHUB_PERSONAL_ACCESS_TOKEN=" + token,
 		"COLORTERM=truecolor", "TERM=xterm-256color",
 		"claude", "--dangerously-skip-permissions", "--append-system-prompt-file", spf,
 	}
-	return syscall.Exec(dc, argv, composeEnv(r.Repo()))
 }
 
 const systemPromptScript = `sbx=/opt/mirabilis/config/sandbox-context.md; out=/tmp/mirabilis-system-prompt.md
