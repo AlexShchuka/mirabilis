@@ -227,5 +227,7 @@ func (p *pipeline) View() tea.View {
 		}
 		b.WriteString(line + "\n")
 	}
-	return tea.NewView(b.String())
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
