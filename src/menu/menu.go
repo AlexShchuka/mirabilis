@@ -105,7 +105,11 @@ func (m Model) Init() tea.Cmd { return nil }
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.list.SetSize(msg.Width, msg.Height)
+		s := m.list.Styles
+		titleH := lipgloss.Height(s.TitleBar.Render(s.Title.Render(m.list.Title)))
+		var d delegate
+		rows := len(m.list.Items()) * (d.Height() + d.Spacing())
+		m.list.SetSize(msg.Width, min(msg.Height, titleH+rows))
 		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -125,7 +129,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
-	return tea.NewView(m.list.View() + "\n " + hintStyle.Render("enter · q выход"))
+	v := tea.NewView(m.list.View() + "\n " + hintStyle.Render("enter · q выход"))
+	v.AltScreen = true
+	return v
 }
 
 func Action(final tea.Model) string {
