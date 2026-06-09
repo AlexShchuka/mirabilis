@@ -14,6 +14,8 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
 
+type launchReadyMsg struct{}
+
 func splitCSV(s string) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -68,20 +70,70 @@ func (f *formScreen) View() string    { return f.form.View() }
 func (f *formScreen) completed() bool { return f.form.State == huh.StateCompleted }
 func (f *formScreen) aborted() bool   { return f.form.State == huh.StateAborted }
 
-func pluginCatalog(ctx context.Context, r runner.Runner) []string {
-	raw, _ := r.Container(ctx, "bash", "-lc", `sed -e '/^#/d' -e '/^[[:space:]]*$/d' /opt/mirabilis/config/plugins.txt 2>/dev/null`)
-	return splitLines(raw)
-}
+func newLaunchForm(r runner.Runner, w, h int) *formScreen {
+	repo := r.Repo()
+	stackCatalog := config.ReadStackCatalog(repo)
+	pluginCatalog := config.ReadPluginCatalog(repo)
+	if len(stackCatalog) == 0 && len(pluginCatalog) == 0 {
+		return nil
+	}
 
-func pluginsDisabled(ctx context.Context, r runner.Runner) []string {
-	raw, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null`)
-	return splitLines(raw)
-}
+	currentStacks := splitCSV(func() string { v, _ := config.ReadStacks(repo); return v }())
+	disabledPlugins := config.ReadPluginsDisabled(repo)
 
-func writePluginsDisabled(ctx context.Context, r runner.Runner, disabled []string) error {
-	_, err := r.Container(ctx, "env", "MDIS="+strings.Join(disabled, "\n"),
-		"bash", "-lc", `printf '%s' "$MDIS" > "$HOME/.claude/.mirabilis-plugins-disabled"`)
-	return err
+	var chosenStacks []string
+	var chosenPlugins []string
+
+	var groups []*huh.Group
+
+	if len(stackCatalog) > 0 {
+		opts := make([]huh.Option[string], 0, len(stackCatalog))
+		for _, id := range stackCatalog {
+			opts = append(opts, huh.NewOption(id, id).Selected(contains(currentStacks, id)))
+		}
+		groups = append(groups, huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(ui.FormTitleStacks).
+				Options(opts...).Value(&chosenStacks),
+		))
+	}
+
+	if len(pluginCatalog) > 0 {
+		opts := make([]huh.Option[string], 0, len(pluginCatalog))
+		for _, p := range pluginCatalog {
+			opts = append(opts, huh.NewOption(p, p).Selected(!contains(disabledPlugins, p)))
+		}
+		groups = append(groups, huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(ui.FormTitlePlugins).
+				Options(opts...).Value(&chosenPlugins),
+		))
+	}
+
+	form := huh.NewForm(groups...).WithWidth(w).WithHeight(h)
+
+	apply := func() tea.Cmd {
+		return func() tea.Msg {
+			if len(stackCatalog) > 0 {
+				if err := config.WriteStacks(repo, joinCSV(chosenStacks)); err != nil {
+					return backToMenuMsg{notice: ui.NoticeStacksErr + err.Error()}
+				}
+			}
+			if len(pluginCatalog) > 0 {
+				var newDisabled []string
+				for _, p := range pluginCatalog {
+					if !contains(chosenPlugins, p) {
+						newDisabled = append(newDisabled, p)
+					}
+				}
+				if err := config.WritePluginsDisabled(repo, newDisabled); err != nil {
+					return backToMenuMsg{notice: ui.NoticePluginsErr + err.Error()}
+				}
+			}
+			return launchReadyMsg{}
+		}
+	}
+	return &formScreen{form: form, apply: apply}
 }
 
 func applyHarness(ctx context.Context, r runner.Runner, choice string) error {
@@ -117,39 +169,6 @@ func doVSCodeCmd(ctx context.Context, r runner.Runner) tea.Cmd {
 		}
 		return backToMenuMsg{}
 	}
-}
-
-func newPluginsForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
-	catalog := pluginCatalog(ctx, r)
-	if len(catalog) == 0 {
-		return nil
-	}
-	disabled := pluginsDisabled(ctx, r)
-	opts := make([]huh.Option[string], 0, len(catalog))
-	for _, p := range catalog {
-		opts = append(opts, huh.NewOption(p, p).Selected(!contains(disabled, p)))
-	}
-	var chosen []string
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewMultiSelect[string]().
-			Title(ui.FormTitlePlugins).
-			Options(opts...).Value(&chosen),
-	)).WithWidth(w).WithHeight(h)
-	apply := func() tea.Cmd {
-		return func() tea.Msg {
-			var newDisabled []string
-			for _, p := range catalog {
-				if !contains(chosen, p) {
-					newDisabled = append(newDisabled, p)
-				}
-			}
-			if err := writePluginsDisabled(ctx, r, newDisabled); err != nil {
-				return backToMenuMsg{notice: ui.NoticePluginsErr + err.Error()}
-			}
-			return backToMenuMsg{}
-		}
-	}
-	return &formScreen{form: form, apply: apply}
 }
 
 func newHarnessForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
@@ -192,34 +211,6 @@ func newResetForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
 			return emit(backToMenuMsg{})
 		}
 		return resetAllCmd(ctx, r)
-	}
-	return &formScreen{form: form, apply: apply}
-}
-
-func newStacksForm(r runner.Runner, w, h int) *formScreen {
-	catalog := config.ReadStackCatalog(r.Repo())
-	if len(catalog) == 0 {
-		return nil
-	}
-	current, _ := config.ReadStacks(r.Repo())
-	selected := splitCSV(current)
-	opts := make([]huh.Option[string], 0, len(catalog))
-	for _, id := range catalog {
-		opts = append(opts, huh.NewOption(id, id).Selected(contains(selected, id)))
-	}
-	var chosen []string
-	form := huh.NewForm(huh.NewGroup(
-		huh.NewMultiSelect[string]().
-			Title(ui.FormTitleStacks).
-			Options(opts...).Value(&chosen),
-	)).WithWidth(w).WithHeight(h)
-	apply := func() tea.Cmd {
-		return func() tea.Msg {
-			if err := config.WriteStacks(r.Repo(), joinCSV(chosen)); err != nil {
-				return backToMenuMsg{notice: ui.NoticeStacksErr + err.Error()}
-			}
-			return backToMenuMsg{}
-		}
 	}
 	return &formScreen{form: form, apply: apply}
 }

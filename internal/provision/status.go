@@ -10,9 +10,9 @@ import (
 )
 
 type Status struct {
+	Harness       string
 	CommitsBehind int
 	Stale         bool
-	Harness       string
 	ContainerUp   bool
 }
 

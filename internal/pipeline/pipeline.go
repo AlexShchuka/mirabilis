@@ -31,8 +31,8 @@ type StepMeta struct {
 }
 
 type Registered struct {
-	Meta StepMeta
 	Impl Step
+	Meta StepMeta
 }
 
 type stepStatus int
@@ -47,42 +47,38 @@ const (
 )
 
 type stepView struct {
+	err    error
 	reg    *Registered
 	status stepStatus
-	err    error
 }
 
 type CheckedMsg struct {
+	Err       error
 	Name      string
 	Satisfied bool
-	Err       error
 }
 
 type RanMsg struct {
-	Name string
 	Err  error
+	Name string
 }
 
-type PipelineDoneMsg struct{ Failed bool }
+type DoneMsg struct{ Failed bool }
 type NeedGHMsg struct{ Name string }
 
 func emit(msg tea.Msg) tea.Cmd { return func() tea.Msg { return msg } }
 
 type Pipeline struct {
-	ctx context.Context
-	r   runner.Runner
-
-	views  []*stepView
-	byName map[string]*stepView
-
-	spin     spinner.Model
-	progress progress.Model
-
+	progress    progress.Model
+	start       time.Time
+	ctx         context.Context
+	r           runner.Runner
+	byName      map[string]*stepView
+	views       []*stepView
 	queue       []*stepView
+	spin        spinner.Model
 	interacting bool
 	failed      bool
-
-	start time.Time
 }
 
 func NewPipeline(ctx context.Context, r runner.Runner, steps []Registered) *Pipeline {
@@ -123,7 +119,7 @@ func (p *Pipeline) advance() tea.Cmd {
 	}
 	cmds = append(cmds, p.setProgress())
 	if p.done() {
-		cmds = append(cmds, emit(PipelineDoneMsg{Failed: p.failed}))
+		cmds = append(cmds, emit(DoneMsg{Failed: p.failed}))
 	}
 	return tea.Batch(cmds...)
 }

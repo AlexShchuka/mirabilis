@@ -64,9 +64,17 @@ RUN ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.de
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm -f /tmp/go.tar.gz
 
+RUN go install golang.org/x/tools/cmd/goimports@latest \
+    && go install honnef.co/go/tools/cmd/staticcheck@latest \
+    && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest \
+    && go clean -modcache \
+    && rm -rf /root/.cache/go-build
+
+ENV GOTMPDIR=/home/node/.cache/go-tmp
+
 ENV MIRABILIS_STACKS=$STACKS
 
-RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh \
+RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh /home/node/.cache/go-tmp \
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
 COPY config/                    /opt/mirabilis/config/

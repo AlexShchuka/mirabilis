@@ -27,19 +27,19 @@ func menuChoice(cmd tea.Cmd) (string, bool) {
 
 func TestMenuItemsDisabled(t *testing.T) {
 	tests := []struct {
+		want map[string]bool
 		name string
 		give provision.Status
-		want map[string]bool
 	}{
 		{
 			name: "container down disables container actions",
 			give: provision.Status{ContainerUp: false},
-			want: map[string]bool{"launch": false, "plugins": true, "harness": true, "stacks": false, "vscode": true, "reset": false, "quit": false},
+			want: map[string]bool{"launch": false, "harness": true, "vscode": true, "reset": false, "quit": false},
 		},
 		{
 			name: "container up enables everything",
 			give: provision.Status{ContainerUp: true},
-			want: map[string]bool{"launch": false, "plugins": false, "harness": false, "stacks": false, "vscode": false, "reset": false, "quit": false},
+			want: map[string]bool{"launch": false, "harness": false, "vscode": false, "reset": false, "quit": false},
 		},
 	}
 	for _, tt := range tests {
@@ -58,7 +58,7 @@ func TestMenuItemsDisabled(t *testing.T) {
 }
 
 func TestMenuEnterDispatchesEnabledAction(t *testing.T) {
-	want := []string{"launch", "plugins", "harness", "stacks", "vscode", "reset", "quit"}
+	want := []string{"launch", "harness", "vscode", "reset", "quit"}
 	for i, action := range want {
 		m := sizedMenu(provision.Status{ContainerUp: true})
 		for j := 0; j < i; j++ {
@@ -76,16 +76,12 @@ func TestMenuNavigationSkipsDisabled(t *testing.T) {
 	m := sizedMenu(provision.Status{ContainerUp: false})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if it, _ := m.selected(); it.action != "stacks" {
-		t.Errorf("down from launch landed on %q, want stacks", it.action)
-	}
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	if it, _ := m.selected(); it.action != "reset" {
-		t.Errorf("down from stacks landed on %q, want reset", it.action)
+		t.Errorf("down from launch landed on %q, want reset", it.action)
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	if it, _ := m.selected(); it.action != "stacks" {
-		t.Errorf("up from reset landed on %q, want stacks", it.action)
+	if it, _ := m.selected(); it.action != "launch" {
+		t.Errorf("up from reset landed on %q, want launch", it.action)
 	}
 }
 

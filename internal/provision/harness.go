@@ -26,7 +26,7 @@ func EnsureHarness(ctx context.Context, r runner.Runner) error {
 
 	if _, err := r.Container(ctx, "claude", "plugin", "marketplace", "add", "AlexShchuka/neuro-matrix"); err != nil {
 		if _, err2 := r.Container(ctx, "claude", "plugin", "marketplace", "update", "neuro-matrix"); err2 != nil {
-			fmt.Fprintf(os.Stderr, "[provision] WARN: marketplace add/update neuro-matrix: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[provision] WARN: marketplace add/update neuro-matrix: %v\n", err2)
 		}
 	}
 

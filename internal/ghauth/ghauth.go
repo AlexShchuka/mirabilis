@@ -18,33 +18,30 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
 
-type GHLineMsg string
+type LineMsg string
 
-type GHExitMsg struct{ Err error }
+type ExitMsg struct{ Err error }
 
 type browserMsg struct{ err error }
 
-type GHDoneMsg struct{ Err error }
+type DoneMsg struct{ Err error }
 
 type Model struct {
-	ctx  context.Context
-	r    runner.Runner
-	w, h int
-
-	spin spinner.Model
-	vp   viewport.Model
-
-	code   string
-	url    string
-	opened bool
-	status string
-
-	finished bool
+	ctx      context.Context
+	r        runner.Runner
 	err      error
-
-	lines   []string
-	linesCh chan string
-	doneCh  chan error
+	doneCh   chan error
+	linesCh  chan string
+	status   string
+	code     string
+	url      string
+	lines    []string
+	vp       viewport.Model
+	spin     spinner.Model
+	h        int
+	w        int
+	opened   bool
+	finished bool
 }
 
 func New(ctx context.Context, r runner.Runner, w, h int) *Model {
@@ -78,14 +75,19 @@ func (g *Model) launch() tea.Cmd {
 func (g *Model) readNext() tea.Msg {
 	line, ok := <-g.linesCh
 	if !ok {
-		return GHExitMsg{Err: <-g.doneCh}
+		return ExitMsg{Err: <-g.doneCh}
 	}
-	return GHLineMsg(line)
+	return LineMsg(line)
+}
+
+func loginArgs() []string {
+	return []string{"env", "BROWSER=true",
+		"gh", "auth", "login", "--hostname", "github.com",
+		"--git-protocol", "https", "--web", "--scopes", "workflow"}
 }
 
 func (g *Model) run() {
-	cmd := runtime.ContainerCmd(g.r, "env", "BROWSER=true",
-		"gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web")
+	cmd := runtime.ContainerCmd(g.r, loginArgs()...)
 	cmd.Stdin = strings.NewReader("\n")
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -126,17 +128,17 @@ func (g *Model) Update(msg tea.Msg) (*Model, tea.Cmd) {
 		var cmd tea.Cmd
 		g.spin, cmd = g.spin.Update(m)
 		return g, cmd
-	case GHLineMsg:
+	case LineMsg:
 		return g, g.onLine(string(m))
 	case browserMsg:
 		if m.err != nil {
 			g.status = ui.GHAuthStatusNoOpen
 		}
 		return g, nil
-	case GHExitMsg:
+	case ExitMsg:
 		g.finished = true
 		g.err = m.Err
-		return g, emit(GHDoneMsg{Err: m.Err})
+		return g, emit(DoneMsg(m))
 	}
 	return g, nil
 }

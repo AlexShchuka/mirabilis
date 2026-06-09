@@ -50,9 +50,6 @@ func (prepareStep) Run(ctx context.Context, r runner.Runner) error {
 	if out, err := makeCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("make linux failed: %s", runtime.LastLines(string(out), 12))
 	}
-	if runtime.IsStale(ctx, r) {
-		_, _ = r.Host(ctx, "docker", "image", "rm", "mirabilis:local")
-	}
 	up := exec.CommandContext(ctx, "devcontainer", "up", "--workspace-folder", repo)
 	up.Env = runtime.ComposeEnv(repo)
 	if out, err := up.CombinedOutput(); err != nil {

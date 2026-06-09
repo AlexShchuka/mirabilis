@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -25,29 +26,52 @@ func asApp(t *testing.T, m tea.Model) appModel {
 	return a
 }
 
-func TestAppRouteLaunch(t *testing.T) {
+func TestAppRouteLaunchNoCatalogStartsPipeline(t *testing.T) {
 	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
 	if a.phase != phasePipeline {
 		t.Errorf("phase = %v, want pipeline", a.phase)
 	}
 	if a.pipe == nil {
-		t.Error("pipeline not created on launch")
+		t.Error("pipeline not created on launch when catalogs are empty")
 	}
 }
 
-func TestAppRoutePluginsNoCatalog(t *testing.T) {
-	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"plugins"}))
-	if a.phase != phaseMenu {
-		t.Errorf("phase = %v, want menu", a.phase)
+func TestAppRouteLaunchWithCatalogOpensForm(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir+"/config", 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if a.notice == "" {
-		t.Error("expected a notice when the plugin catalog is unavailable")
+	if err := os.WriteFile(dir+"/config/stacks.txt", []byte("rust\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &runner.FakeRunner{RepoVal: dir}
+	a := newApp(context.Background(), r, provision.Status{})
+	a2 := asApp(t, mustUpdate(a, menuChoiceMsg{"launch"}))
+	if a2.phase != phaseForm {
+		t.Errorf("phase = %v, want form when catalog is non-empty", a2.phase)
+	}
+	if a2.form == nil {
+		t.Error("form should be set when launch catalog exists")
+	}
+}
+
+func TestAppLaunchReadyMsgStartsPipeline(t *testing.T) {
+	a := newApp(context.Background(), &runner.FakeRunner{}, provision.Status{})
+	a2 := asApp(t, mustUpdate(a, launchReadyMsg{}))
+	if a2.phase != phasePipeline {
+		t.Errorf("phase = %v, want pipeline after launchReadyMsg", a2.phase)
+	}
+	if a2.pipe == nil {
+		t.Error("pipeline not created after launchReadyMsg")
+	}
+	if a2.form != nil {
+		t.Error("form should be cleared after launchReadyMsg")
 	}
 }
 
 func TestAppPipelineDoneSuccessHandsOff(t *testing.T) {
 	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
-	a := asApp(t, mustUpdate(launched, pipeline.PipelineDoneMsg{Failed: false}))
+	a := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: false}))
 	if !a.handoff {
 		t.Error("successful pipeline should set handoff")
 	}
@@ -55,7 +79,7 @@ func TestAppPipelineDoneSuccessHandsOff(t *testing.T) {
 
 func TestAppPipelineDoneFailureStays(t *testing.T) {
 	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
-	a := asApp(t, mustUpdate(launched, pipeline.PipelineDoneMsg{Failed: true}))
+	a := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: true}))
 	if a.handoff {
 		t.Error("failed pipeline must not hand off")
 	}
@@ -78,7 +102,7 @@ func TestAppNeedGHSwitchesToGHAuth(t *testing.T) {
 func TestAppGHDoneResumesPipeline(t *testing.T) {
 	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
-	a := asApp(t, mustUpdate(waiting, ghauth.GHDoneMsg{Err: nil}))
+	a := asApp(t, mustUpdate(waiting, ghauth.DoneMsg{Err: nil}))
 	if a.phase != phasePipeline {
 		t.Errorf("phase = %v, want pipeline after gh done", a.phase)
 	}

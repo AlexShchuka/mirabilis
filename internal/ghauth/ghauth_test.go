@@ -40,6 +40,30 @@ func TestParseDeviceURL(t *testing.T) {
 	}
 }
 
+func TestLoginArgsRequestWorkflowScope(t *testing.T) {
+	args := loginArgs()
+	has := func(s string) bool {
+		for _, a := range args {
+			if a == s {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("gh") || !has("auth") || !has("login") {
+		t.Fatalf("loginArgs is not a gh auth login invocation: %v", args)
+	}
+	scoped := false
+	for i, a := range args {
+		if a == "--scopes" && i+1 < len(args) && args[i+1] == "workflow" {
+			scoped = true
+		}
+	}
+	if !scoped {
+		t.Errorf("loginArgs must request the workflow scope, got %v", args)
+	}
+}
+
 func TestOnLineCapturesAndOpensOnce(t *testing.T) {
 	g := New(context.Background(), &runner.FakeRunner{}, 80, 24)
 

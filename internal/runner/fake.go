@@ -2,10 +2,12 @@ package runner
 
 import "context"
 
+var _ Runner = (*FakeRunner)(nil)
+
 type FakeRunner struct {
-	RepoVal  string
 	HostFunc func(name string, args []string) (string, error)
 	ContFunc func(args []string) (string, error)
+	RepoVal  string
 }
 
 func (f *FakeRunner) Repo() string { return f.RepoVal }

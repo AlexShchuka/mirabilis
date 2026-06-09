@@ -82,14 +82,11 @@ func menuItems(st provision.Status) []list.Item {
 		}
 		return base, false
 	}
-	pd, pDis := gated(ui.MenuDescPlugins)
 	hd, hDis := gated(ui.MenuDescHarness)
 	vd, vDis := gated(ui.MenuDescVSCode)
 	return []list.Item{
 		item{action: "launch", title: ui.MenuActionLaunch, desc: ui.MenuDescLaunch},
-		item{action: "plugins", title: ui.MenuActionPlugins, desc: pd, disabled: pDis},
 		item{action: "harness", title: ui.MenuActionHarness, desc: hd, disabled: hDis},
-		item{action: "stacks", title: ui.MenuActionStacks, desc: ui.MenuDescStacks},
 		item{action: "vscode", title: ui.MenuActionVSCode, desc: vd, disabled: vDis},
 		item{action: "reset", title: ui.MenuActionReset, desc: ui.MenuDescReset},
 		item{action: "quit", title: ui.MenuActionQuit, desc: ""},

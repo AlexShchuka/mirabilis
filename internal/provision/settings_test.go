@@ -13,10 +13,10 @@ import (
 
 func TestMergeSettings(t *testing.T) {
 	tests := []struct {
-		name string
 		dest map[string]any
 		seed map[string]any
 		want map[string]any
+		name string
 	}{
 		{
 			name: "seed wins on leaf conflict",

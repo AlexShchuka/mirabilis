@@ -11,6 +11,9 @@ jobs:
   go:
     name: go build · vet · test -race
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -24,7 +27,18 @@ jobs:
       - name: vet
         run: go vet ./...
       - name: test -race
-        run: go test -race ./...
+        run: go test -race -covermode=atomic -coverprofile=cover.out ./...
+      - id: cover
+        name: coverage summary
+        run: |
+          pct=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}')
+          echo "**Coverage:** $pct" >> "$GITHUB_STEP_SUMMARY"
+          echo "pct=$pct" >> "$GITHUB_OUTPUT"
+      - if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage
+          message: "Coverage: ${{ steps.cover.outputs.pct }}"
 
   bats:
     name: install.sh smoke
@@ -37,3 +51,14 @@ jobs:
           bats-version: latest
       - name: run bats
         run: bats --print-output-on-failure --recursive test
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

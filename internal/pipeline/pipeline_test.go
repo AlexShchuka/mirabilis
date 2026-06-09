@@ -117,10 +117,10 @@ func TestFmtElapsed(t *testing.T) {
 
 func TestPipelineOnChecked(t *testing.T) {
 	tests := []struct {
-		name       string
-		optional   bool
 		give       CheckedMsg
+		name       string
 		wantStatus stepStatus
+		optional   bool
 		wantFailed bool
 	}{
 		{name: "satisfied -> skipped", give: CheckedMsg{Name: "s", Satisfied: true}, wantStatus: stSkipped},
@@ -145,10 +145,10 @@ func TestPipelineOnChecked(t *testing.T) {
 
 func TestPipelineOnRan(t *testing.T) {
 	tests := []struct {
-		name       string
-		optional   bool
 		err        error
+		name       string
 		wantStatus stepStatus
+		optional   bool
 		wantFailed bool
 	}{
 		{name: "success -> done", wantStatus: stDone},

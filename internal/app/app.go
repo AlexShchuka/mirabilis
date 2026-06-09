@@ -14,6 +14,7 @@ import (
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/claude"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/container"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/harness"
+	_ "github.com/AlexShchuka/mirabilis/internal/steps/plugins"
 	_ "github.com/AlexShchuka/mirabilis/internal/steps/preflight"
 	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
@@ -33,22 +34,20 @@ type backToMenuMsg struct{ notice string }
 func emit(msg tea.Msg) tea.Cmd { return func() tea.Msg { return msg } }
 
 type appModel struct {
-	ctx context.Context
-	r   runner.Runner
-
-	phase  appPhase
-	w, h   int
-	notice string
-
 	menu       menuModel
+	r          runner.Runner
+	ctx        context.Context
+	form       *formScreen
 	pipe       *pipeline.Pipeline
 	pipeCancel context.CancelFunc
-	form       *formScreen
 	gh         *ghauth.Model
+	notice     string
 	pendGH     string
+	h          int
+	w          int
+	phase      appPhase
 	pipeEnd    bool
-
-	handoff bool
+	handoff    bool
 }
 
 var _ tea.Model = appModel{}
@@ -72,7 +71,10 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.route(msg.action)
 	case backToMenuMsg:
 		return a.toMenu(msg.notice)
-	case pipeline.PipelineDoneMsg:
+	case launchReadyMsg:
+		a.form = nil
+		return a.startPipeline()
+	case pipeline.DoneMsg:
 		if msg.Failed {
 			a.pipeEnd = true
 			return a, nil
@@ -84,7 +86,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.pendGH = msg.Name
 		a.gh = ghauth.New(a.ctx, a.r, a.w, a.h)
 		return a, a.gh.Init()
-	case ghauth.GHDoneMsg:
+	case ghauth.DoneMsg:
 		if a.pipe == nil {
 			return a.toMenu("")
 		}
@@ -129,29 +131,15 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 	switch action {
 	case "launch":
-		a.phase = phasePipeline
-		a.pipeEnd = false
-		ctx, cancel := context.WithCancel(a.ctx)
-		a.pipeCancel = cancel
-		a.pipe = pipeline.NewPipeline(ctx, a.r, steps.BuildSteps())
-		return a, tea.Batch(sizeCmd(a.w, a.h), a.pipe.Init())
-	case "plugins":
-		f := newPluginsForm(a.ctx, a.r, a.w, a.h)
+		f := newLaunchForm(a.r, a.w, a.h)
 		if f == nil {
-			return a.toMenu(ui.NoticePluginsUnavailable)
+			return a.startPipeline()
 		}
 		a.form, a.phase = f, phaseForm
 		return a, f.Init()
 	case "harness":
 		a.form, a.phase = newHarnessForm(a.ctx, a.r, a.w, a.h), phaseForm
 		return a, a.form.Init()
-	case "stacks":
-		f := newStacksForm(a.r, a.w, a.h)
-		if f == nil {
-			return a.toMenu(ui.NoticeStacksUnavailable)
-		}
-		a.form, a.phase = f, phaseForm
-		return a, f.Init()
 	case "reset":
 		a.form, a.phase = newResetForm(a.ctx, a.r, a.w, a.h), phaseForm
 		return a, a.form.Init()
@@ -161,6 +149,15 @@ func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 	}
 	return a, nil
+}
+
+func (a appModel) startPipeline() (tea.Model, tea.Cmd) {
+	a.phase = phasePipeline
+	a.pipeEnd = false
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.pipeCancel = cancel
+	a.pipe = pipeline.NewPipeline(ctx, a.r, steps.BuildSteps())
+	return a, tea.Batch(sizeCmd(a.w, a.h), a.pipe.Init())
 }
 
 func (a appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
