@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func buildSteps() []Step {
 	return []Step{
 		{
-			Name: "update", Title: "Обновление (origin/main)", Retry: retryNet, Optional: true,
+			Name: "update", Title: "Обновление (origin/main)", Retry: retryNet, Optional: true, Timeout: 60 * time.Second,
 			Check: checkUpToDate, Run: runPull,
 		},
 		{
@@ -21,23 +22,23 @@ func buildSteps() []Step {
 			Check: checkContainerReady, Run: runPrepare,
 		},
 		{
-			Name: "claude", Title: "Конфиг Claude", Deps: []string{"prepare"}, Retry: retryNone, Optional: true,
+			Name: "claude", Title: "Конфиг Claude", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
 			Check: alwaysRun, Run: seedClaudeConfig,
 		},
 		{
-			Name: "theme", Title: "Тема", Deps: []string{"prepare"}, Retry: retryNone, Optional: true,
+			Name: "theme", Title: "Тема", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
 			Check: checkTheme, Run: runApplyTheme,
 		},
 		{
-			Name: "harness", Title: "neuro-matrix", Deps: []string{"prepare"}, Retry: retryNet, Optional: true,
+			Name: "harness", Title: "neuro-matrix", Deps: []string{"prepare"}, Retry: retryNet, Optional: true, Timeout: 180 * time.Second,
 			Check: checkHarness, Run: runHarness,
 		},
 		{
-			Name: "gh", Title: "GitHub sign-in", Deps: []string{"prepare"}, Optional: true, Interactive: true,
+			Name: "gh", Title: "GitHub sign-in", Deps: []string{"prepare"}, Optional: true, Interactive: true, Timeout: 30 * time.Second,
 			Check: checkGitHub,
 		},
 		{
-			Name: "preflight", Title: "Проверка окружения", Deps: []string{"prepare", "harness", "gh"}, Retry: retryNone,
+			Name: "preflight", Title: "Проверка окружения", Deps: []string{"prepare", "harness", "gh"}, Retry: retryNone, Timeout: 60 * time.Second,
 			Check: alwaysRun, Run: runPreflight,
 		},
 	}

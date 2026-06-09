@@ -158,6 +158,12 @@ func TestBuildStepsShape(t *testing.T) {
 	if prepare, ok := byName["prepare"]; !ok || contains(prepare.Deps, "stacks") {
 		t.Error("prepare must not depend on a stacks step")
 	}
+	if h := byName["harness"]; h.Timeout <= 0 {
+		t.Error("harness step must have a Timeout to bound the network install")
+	}
+	if prepare := byName["prepare"]; prepare.Timeout != 0 {
+		t.Error("prepare must not be hard-timeout-capped — devcontainer build can be long")
+	}
 }
 
 func countLines(s, prefix string) int {

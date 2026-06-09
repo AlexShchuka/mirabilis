@@ -4,9 +4,80 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 var errBoom = errors.New("boom")
+
+func TestStepCheckTimeout(t *testing.T) {
+	step := Step{
+		Name:    "slow",
+		Timeout: 30 * time.Millisecond,
+		Check: func(ctx context.Context, _ Runner) (bool, error) {
+			<-ctx.Done()
+			return false, ctx.Err()
+		},
+	}
+	p := trivialPipeline([]Step{step})
+	msg, ok := p.checkCmd(step)().(checkedMsg)
+	if !ok {
+		t.Fatal("checkCmd did not return a checkedMsg")
+	}
+	if !errors.Is(msg.err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want DeadlineExceeded", msg.err)
+	}
+}
+
+func TestStepRunTimeout(t *testing.T) {
+	step := Step{
+		Name:    "slow",
+		Retry:   retryNone,
+		Timeout: 30 * time.Millisecond,
+		Run: func(ctx context.Context, _ Runner) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	}
+	p := trivialPipeline([]Step{step})
+	msg, ok := p.runCmd(step)().(ranMsg)
+	if !ok {
+		t.Fatal("runCmd did not return a ranMsg")
+	}
+	if !errors.Is(msg.err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want DeadlineExceeded", msg.err)
+	}
+}
+
+func TestStepNoTimeoutDoesNotCancel(t *testing.T) {
+	step := Step{
+		Name: "quick",
+		Check: func(ctx context.Context, _ Runner) (bool, error) {
+			return ctx.Err() == nil, nil
+		},
+	}
+	p := trivialPipeline([]Step{step})
+	msg := p.checkCmd(step)().(checkedMsg)
+	if !msg.satisfied {
+		t.Error("a step with no Timeout must run with a live (uncancelled) context")
+	}
+}
+
+func TestFmtElapsed(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{0, "00:00"},
+		{5 * time.Second, "00:05"},
+		{83 * time.Second, "01:23"},
+		{600 * time.Second, "10:00"},
+	}
+	for _, tt := range tests {
+		if got := fmtElapsed(tt.d); got != tt.want {
+			t.Errorf("fmtElapsed(%v) = %q, want %q", tt.d, got, tt.want)
+		}
+	}
+}
 
 func trivialPipeline(steps []Step) *pipeline {
 	return newPipeline(context.Background(), fakeRunner{}, steps)
