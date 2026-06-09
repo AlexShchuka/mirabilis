@@ -9,6 +9,7 @@ setup() {
   FAKE_OPT="$BATS_TEST_TMPDIR/opt/mirabilis"
   mkdir -p "$FAKE_HOME/.claude" "$FAKE_OPT/config"
   cp "$REPO_ROOT/config/settings.json" "$FAKE_OPT/config/settings.json"
+  cp "$REPO_ROOT/config/statusline-command.sh" "$FAKE_OPT/config/statusline-command.sh"
   : >"$FAKE_OPT/config/apt-packages.txt"
   : >"$FAKE_OPT/config/plugins.txt"
 
@@ -43,6 +44,13 @@ run_refresh() {
   run_refresh
   assert [ -f "$FAKE_HOME/.claude/settings.json" ]
   run jq -e '.sandbox == null' "$FAKE_HOME/.claude/settings.json"
+  assert_success
+}
+
+@test "refresh installs the vendored statusline script" {
+  run_refresh
+  assert [ -f "$FAKE_HOME/.claude/statusline-command.sh" ]
+  run diff "$FAKE_OPT/config/statusline-command.sh" "$FAKE_HOME/.claude/statusline-command.sh"
   assert_success
 }
 

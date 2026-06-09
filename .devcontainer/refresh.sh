@@ -31,7 +31,7 @@ if [ -f "$THEME_FILE" ] && [ -f "$DEST" ]; then
   fi
 fi
 
-HUD_SRC="$(npm root -g 2>/dev/null)/claude-hud/statusline-command.sh"
+HUD_SRC=/opt/mirabilis/config/statusline-command.sh
 [ -f "$HUD_SRC" ] && cp -f "$HUD_SRC" "$HOME/.claude/statusline-command.sh"
 
 APT_LIST=/opt/mirabilis/config/apt-packages.txt
