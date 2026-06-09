@@ -61,9 +61,9 @@ func TestHome_EnvSet(t *testing.T) {
 
 func TestHome_EnvUnset(t *testing.T) {
 	t.Setenv("HOME", "")
-	got := home()
-	if got == "" {
-		t.Log("home() returned empty when HOME unset (os.UserHomeDir may also be empty in this env)")
+	want, _ := os.UserHomeDir()
+	if got := home(); got != want {
+		t.Errorf("home() = %q, want %q (os.UserHomeDir fallback)", got, want)
 	}
 }
 
@@ -1121,6 +1121,9 @@ func TestEnsureSettings_DestInvalidJSON_CopiesSeed(t *testing.T) {
 }
 
 func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission-based write failure is not reproducible as root")
+	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	cfgDir := t.TempDir()
@@ -1137,11 +1140,18 @@ func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
 	if err := os.WriteFile(destPath, []byte(`{"key":"orig"}`+"\n"), 0o444); err != nil {
 		t.Fatal(err)
 	}
-	if err := EnsureSettings(cfg); err != nil {
-		t.Logf("EnsureSettings writeJSON-fail = %v (acceptable on this platform)", err)
+	if err := EnsureSettings(cfg); err == nil {
+		t.Error("EnsureSettings = nil, want error when dest is read-only and copyFile fallback is also blocked")
 	}
 	if err := os.Chmod(destPath, 0o644); err != nil {
 		t.Fatal(err)
+	}
+	got, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "orig") {
+		t.Errorf("dest content = %q, want unchanged orig content", string(got))
 	}
 }
 

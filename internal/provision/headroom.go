@@ -7,7 +7,7 @@ import (
 )
 
 func EnsureHeadroom(ctx context.Context, r runner.Runner) error {
-	if _, err := r.Container(ctx, "bash", "-lc", "command -v headroom"); err == nil {
+	if _, err := r.Container(ctx, "bash", "-lc", "headroom mcp status"); err == nil {
 		return nil
 	}
 

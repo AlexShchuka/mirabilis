@@ -23,8 +23,8 @@ func TestEnsureHeadroom_AlreadyInstalled_Skip(t *testing.T) {
 	if len(called) != 1 {
 		t.Errorf("EnsureHeadroom already installed: expected exactly 1 call (idempotency check), got %d: %v", len(called), called)
 	}
-	if !strings.Contains(called[0], "command -v headroom") {
-		t.Errorf("EnsureHeadroom already installed: first call = %q, want command -v headroom check", called[0])
+	if !strings.Contains(called[0], "headroom mcp status") {
+		t.Errorf("EnsureHeadroom already installed: first call = %q, want headroom mcp status check", called[0])
 	}
 }
 
@@ -48,7 +48,7 @@ func TestEnsureHeadroom_InstallSequence(t *testing.T) {
 	if len(called) < 3 {
 		t.Fatalf("EnsureHeadroom install: expected at least 3 calls, got %d: %v", len(called), called)
 	}
-	if !strings.Contains(called[0], "command -v headroom") {
+	if !strings.Contains(called[0], "headroom mcp status") {
 		t.Errorf("EnsureHeadroom install: call[0] = %q, want idempotency check", called[0])
 	}
 	if !strings.Contains(called[1], "headroom-ai[all]") {
