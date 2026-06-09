@@ -31,12 +31,13 @@ type appModel struct {
 	w, h   int
 	notice string
 
-	menu    menuModel
-	pipe    *pipeline
-	form    *formScreen
-	gh      *ghAuthModel
-	pendGH  string
-	pipeEnd bool
+	menu       menuModel
+	pipe       *pipeline
+	pipeCancel context.CancelFunc
+	form       *formScreen
+	gh         *ghAuthModel
+	pendGH     string
+	pipeEnd    bool
 
 	handoff bool
 }
@@ -96,6 +97,9 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		}
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "esc" {
+			return a.toMenu("запуск отменён")
+		}
 		var cmd tea.Cmd
 		a.pipe, cmd = a.pipe.Update(msg)
 		return a, cmd
@@ -114,7 +118,9 @@ func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 	case "launch":
 		a.phase = phasePipeline
 		a.pipeEnd = false
-		a.pipe = newPipeline(a.ctx, a.r, buildSteps())
+		ctx, cancel := context.WithCancel(a.ctx)
+		a.pipeCancel = cancel
+		a.pipe = newPipeline(ctx, a.r, buildSteps())
 		return a, tea.Batch(sizeCmd(a.w, a.h), a.pipe.Init())
 	case "plugins":
 		f := newPluginsForm(a.ctx, a.r, a.w, a.h)
@@ -157,6 +163,10 @@ func (a appModel) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a appModel) toMenu(notice string) (tea.Model, tea.Cmd) {
+	if a.pipeCancel != nil {
+		a.pipeCancel()
+		a.pipeCancel = nil
+	}
 	a.phase = phaseMenu
 	a.pipe, a.form, a.gh = nil, nil, nil
 	a.pipeEnd = false

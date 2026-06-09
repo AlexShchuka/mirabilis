@@ -27,8 +27,8 @@ beats reliability beats security-from-exfiltration.
 
 `config/` your editable config · `src/menu/` the Go TUI host launcher (a single binary —
 the menu, the launch pipeline, Docker/devcontainer/Keychain orchestration all live here) ·
-`src/*.sh` container-side provisioning · `docker/`, `.devcontainer/`, `docker-compose.yml`,
-`.claude-plugin/` the container definition · `src/test/` the bats suite.
+`src/*.sh` container-side provisioning · `docker/`, `.devcontainer/`, `docker-compose.yml`
+the container definition · `src/test/` the bats suite.
 
 ## Don't
 
@@ -37,7 +37,8 @@ the menu, the launch pipeline, Docker/devcontainer/Keychain orchestration all li
 - Never commit secrets. Sign-in is native and persists in volumes; the only host-side
   secret is the optional Telegram token, read from the macOS Keychain in `src/menu/host.go`.
   If a token appears in a diff, stop.
-- Don't push to `main`; branch and open a PR.
+- Don't push to `main`; branch and open a PR. Keep the PR description minimal — what and
+  why in a few lines, no ceremony.
 - Don't restate a behaviour here — change it in its owning file.
 
 ## Development principles

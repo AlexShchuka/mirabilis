@@ -70,14 +70,6 @@ PLUGINS_CATALOG=/opt/mirabilis/config/plugins.txt
 PLUGINS_DISABLED="$HOME/.claude/.mirabilis-plugins-disabled"
 
 if command -v claude >/dev/null 2>&1; then
-  if [ "$HARNESS_CHOICE" != skip ] && [ -f /opt/mirabilis/marketplace/.claude-plugin/marketplace.json ]; then
-    claude plugin marketplace add /opt/mirabilis/marketplace >/dev/null 2>&1 ||
-      claude plugin marketplace update mirabilis >/dev/null 2>&1 || true
-    claude plugin install neuro-matrix@mirabilis --scope user 2>&1 || true
-    claude plugin update neuro-matrix >/dev/null 2>&1 || true
-    claude plugin list 2>/dev/null | grep -q neuro-matrix ||
-      echo "[refresh] WARN: neuro-matrix selected but not installed — check git/network" >&2
-  fi
   if [ -f "$PLUGINS_CATALOG" ]; then
     claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
     while IFS= read -r p; do
@@ -92,7 +84,7 @@ fi
 
 if command -v jq >/dev/null 2>&1 && [ -f "$DEST" ]; then
   enabled="$(
-    [ "$HARNESS_CHOICE" != skip ] && printf 'neuro-matrix@mirabilis\n'
+    [ "$HARNESS_CHOICE" != skip ] && printf 'neuro-matrix@neuro-matrix\n'
     if [ -f "$PLUGINS_CATALOG" ]; then
       while IFS= read -r p; do
         [ -n "$p" ] || continue
@@ -131,5 +123,5 @@ fi
 
 if command -v rtk >/dev/null 2>&1; then
   jq -e '.hooks.PreToolUse[]?.hooks[]? | select(.command == "rtk hook claude")' "$DEST" >/dev/null 2>&1 ||
-    rtk init -g --auto-patch >/dev/null 2>&1 || true
+    timeout 60 rtk init -g --auto-patch </dev/null >/dev/null 2>&1 || true
 fi

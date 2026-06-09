@@ -2,15 +2,20 @@ setup() {
   load 'test_helper/common'
   _load_libs
   setup_shim_dir
+  export SHIM_LOG="$BATS_TEST_TMPDIR/calls.log"
+  : >"$SHIM_LOG"
 
   FAKE_HOME="$BATS_TEST_TMPDIR/home"
   FAKE_OPT="$BATS_TEST_TMPDIR/opt/mirabilis"
-  mkdir -p "$FAKE_HOME/.claude" "$FAKE_OPT/config" "$FAKE_OPT/marketplace/.claude-plugin"
+  mkdir -p "$FAKE_HOME/.claude" "$FAKE_OPT/config"
   cp "$REPO_ROOT/config/settings.json" "$FAKE_OPT/config/settings.json"
   : >"$FAKE_OPT/config/apt-packages.txt"
   : >"$FAKE_OPT/config/plugins.txt"
 
-  for c in sudo gh git claude rtk dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
+  for c in sudo gh git dpkg apt-get visudo; do make_shim "$c" 'exit 0'; done
+  log_shim claude 'exit 0'
+  log_shim rtk 'exit 0'
+  log_shim timeout 'shift' 'exec "$@"'
   make_shim provision-mcp.sh 'exit 0'
   make_shim git-identity.sh 'exit 0'
 
@@ -48,4 +53,17 @@ run_refresh() {
   jq --sort-keys . "$FAKE_HOME/.claude/settings.json" >"$BATS_TEST_TMPDIR/second.json"
   run diff "$BATS_TEST_TMPDIR/first.json" "$BATS_TEST_TMPDIR/second.json"
   assert_success
+}
+
+@test "refresh does not install the neuro-matrix harness (owned by the launch step)" {
+  run_refresh
+  run cat "$SHIM_LOG"
+  refute_output --partial 'install neuro-matrix'
+  refute_output --partial 'marketplace add /opt/mirabilis/marketplace'
+}
+
+@test "refresh bounds rtk init with timeout" {
+  run_refresh
+  run cat "$SHIM_LOG"
+  assert_line --regexp 'timeout [0-9]+ rtk init -g --auto-patch'
 }

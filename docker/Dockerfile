@@ -72,7 +72,6 @@ RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh 
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
 COPY config/                    /opt/mirabilis/config/
-COPY .claude-plugin/            /opt/mirabilis/marketplace/.claude-plugin/
 COPY src/provision-mcp.sh       /usr/local/bin/provision-mcp.sh
 COPY src/git-identity.sh        /usr/local/bin/git-identity.sh
 COPY src/harness-reinstall.sh   /usr/local/bin/harness-reinstall.sh

@@ -9,14 +9,9 @@ command -v claude >/dev/null 2>&1 || {
   exit 0
 }
 
-if [ ! -f /opt/mirabilis/marketplace/.claude-plugin/marketplace.json ]; then
-  log "marketplace manifest missing at /opt/mirabilis/marketplace; cannot reinstall"
-  exit 1
-fi
-
-claude plugin marketplace add /opt/mirabilis/marketplace >/dev/null 2>&1 ||
-  claude plugin marketplace update mirabilis >/dev/null 2>&1 || true
-claude plugin install neuro-matrix@mirabilis --scope user 2>&1 || true
+claude plugin marketplace add AlexShchuka/neuro-matrix >/dev/null 2>&1 ||
+  claude plugin marketplace update neuro-matrix >/dev/null 2>&1 || true
+claude plugin install neuro-matrix@neuro-matrix --scope user 2>&1 || true
 claude plugin update neuro-matrix >/dev/null 2>&1 || true
 claude plugin list 2>/dev/null | grep -q neuro-matrix ||
   {

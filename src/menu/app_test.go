@@ -79,6 +79,23 @@ func TestAppGHDoneResumesPipeline(t *testing.T) {
 	}
 }
 
+func TestAppEscCancelsPipeline(t *testing.T) {
+	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	if launched.pipeCancel == nil {
+		t.Fatal("launch should install a cancel func for the pipeline context")
+	}
+	canceled := false
+	launched.pipeCancel = func() { canceled = true }
+
+	a := asApp(t, mustUpdate(launched, tea.KeyPressMsg{Code: tea.KeyEscape}))
+	if !canceled {
+		t.Error("esc should cancel the running pipeline context")
+	}
+	if a.phase != phaseMenu {
+		t.Errorf("phase = %v, want menu after esc", a.phase)
+	}
+}
+
 func TestAppRouteReset(t *testing.T) {
 	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"reset"}))
 	if a.phase != phaseForm {

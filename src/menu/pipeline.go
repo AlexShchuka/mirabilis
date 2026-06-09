@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"charm.land/bubbles/v2/progress"
 	"charm.land/bubbles/v2/spinner"
@@ -27,6 +29,7 @@ type Step struct {
 	Retry       RetryPolicy
 	Optional    bool
 	Interactive bool
+	Timeout     time.Duration
 
 	Check func(ctx context.Context, r Runner) (bool, error)
 	Run   func(ctx context.Context, r Runner) error
@@ -62,6 +65,8 @@ type pipeline struct {
 	queue       []*stepView
 	interacting bool
 	failed      bool
+
+	start time.Time
 }
 
 func newPipeline(ctx context.Context, r Runner, steps []Step) *pipeline {
@@ -82,6 +87,7 @@ func newPipeline(ctx context.Context, r Runner, steps []Step) *pipeline {
 }
 
 func (p *pipeline) Init() tea.Cmd {
+	p.start = time.Now()
 	return tea.Batch(p.spin.Tick, p.advance())
 }
 
@@ -144,19 +150,32 @@ func (p *pipeline) setProgress() tea.Cmd {
 	return p.progress.SetPercent(float64(p.resolved()) / float64(len(p.views)))
 }
 
+func (p *pipeline) stepCtx(s Step) (context.Context, context.CancelFunc) {
+	if s.Timeout > 0 {
+		return context.WithTimeout(p.ctx, s.Timeout)
+	}
+	return context.WithCancel(p.ctx)
+}
+
 func (p *pipeline) checkCmd(s Step) tea.Cmd {
 	return func() tea.Msg {
 		if s.Check == nil {
 			return checkedMsg{name: s.Name, satisfied: false}
 		}
-		ok, err := s.Check(p.ctx, p.r)
+		ctx, cancel := p.stepCtx(s)
+		defer cancel()
+		ok, err := s.Check(ctx, p.r)
 		return checkedMsg{name: s.Name, satisfied: ok, err: err}
 	}
 }
 
 func (p *pipeline) runCmd(s Step) tea.Cmd {
 	return func() tea.Msg {
-		err := retry(p.ctx, s.Retry, func() error { return s.Run(p.ctx, p.r) })
+		err := retry(p.ctx, s.Retry, func() error {
+			ctx, cancel := p.stepCtx(s)
+			defer cancel()
+			return s.Run(ctx, p.r)
+		})
 		return ranMsg{name: s.Name, err: err}
 	}
 }
@@ -247,12 +266,27 @@ var (
 
 func (p *pipeline) View() string {
 	label, failure := p.label()
-	bar := p.spin.View() + " " + p.progress.View() + "  " + label
+	clock := titleStyle.Render(fmtElapsed(p.elapsed()))
+	bar := p.spin.View() + " " + clock + " " + p.progress.View() + "  " + label
 	out := titleStyle.Render("mirabilis — запуск") + "\n\n" + bar
 	if failure != "" {
 		out += "\n\n" + failMark.Render("✘ ") + failure + "\n " + hintStyle.Render("любая клавиша — в меню")
+	} else {
+		out += "\n " + hintStyle.Render("esc — отмена")
 	}
 	return out
+}
+
+func (p *pipeline) elapsed() time.Duration {
+	if p.start.IsZero() {
+		return 0
+	}
+	return time.Since(p.start)
+}
+
+func fmtElapsed(d time.Duration) string {
+	s := int(d.Seconds())
+	return fmt.Sprintf("%02d:%02d", s/60, s%60)
 }
 
 func (p *pipeline) label() (string, string) {
