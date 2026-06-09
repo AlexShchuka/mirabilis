@@ -12,35 +12,84 @@ import (
 )
 
 func TestHandoffArgv(t *testing.T) {
-	argv := handoffArgv("/usr/bin/docker", "ghp_tok", "/tmp/sp.md")
-	if len(argv) < 2 {
-		t.Fatalf("argv too short: %v", argv)
+	want := []string{
+		"/usr/bin/docker", "exec", "-it",
+		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+		"-e", "COLORTERM=truecolor",
+		"-e", "TERM=xterm-256color",
+		"mirabilis",
+		"claude", "--dangerously-skip-permissions", "--append-system-prompt-file", "/tmp/sp.md",
 	}
-	if argv[0] != "/usr/bin/docker" {
-		t.Errorf("argv[0] = %q, want /usr/bin/docker", argv[0])
+	got := handoffArgv("/usr/bin/docker", "/tmp/sp.md")
+	if len(got) != len(want) {
+		t.Fatalf("handoffArgv len = %d, want %d\ngot:  %v\nwant: %v", len(got), len(want), got, want)
 	}
-	var found bool
-	for _, a := range argv {
-		if a == "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_tok" {
-			found = true
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("argv[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
-	if !found {
-		t.Errorf("token not found in argv: %v", argv)
-	}
-	last := argv[len(argv)-1]
-	if last != "/tmp/sp.md" {
-		t.Errorf("last argv = %q, want /tmp/sp.md (system-prompt file)", last)
-	}
-	found = false
-	for _, a := range argv {
-		if a == "--append-system-prompt-file" {
-			found = true
+}
+
+func TestHandoffEnv(t *testing.T) {
+	t.Run("existing entry replaced", func(t *testing.T) {
+		base := []string{"FOO=bar", "GITHUB_PERSONAL_ACCESS_TOKEN=old", "BAZ=qux"}
+		result := handoffEnv(base, "new")
+		counts := 0
+		var val string
+		for _, kv := range result {
+			if strings.HasPrefix(kv, "GITHUB_PERSONAL_ACCESS_TOKEN=") {
+				counts++
+				val = strings.TrimPrefix(kv, "GITHUB_PERSONAL_ACCESS_TOKEN=")
+			}
 		}
-	}
-	if !found {
-		t.Errorf("--append-system-prompt-file flag missing in argv: %v", argv)
-	}
+		if counts != 1 {
+			t.Errorf("GITHUB_PERSONAL_ACCESS_TOKEN appears %d times, want 1; env: %v", counts, result)
+		}
+		if val != "new" {
+			t.Errorf("GITHUB_PERSONAL_ACCESS_TOKEN value = %q, want %q", val, "new")
+		}
+		var fooFound, bazFound bool
+		for _, kv := range result {
+			if kv == "FOO=bar" {
+				fooFound = true
+			}
+			if kv == "BAZ=qux" {
+				bazFound = true
+			}
+		}
+		if !fooFound {
+			t.Error("FOO=bar missing from result")
+		}
+		if !bazFound {
+			t.Error("BAZ=qux missing from result")
+		}
+	})
+
+	t.Run("valueless entry stripped", func(t *testing.T) {
+		base := []string{"FOO=bar", "GITHUB_PERSONAL_ACCESS_TOKEN"}
+		result := handoffEnv(base, "new")
+		want := []string{"FOO=bar", "GITHUB_PERSONAL_ACCESS_TOKEN=new"}
+		if len(result) != len(want) {
+			t.Fatalf("result = %v, want %v", result, want)
+		}
+		for i := range want {
+			if result[i] != want[i] {
+				t.Errorf("result[%d] = %q, want %q", i, result[i], want[i])
+			}
+		}
+	})
+
+	t.Run("no prior entry appended last", func(t *testing.T) {
+		base := []string{"FOO=bar", "BAZ=qux"}
+		result := handoffEnv(base, "tok")
+		if last := result[len(result)-1]; last != "GITHUB_PERSONAL_ACCESS_TOKEN=tok" {
+			t.Errorf("last element = %q, want GITHUB_PERSONAL_ACCESS_TOKEN=tok", last)
+		}
+		if len(result) != 3 {
+			t.Errorf("result length = %d, want 3; env: %v", len(result), result)
+		}
+	})
 }
 
 func TestLastLines(t *testing.T) {
