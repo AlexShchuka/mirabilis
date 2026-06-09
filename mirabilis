@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-d="$(cd "$(dirname "$0")" && pwd)"
-make -C "$d" menu >/dev/null
-exec "$d/src/menu/bin/mirabilis-menu" "$@"

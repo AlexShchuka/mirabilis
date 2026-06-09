@@ -11,13 +11,13 @@ setup() {
 }
 
 @test "Dockerfile installs Go unconditionally (not behind a STACKS gate)" {
-  run grep -q 'go.dev/dl' "$REPO_ROOT/docker/Dockerfile"
+  run grep -q 'go.dev/dl' "$REPO_ROOT/.devcontainer/Dockerfile"
   assert_success
-  run grep -q '[*],go,[*]' "$REPO_ROOT/docker/Dockerfile"
+  run grep -q '[*],go,[*]' "$REPO_ROOT/.devcontainer/Dockerfile"
   assert_failure
 }
 
 @test "Dockerfile keeps dotnet as an optional STACKS stack" {
-  run grep -q '[*],dotnet,[*]' "$REPO_ROOT/docker/Dockerfile"
+  run grep -q '[*],dotnet,[*]' "$REPO_ROOT/.devcontainer/Dockerfile"
   assert_success
 }

@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: docker build (default stacks)
-        run: docker build -f docker/Dockerfile -t mirabilis:canary .
+        run: docker build -f .devcontainer/Dockerfile -t mirabilis:canary .
 
   devcontainer:
     name: devcontainer up + configured assertions (best-effort)
