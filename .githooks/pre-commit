@@ -13,7 +13,7 @@ if [ -n "$go_files" ]; then
     go vet ./...
 fi
 
-non_exempt=$(printf '%s\n' $staged | grep -vE '\.(md|go)$' | grep -vE '^go\.(mod|sum)$' || true)
+non_exempt=$(printf '%s\n' $staged | grep -vE '\.(md|go)$' | grep -vE '^go\.(mod|sum)$' | grep -vE '^\.github/workflows/' || true)
 if [ -n "$non_exempt" ]; then
     hits=$(printf '%s\n' "$non_exempt" | xargs grep -HnE '(^|[[:space:]])(//|#)[[:space:]]' 2>/dev/null || true)
     if [ -n "$hits" ]; then

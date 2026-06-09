@@ -74,3 +74,12 @@ setup() {
     run sh -c "cd '$SANDBOX' && sh '$HOOK'"
     [ "$status" -eq 0 ]
 }
+
+@test ".github/workflows YAML with version comment exits 0" {
+    mkdir -p "$SANDBOX/.github/workflows"
+    comment="# v5.0.1"
+    printf 'uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd %s\n' "$comment" > "$SANDBOX/.github/workflows/x.yml"
+    git -C "$SANDBOX" add .github/workflows/x.yml
+    run sh -c "cd '$SANDBOX' && sh '$HOOK'"
+    [ "$status" -eq 0 ]
+}
