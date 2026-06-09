@@ -84,7 +84,7 @@ func EnsureSettings(cfg config.Config) error {
 			merged := mergeSettings(dm, sm)
 			delete(merged, "sandbox")
 			if werr := writeJSON(dest, merged); werr != nil {
-				warn("write settings", werr)
+				warn("write settings; falling back to seed copy", werr)
 				return copyFile(seed, dest)
 			}
 			return nil

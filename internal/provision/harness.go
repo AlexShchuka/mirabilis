@@ -38,7 +38,7 @@ func EnsureHarness(ctx context.Context, r runner.Runner) error {
 	}
 
 	if _, err := r.Container(ctx, "bash", "-lc", "claude plugin list 2>/dev/null | grep -q neuro-matrix"); err != nil {
-		warn("neuro-matrix not installed after reinstall", err)
+		warn("neuro-matrix not installed after reinstall — check git/network", err)
 		return nil
 	}
 
