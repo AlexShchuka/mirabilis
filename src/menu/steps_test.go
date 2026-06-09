@@ -164,6 +164,11 @@ func TestBuildStepsShape(t *testing.T) {
 	if prepare := byName["prepare"]; prepare.Timeout != 0 {
 		t.Error("prepare must not be hard-timeout-capped — devcontainer build can be long")
 	}
+	for _, s := range buildSteps() {
+		if s.Detail == "" {
+			t.Errorf("step %q has no Detail for the progress hint line", s.Name)
+		}
+	}
 }
 
 func countLines(s, prefix string) int {
