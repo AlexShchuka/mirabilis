@@ -31,9 +31,6 @@ if [ -f "$THEME_FILE" ] && [ -f "$DEST" ]; then
   fi
 fi
 
-HUD_SRC="$(npm root -g 2>/dev/null)/claude-hud/statusline-command.sh"
-[ -f "$HUD_SRC" ] && cp -f "$HUD_SRC" "$HOME/.claude/statusline-command.sh"
-
 APT_LIST=/opt/mirabilis/config/apt-packages.txt
 if [ -f "$APT_LIST" ]; then
   missing=()
@@ -71,13 +68,15 @@ PLUGINS_DISABLED="$HOME/.claude/.mirabilis-plugins-disabled"
 
 if command -v claude >/dev/null 2>&1; then
   if [ -f "$PLUGINS_CATALOG" ]; then
+    mkdir -p "$HOME/.cache/tmp"
     claude plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+    claude plugin marketplace add jarrodwatts/claude-hud >/dev/null 2>&1 || true
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       case "$p" in \#*) continue ;; esac
       grep -qxF "$p" "$PLUGINS_DISABLED" 2>/dev/null && continue
       claude plugin list 2>/dev/null | grep -q "${p%@*}" ||
-        claude plugin install "$p" --scope user >/dev/null 2>&1 || true
+        TMPDIR="$HOME/.cache/tmp" claude plugin install "$p" --scope user >/dev/null 2>&1 || true
     done <"$PLUGINS_CATALOG"
   fi
 fi

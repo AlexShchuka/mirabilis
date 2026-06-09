@@ -33,8 +33,6 @@ RUN arch="$(dpkg --print-architecture)" \
     && rm -f "/tmp/rtk-${target}.tar.gz" /tmp/rtk-checksums.txt \
     && chmod 0755 /usr/local/bin/rtk
 
-RUN npm install -g claude-hud ccusage
-
 RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://astral.sh/uv/install.sh \
     | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
 
