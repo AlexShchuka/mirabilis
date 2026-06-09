@@ -47,6 +47,7 @@ mirabilis
 
 - [`AGENTS.md`](AGENTS.md) — what the repo is, boundaries, and contributor rules.
 - [`SECURITY.md`](SECURITY.md) — threat model and secret handling.
+- `config/apt-packages.txt` — one package per line; read by the provisioner on each launch, missing packages are installed inside the container without an image rebuild.
 
 ## License
 

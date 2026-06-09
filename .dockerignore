@@ -24,6 +24,7 @@ go.mod
 go.sum
 bin/
 .gotmp/
+config/memory/
 *.md
 /Makefile
 /Brewfile
