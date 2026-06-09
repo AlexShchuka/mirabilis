@@ -12,8 +12,18 @@ services:
     image: mirabilis:local
     container_name: mirabilis
     hostname: mirabilis
-    security_opt:
-      - seccomp=unconfined
+    cap_drop:
+      - ALL
+    cap_add:
+      - AUDIT_WRITE
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - FSETID
+      - KILL
+      - SETFCAP
+      - SETGID
+      - SETUID
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
