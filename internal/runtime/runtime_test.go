@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -18,17 +17,6 @@ func TestResetTerminal(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("resetTerminal output mismatch: got %q, want %q", got, want)
-	}
-	if idx := strings.Index(got, exitAltScreen); idx < 0 {
-		t.Fatal("exitAltScreen not found in output")
-	}
-	if idx := strings.Index(got, clearScreenHome); idx < 0 {
-		t.Fatal("clearScreenHome not found in output")
-	}
-	altIdx := strings.Index(got, exitAltScreen)
-	clearIdx := strings.Index(got, clearScreenHome)
-	if altIdx > clearIdx {
-		t.Error("exitAltScreen must precede clearScreenHome")
 	}
 }
 

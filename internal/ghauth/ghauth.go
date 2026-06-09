@@ -3,6 +3,7 @@ package ghauth
 import (
 	"bufio"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -104,19 +105,24 @@ func (g *Model) run() {
 		return
 	}
 	pw.Close()
-	sc := bufio.NewScanner(pr)
+	g.pump(pr, cmd.Wait)
+}
+
+func (g *Model) pump(r io.ReadCloser, wait func() error) {
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		select {
 		case <-g.ctx.Done():
-			pr.Close()
-			_ = cmd.Wait()
+			r.Close()
+			_ = wait()
+			g.doneCh <- g.ctx.Err()
 			close(g.linesCh)
 			return
 		case g.linesCh <- sc.Text():
 		}
 	}
-	pr.Close()
-	g.doneCh <- cmd.Wait()
+	r.Close()
+	g.doneCh <- wait()
 	close(g.linesCh)
 }
 

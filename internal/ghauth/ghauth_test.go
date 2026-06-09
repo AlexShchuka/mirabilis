@@ -2,6 +2,7 @@ package ghauth
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -83,6 +84,29 @@ func TestRunExitsCleanlyOnStartError(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("run() did not return after process start failure")
+	}
+}
+
+func TestPumpWritesDoneChOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	g := New(ctx, &runner.FakeRunner{}, 80, 24)
+	g.linesCh = make(chan string)
+	g.doneCh = make(chan error, 1)
+
+	pr, pw := io.Pipe()
+	go func() { _, _ = pw.Write([]byte("waiting for one-time code...\n")) }()
+
+	go g.pump(pr, func() error { return nil })
+
+	cancel()
+
+	select {
+	case err := <-g.doneCh:
+		if err != context.Canceled {
+			t.Errorf("doneCh = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("pump did not write doneCh after cancel — readNext would block and leak the goroutine")
 	}
 }
 
