@@ -1,0 +1,43 @@
+{
+  "language": "en",
+  "lineLayout": "expanded",
+  "showSeparators": false,
+  "pathLevels": 1,
+  "gitStatus": {
+    "enabled": true,
+    "showDirty": true,
+    "showAheadBehind": true,
+    "showFileStats": false
+  },
+  "display": {
+    "showModel": true,
+    "showProject": true,
+    "showAddedDirs": true,
+    "showContextBar": true,
+    "contextValue": "both",
+    "showConfigCounts": false,
+    "showCost": false,
+    "showDuration": false,
+    "showSpeed": true,
+    "showTokenBreakdown": true,
+    "showUsage": true,
+    "usageBarEnabled": true,
+    "usageCompact": false,
+    "showTools": false,
+    "showSkills": false,
+    "showMcp": false,
+    "showAgents": false,
+    "showTodos": true,
+    "showSessionName": true,
+    "showClaudeCodeVersion": false,
+    "showEffortLevel": true,
+    "showMemoryUsage": false,
+    "showPromptCache": false,
+    "showSessionTokens": false,
+    "showOutputStyle": true,
+    "showSessionStartDate": false,
+    "showLastResponseAt": false,
+    "showAdvisor": false,
+    "timeFormat": "relative"
+  }
+}

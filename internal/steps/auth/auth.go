@@ -26,7 +26,7 @@ func init() {
 		Title:       "GitHub sign-in",
 		Detail:      "checking GitHub sign-in",
 		Deps:        []string{"prepare"},
-		Optional:    true,
+		Optional:    false,
 		Interactive: true,
 		Timeout:     30 * time.Second,
 	}, step{})

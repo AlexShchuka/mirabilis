@@ -28,6 +28,9 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 	if err := EnsurePlugins(ctx, r, cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "[provision] WARN: plugins: %v\n", err)
 	}
+	if err := EnsureHudConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "[provision] WARN: claude-hud config: %v\n", err)
+	}
 	ok, err := HarnessInstalled(ctx, r)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[provision] WARN: harness check: %v\n", err)

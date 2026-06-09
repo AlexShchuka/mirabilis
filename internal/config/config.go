@@ -13,6 +13,7 @@ type Config struct {
 func New(base string) Config { return Config{Base: base} }
 
 func (c Config) SettingsSeed() string   { return filepath.Join(c.Base, "settings.json") }
+func (c Config) HudConfigSeed() string  { return filepath.Join(c.Base, "claude-hud.json") }
 func (c Config) PluginsTxt() string     { return filepath.Join(c.Base, "plugins.txt") }
 func (c Config) AptPackagesTxt() string { return filepath.Join(c.Base, "apt-packages.txt") }
 

@@ -3,6 +3,7 @@ package ghauth
 import (
 	"bufio"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -87,7 +88,7 @@ func loginArgs() []string {
 }
 
 func (g *Model) run() {
-	cmd := runtime.ContainerCmd(g.r, loginArgs()...)
+	cmd := runtime.ContainerCmd(g.ctx, g.r, loginArgs()...)
 	cmd.Stdin = strings.NewReader("\n")
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -104,12 +105,24 @@ func (g *Model) run() {
 		return
 	}
 	pw.Close()
-	sc := bufio.NewScanner(pr)
+	g.pump(pr, cmd.Wait)
+}
+
+func (g *Model) pump(r io.ReadCloser, wait func() error) {
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
-		g.linesCh <- sc.Text()
+		select {
+		case <-g.ctx.Done():
+			r.Close()
+			_ = wait()
+			g.doneCh <- g.ctx.Err()
+			close(g.linesCh)
+			return
+		case g.linesCh <- sc.Text():
+		}
 	}
-	pr.Close()
-	g.doneCh <- cmd.Wait()
+	r.Close()
+	g.doneCh <- wait()
 	close(g.linesCh)
 }
 
