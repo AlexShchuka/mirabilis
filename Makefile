@@ -26,6 +26,7 @@ help:
 bootstrap:
 	brew bundle --file=Brewfile
 	npm install -g @devcontainers/cli
+	git config core.hooksPath .githooks
 
 menu:
 	@mkdir -p bin

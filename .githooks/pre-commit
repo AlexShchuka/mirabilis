@@ -1,0 +1,28 @@
+#!/bin/sh
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+go_files=$(printf '%s\n' $staged | grep '\.go$' || true)
+if [ -n "$go_files" ]; then
+    unformatted=$(echo "$go_files" | xargs gofmt -l)
+    if [ -n "$unformatted" ]; then
+        printf '%s\n' "$unformatted"
+        exit 1
+    fi
+    go vet ./...
+fi
+
+non_exempt=$(printf '%s\n' $staged | grep -v '\.\(md\|go\)$' | grep -v '^go\.\(mod\|sum\)$' || true)
+if [ -n "$non_exempt" ]; then
+    hits=$(printf '%s\n' "$non_exempt" | xargs grep -HnE '(^|[[:space:]])(//|#)[[:space:]]' 2>/dev/null || true)
+    if [ -n "$hits" ]; then
+        printf '%s\n' "$hits"
+        exit 1
+    fi
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git --pre-commit --staged --no-banner
+else
+    printf 'pre-commit: gitleaks not found, skipping secret scan\n' >&2
+fi
