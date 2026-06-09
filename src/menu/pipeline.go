@@ -25,6 +25,7 @@ const (
 type Step struct {
 	Name        string
 	Title       string
+	Detail      string
 	Deps        []string
 	Retry       RetryPolicy
 	Optional    bool
@@ -71,11 +72,14 @@ type pipeline struct {
 
 func newPipeline(ctx context.Context, r Runner, steps []Step) *pipeline {
 	p := &pipeline{
-		ctx:      ctx,
-		r:        r,
-		byName:   map[string]*stepView{},
-		spin:     spinner.New(spinner.WithSpinner(spinner.MiniDot)),
-		progress: progress.New(progress.WithDefaultBlend(), progress.WithoutPercentage()),
+		ctx:    ctx,
+		r:      r,
+		byName: map[string]*stepView{},
+		spin:   spinner.New(spinner.WithSpinner(spinner.MiniDot)),
+		progress: progress.New(
+			progress.WithColors(lipgloss.Color("#29fcc3"), lipgloss.Color("#0bd4cd")),
+			progress.WithoutPercentage(),
+		),
 	}
 	p.progress.SetWidth(40)
 	for _, s := range steps {
@@ -272,9 +276,21 @@ func (p *pipeline) View() string {
 	if failure != "" {
 		out += "\n\n" + failMark.Render("✘ ") + failure + "\n " + hintStyle.Render("любая клавиша — в меню")
 	} else {
+		if d := p.currentDetail(); d != "" {
+			out += "\n " + hintStyle.Render(d)
+		}
 		out += "\n " + hintStyle.Render("esc — отмена")
 	}
 	return out
+}
+
+func (p *pipeline) currentDetail() string {
+	for _, v := range p.views {
+		if v.status == stRunning || v.status == stWaiting {
+			return v.step.Detail
+		}
+	}
+	return ""
 }
 
 func (p *pipeline) elapsed() time.Duration {

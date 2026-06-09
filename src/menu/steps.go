@@ -14,31 +14,31 @@ import (
 func buildSteps() []Step {
 	return []Step{
 		{
-			Name: "update", Title: "Обновление (origin/main)", Retry: retryNet, Optional: true, Timeout: 60 * time.Second,
+			Name: "update", Title: "Обновление (origin/main)", Detail: "проверяю обновления из origin/main", Retry: retryNet, Optional: true, Timeout: 60 * time.Second,
 			Check: checkUpToDate, Run: runPull,
 		},
 		{
-			Name: "prepare", Title: "Контейнер", Deps: []string{"update"}, Retry: retryNet,
+			Name: "prepare", Title: "Контейнер", Detail: "поднимаю контейнер — первая сборка образа может занять несколько минут", Deps: []string{"update"}, Retry: retryNet,
 			Check: checkContainerReady, Run: runPrepare,
 		},
 		{
-			Name: "claude", Title: "Конфиг Claude", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
+			Name: "claude", Title: "Конфиг Claude", Detail: "настраиваю конфиг Claude в контейнере", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
 			Check: alwaysRun, Run: seedClaudeConfig,
 		},
 		{
-			Name: "theme", Title: "Тема", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
+			Name: "theme", Title: "Тема", Detail: "применяю тему", Deps: []string{"prepare"}, Retry: retryNone, Optional: true, Timeout: 30 * time.Second,
 			Check: checkTheme, Run: runApplyTheme,
 		},
 		{
-			Name: "harness", Title: "neuro-matrix", Deps: []string{"prepare"}, Retry: retryNet, Optional: true, Timeout: 180 * time.Second,
+			Name: "harness", Title: "neuro-matrix", Detail: "ставлю/обновляю харнес neuro-matrix из репозитория (сеть)", Deps: []string{"prepare"}, Retry: retryNet, Optional: true, Timeout: 180 * time.Second,
 			Check: checkHarness, Run: runHarness,
 		},
 		{
-			Name: "gh", Title: "GitHub sign-in", Deps: []string{"prepare"}, Optional: true, Interactive: true, Timeout: 30 * time.Second,
+			Name: "gh", Title: "GitHub sign-in", Detail: "проверяю вход в GitHub", Deps: []string{"prepare"}, Optional: true, Interactive: true, Timeout: 30 * time.Second,
 			Check: checkGitHub,
 		},
 		{
-			Name: "preflight", Title: "Проверка окружения", Deps: []string{"prepare", "harness", "gh"}, Retry: retryNone, Timeout: 60 * time.Second,
+			Name: "preflight", Title: "Проверка окружения", Detail: "проверяю egress до api.anthropic.com", Deps: []string{"prepare", "harness", "gh"}, Retry: retryNone, Timeout: 60 * time.Second,
 			Check: alwaysRun, Run: runPreflight,
 		},
 	}

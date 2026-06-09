@@ -62,6 +62,21 @@ func TestStepNoTimeoutDoesNotCancel(t *testing.T) {
 	}
 }
 
+func TestPipelineCurrentDetail(t *testing.T) {
+	p := trivialPipeline([]Step{
+		{Name: "a", Detail: "doing a"},
+		{Name: "b", Detail: "doing b"},
+	})
+	if got := p.currentDetail(); got != "" {
+		t.Errorf("currentDetail with nothing running = %q, want empty", got)
+	}
+	p.views[0].status = stDone
+	p.views[1].status = stRunning
+	if got := p.currentDetail(); got != "doing b" {
+		t.Errorf("currentDetail = %q, want %q", got, "doing b")
+	}
+}
+
 func TestFmtElapsed(t *testing.T) {
 	tests := []struct {
 		d    time.Duration
