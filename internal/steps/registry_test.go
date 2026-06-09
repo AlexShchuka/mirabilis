@@ -3,20 +3,10 @@ package steps_test
 import (
 	"testing"
 
-	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/steps"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/auth"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/claude"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/container"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/harness"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/plugins"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/preflight"
 )
 
 func TestRegistryShape(t *testing.T) {
-	saved := steps.TakeSnapshot()
-	defer steps.RestoreSnapshot(saved)
-
 	registered := steps.BuildSteps()
 
 	wantNames := []string{"update", "prepare", "claude", "theme", "harness", "plugins", "gh", "preflight"}
@@ -51,21 +41,4 @@ func TestRegistryShape(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestRegisterPanicsOnDuplicate(t *testing.T) {
-	saved := steps.TakeSnapshot()
-	defer steps.RestoreSnapshot(saved)
-
-	steps.RestoreSnapshot(nil)
-
-	steps.Register(pipeline.StepMeta{Name: "dupe"}, nil)
-
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Register did not panic on duplicate name")
-		}
-	}()
-
-	steps.Register(pipeline.StepMeta{Name: "dupe"}, nil)
 }

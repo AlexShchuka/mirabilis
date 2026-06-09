@@ -10,12 +10,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/provision"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 	"github.com/AlexShchuka/mirabilis/internal/steps"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/auth"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/claude"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/container"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/harness"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/plugins"
-	_ "github.com/AlexShchuka/mirabilis/internal/steps/preflight"
 	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
 

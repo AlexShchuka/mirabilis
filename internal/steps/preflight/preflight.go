@@ -8,7 +8,6 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
 
 type step struct{}
@@ -30,13 +29,18 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	}
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:    "preflight",
-		Title:   "Environment check",
-		Detail:  "checking egress to api.anthropic.com",
-		Deps:    []string{"prepare", "harness", "gh"},
-		Retry:   pipeline.RetryNone,
-		Timeout: 60 * time.Second,
-	}, step{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:    "preflight",
+				Title:   "Environment check",
+				Detail:  "checking egress to api.anthropic.com",
+				Deps:    []string{"prepare", "harness", "gh"},
+				Retry:   pipeline.RetryNone,
+				Timeout: 60 * time.Second,
+			},
+			Impl: step{},
+		},
+	}
 }

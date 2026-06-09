@@ -9,7 +9,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
 
 type step struct{}
@@ -32,16 +31,21 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	return err
 }
 
-func init() {
-	steps.Register(pipeline.StepMeta{
-		Name:     "plugins",
-		Title:    "Plugins",
-		Detail:   "applying plugin selection",
-		Deps:     []string{"prepare"},
-		Retry:    pipeline.RetryNet,
-		Optional: true,
-		Timeout:  180 * time.Second,
-	}, step{})
+func Steps() []pipeline.Registered {
+	return []pipeline.Registered{
+		{
+			Meta: pipeline.StepMeta{
+				Name:     "plugins",
+				Title:    "Plugins",
+				Detail:   "applying plugin selection",
+				Deps:     []string{"prepare"},
+				Retry:    pipeline.RetryNet,
+				Optional: true,
+				Timeout:  180 * time.Second,
+			},
+			Impl: step{},
+		},
+	}
 }
 
 func splitLines(s string) []string {
