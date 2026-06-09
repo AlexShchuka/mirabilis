@@ -10,13 +10,9 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/steps"
 )
 
-func alwaysRun(context.Context, runner.Runner) (bool, error) { return false, nil }
-
 type claudeStep struct{}
 
-func (claudeStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
-	return alwaysRun(ctx, r)
-}
+func (claudeStep) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 func (claudeStep) Run(ctx context.Context, r runner.Runner) error {
 	const script = `f="$HOME/.claude.json"
