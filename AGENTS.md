@@ -25,17 +25,23 @@ beats reliability beats security-from-exfiltration.
 
 ## Layout
 
-`config/` your editable config · `src/menu/` the Go TUI host launcher (a single binary —
-the menu, the launch pipeline, Docker/devcontainer/Keychain orchestration all live here) ·
-`src/*.sh` container-side provisioning · `.devcontainer/`, `docker-compose.yml`
-the container definition · `src/test/` the bats suite.
+`config/` editable config (settings seed, plugins, stacks, apt-packages, memory rules) ·
+`cmd/mirabilis/` the single binary entry point — role dispatch (TUI / provision / hook) ·
+`internal/` Go packages: TUI host launcher (`internal/app`), pipeline engine
+(`internal/pipeline`), provisioner (`internal/provision`), OS seam and Docker primitives
+(`internal/runtime`), Claude hook handlers (`internal/hooks`), step implementations
+(`internal/steps/*`), GitHub device-flow (`internal/ghauth`), and supporting leaves
+(`internal/runner`, `internal/ui`, `internal/config`) ·
+`.devcontainer/` + `docker-compose.yml` the container definition (Dockerfile for build-time
+layers; `devcontainer.json` for features and lifecycle hooks) · `test/` the install.sh
+bats smoke.
 
 ## Don't
 
 - No comments in code or config — prose lives in `.md` only (shell, Dockerfile, Makefile,
   JSON, YAML, `.env`).
 - Never commit secrets. Sign-in is native and persists in volumes; the only host-side
-  secret is the optional Telegram token, read from the macOS Keychain in `src/menu/host.go`.
+  secret is the optional Telegram token, read from the macOS Keychain in `internal/runtime`.
   If a token appears in a diff, stop.
 - Don't push to `main`; branch and open a PR. Keep the PR description minimal — what and
   why in a few lines, no ceremony.

@@ -1,0 +1,33 @@
+package harness
+
+import (
+	"context"
+	"time"
+
+	"github.com/AlexShchuka/mirabilis/internal/pipeline"
+	"github.com/AlexShchuka/mirabilis/internal/provision"
+	"github.com/AlexShchuka/mirabilis/internal/runner"
+	"github.com/AlexShchuka/mirabilis/internal/steps"
+)
+
+type step struct{}
+
+func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
+	return provision.HarnessInstalled(ctx, r)
+}
+
+func (step) Run(ctx context.Context, r runner.Runner) error {
+	return provision.EnsureHarness(ctx, r)
+}
+
+func init() {
+	steps.Register(pipeline.StepMeta{
+		Name:     "harness",
+		Title:    "neuro-matrix",
+		Detail:   "installing/updating the neuro-matrix harness (network)",
+		Deps:     []string{"prepare"},
+		Retry:    pipeline.RetryNet,
+		Optional: true,
+		Timeout:  180 * time.Second,
+	}, step{})
+}

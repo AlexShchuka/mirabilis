@@ -14,9 +14,10 @@ node_modules/
 .cache/
 tmp/
 /workspace/
-src/menu/bin/
+bin/
+.build/
+.gotmp/
 
-# runtime MCP config (not part of the repo)
 .mcp.json
-/src/menu/menu
 .claude/
+/mirabilis

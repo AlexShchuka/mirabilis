@@ -70,12 +70,8 @@ RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh 
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
 COPY config/                    /opt/mirabilis/config/
-COPY src/provision-mcp.sh       /usr/local/bin/provision-mcp.sh
-COPY src/git-identity.sh        /usr/local/bin/git-identity.sh
-COPY src/harness-reinstall.sh   /usr/local/bin/harness-reinstall.sh
-COPY .devcontainer/refresh.sh    /opt/mirabilis/refresh.sh
-COPY .devcontainer/entrypoint.sh /opt/mirabilis/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/provision-mcp.sh /usr/local/bin/git-identity.sh /usr/local/bin/harness-reinstall.sh /opt/mirabilis/refresh.sh /opt/mirabilis/entrypoint.sh /opt/mirabilis/config/hooks/telegram-notify.sh
+COPY .build/mirabilis-linux     /usr/local/bin/mirabilis
+RUN chmod 0755 /usr/local/bin/mirabilis
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
     && git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/"

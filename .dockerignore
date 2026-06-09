@@ -17,8 +17,13 @@ tmp/
 *.credentials
 docs/
 .github/
-src/menu/
-src/test/
+src/
+internal/
+cmd/
+go.mod
+go.sum
+bin/
+.gotmp/
 *.md
 /Makefile
 /Brewfile

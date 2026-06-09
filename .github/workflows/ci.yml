@@ -8,25 +8,6 @@ permissions:
   contents: read
 
 jobs:
-  bats:
-    name: bats behaviour tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: install jq
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends jq
-      - name: setup bats + helper libs
-        uses: bats-core/bats-action@4.0.0
-        with:
-          bats-version: latest
-          support-path: /usr/lib/bats-support
-          assert-path: /usr/lib/bats-assert
-          file-path: /usr/lib/bats-file
-      - name: run bats
-        env:
-          BATS_LIB_PATH: /usr/lib
-        run: bats --print-output-on-failure --recursive src/test
-
   go:
     name: go build · vet · test -race
     runs-on: ubuntu-latest
@@ -34,17 +15,25 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
         with:
-          go-version-file: src/menu/go.mod
-          cache-dependency-path: src/menu/go.mod
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
       - name: gofmt
-        working-directory: src/menu
         run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "files above are not gofmt-clean"; exit 1; }
       - name: build
-        working-directory: src/menu
         run: go build ./...
       - name: vet
-        working-directory: src/menu
         run: go vet ./...
       - name: test -race
-        working-directory: src/menu
         run: go test -race ./...
+
+  bats:
+    name: install.sh smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: setup bats
+        uses: bats-core/bats-action@4.0.0
+        with:
+          bats-version: latest
+      - name: run bats
+        run: bats --print-output-on-failure --recursive test

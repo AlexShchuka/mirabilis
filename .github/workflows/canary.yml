@@ -15,6 +15,12 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: cross-compile the container binary
+        run: make linux
       - name: docker build (default stacks)
         run: docker build -f .devcontainer/Dockerfile -t mirabilis:canary .
 
@@ -24,6 +30,12 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: cross-compile the container binary
+        run: make linux
       - name: install devcontainer CLI
         run: npm install -g @devcontainers/cli
       - name: devcontainer up
@@ -32,25 +44,20 @@ jobs:
         run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
 
   tests:
-    name: re-run bats + go (best-effort)
+    name: re-run go + install.sh smoke (best-effort)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
-      - name: install jq
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends jq
-      - name: setup bats + helper libs
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: go
+        run: go build ./... && go vet ./... && go test -race ./...
+      - name: setup bats
         uses: bats-core/bats-action@4.0.0
         with:
           bats-version: latest
       - name: bats
-        env:
-          BATS_LIB_PATH: /usr/lib
-        run: bats --print-output-on-failure --recursive src/test
-      - name: go
-        run: |
-          if [ -f src/menu/go.mod ]; then
-            cd src/menu && go mod download && go build ./... && go vet ./... && go test -race ./...
-          else
-            echo "src/menu/go.mod not found — skipping go"
-          fi
+        run: bats --print-output-on-failure --recursive test

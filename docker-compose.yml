@@ -27,7 +27,7 @@ services:
       - gh-config:/home/node/.config/gh
     tmpfs:
       - /tmp
-    entrypoint: ["/usr/bin/tini", "--", "/opt/mirabilis/entrypoint.sh"]
+    entrypoint: ["/usr/bin/tini", "--", "sleep", "infinity"]
     command: []
     stdin_open: true
     tty: true
