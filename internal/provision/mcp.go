@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
@@ -13,6 +14,21 @@ type mcpEntry struct {
 	transport string
 	url       string
 	args      []string
+}
+
+func parseMCPList(out string) map[string]bool {
+	registered := make(map[string]bool)
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		name := strings.SplitN(line, " ", 2)[0]
+		if name != "" {
+			registered[name] = true
+		}
+	}
+	return registered
 }
 
 func EnsureMCP(ctx context.Context, r runner.Runner) error {
@@ -35,8 +51,14 @@ func EnsureMCP(ctx context.Context, r runner.Runner) error {
 		fmt.Fprintf(os.Stderr, "[provision] WARN: uvx not on PATH; skipping arxiv-mcp-server and docling MCP servers\n")
 	}
 
+	listOut, _ := r.Container(ctx, "claude", "mcp", "list")
+	registered := parseMCPList(listOut)
+
 	for _, e := range entries {
-		_, _ = r.Container(ctx, "claude", "mcp", "remove", e.name, "--scope", "user")
+		if registered[e.name] {
+			fmt.Fprintf(os.Stderr, "[provision] MCP %s already registered; skipping\n", e.name)
+			continue
+		}
 
 		var addArgs []string
 		addArgs = append(addArgs, "mcp", "add", "--scope", "user", "--transport", e.transport)
@@ -55,6 +77,5 @@ func EnsureMCP(ctx context.Context, r runner.Runner) error {
 		}
 	}
 
-	_, _ = r.Container(ctx, "claude", "mcp", "list")
 	return nil
 }

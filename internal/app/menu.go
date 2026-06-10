@@ -109,6 +109,9 @@ func header(st provision.Status) string {
 	case "unknown":
 		parts = append(parts, ui.MenuHarnessUnknown)
 	}
+	if st.ProvisionWarn != "" {
+		parts = append(parts, "provision: "+st.ProvisionWarn)
+	}
 	return strings.Join(parts, " · ")
 }
 

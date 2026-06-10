@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -16,24 +17,57 @@ func warn(step string, err error) {
 	fmt.Fprintf(os.Stderr, "[provision] WARN: %s: %v\n", step, err)
 }
 
-func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
-	warn("settings", EnsureSettings(cfg))
-	warn("theme", EnsureTheme(cfg))
-	warn("apt", EnsureAptPackages(ctx, r, cfg))
-	warn("memory", EnsureMemory())
-	warn("git identity", EnsureGitIdentity(ctx, r))
-	warn("plugins", EnsurePlugins(ctx, r, cfg))
-	warn("claude-hud config", EnsureHudConfig(cfg))
-	ok, err := HarnessInstalled(ctx, r)
-	warn("harness check", err)
-	if !ok {
-		warn("harness", EnsureHarness(ctx, r))
+func warnCount(step string, err error, warned *int) {
+	if err != nil {
+		*warned++
 	}
-	warn("mcp", EnsureMCP(ctx, r))
-	warn("skills", EnsureSkills(ctx, r))
-	warn("rtk", EnsureRTK(ctx, r, cfg))
-	warn("rtk config", EnsureRTKConfig(cfg))
-	warn("headroom", EnsureHeadroom(ctx, r))
+	warn(step, err)
+}
+
+func writeProvisionStatus(warned, total int) {
+	cd := claudeDir()
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		return
+	}
+	var content string
+	if warned == 0 {
+		content = "ok"
+	} else {
+		content = fmt.Sprintf("%d/%d warned", warned, total)
+	}
+	_ = os.WriteFile(filepath.Join(cd, ".mirabilis-provision-status"), []byte(content), 0o644)
+}
+
+func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
+	warned := 0
+	total := 0
+
+	step := func(name string, err error) {
+		total++
+		warnCount(name, err, &warned)
+	}
+
+	step("settings", EnsureSettings(cfg))
+	step("theme", EnsureTheme(cfg))
+	step("memory", EnsureMemory())
+	step("git identity", EnsureGitIdentity(ctx, r))
+	step("plugins", EnsurePlugins(ctx, r, cfg))
+	step("claude-hud config", EnsureHudConfig(cfg))
+	ok, err := HarnessInstalled(ctx, r)
+	step("harness check", err)
+	if !ok {
+		step("harness", EnsureHarness(ctx, r))
+	}
+	step("mcp", EnsureMCP(ctx, r))
+	step("skills", EnsureSkills(ctx, r))
+	step("rtk", EnsureRTK(ctx, r, cfg))
+	step("rtk config", EnsureRTKConfig(cfg))
+	step("headroom", EnsureHeadroom(ctx, r))
+
+	if warned > 0 {
+		fmt.Fprintf(os.Stderr, "[provision] %d of %d steps warned\n", warned, total)
+	}
+	writeProvisionStatus(warned, total)
 }
 
 func Create(ctx context.Context, r runner.Runner, cfg config.Config) error {

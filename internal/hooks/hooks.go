@@ -37,6 +37,19 @@ func eventName(data []byte) string {
 	return ""
 }
 
+func cwdBaseName(data []byte) string {
+	var v struct {
+		CWD string `json:"cwd"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return ""
+	}
+	if v.CWD == "" {
+		return ""
+	}
+	return filepath.Base(v.CWD)
+}
+
 func messageFor(event string) (string, bool) {
 	switch event {
 	case "Notification":
@@ -56,6 +69,7 @@ func Telegram() error {
 
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: read stdin: %v\n", err)
 		return nil
 	}
 
@@ -65,6 +79,10 @@ func Telegram() error {
 		return nil
 	}
 
+	if proj := cwdBaseName(data); proj != "" {
+		text = strings.Replace(text, "mirabilis:", "mirabilis ["+proj+"]:", 1)
+	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	endpoint := telegramAPI + "/bot" + token + "/sendMessage"
 	form := url.Values{}
@@ -72,6 +90,7 @@ func Telegram() error {
 	form.Set("text", text)
 	resp, err := client.PostForm(endpoint, form)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram sendMessage: %v\n", err)
 		return nil
 	}
 	resp.Body.Close()

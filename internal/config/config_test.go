@@ -19,7 +19,6 @@ func TestNew_PathGetters(t *testing.T) {
 		{"HudConfigSeed", c.HudConfigSeed(), "/base/claude-hud.json"},
 		{"RTKConfigSeed", c.RTKConfigSeed(), "/base/rtk-config.toml"},
 		{"PluginsTxt", c.PluginsTxt(), "/base/plugins.txt"},
-		{"AptPackagesTxt", c.AptPackagesTxt(), "/base/apt-packages.txt"},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {

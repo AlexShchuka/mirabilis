@@ -1,8 +1,0 @@
-
-[TestEnsureAptPackages_Integration - 1]
-[]string{"dpkg -s tree", "dpkg -s bash", "sudo apt-get update", "sudo apt-get install -y --no-install-recommends tree"}
----
-
-[TestEnsureAptPackages_Integration - 2]
-[]string{"dpkg -s tree", "dpkg -s bash"}
----
