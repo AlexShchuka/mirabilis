@@ -38,6 +38,18 @@ stronger isolation boundary (microVM) than a container provides.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately.
 
+## Docker socket (DooD)
+
+The devcontainer uses docker-outside-of-docker: the host Docker socket is bind-mounted
+into the container at `/var/run/docker-host.sock` and proxied to `/var/run/docker.sock`
+by the feature's init script. This gives the in-container agent full access to the host
+Docker daemon — it can start privileged containers, mount host paths, and perform any
+operation that a root-equivalent user could perform on the Docker Desktop VM. This is
+consistent with the declared threat model: the container is the boundary, and behavioural
+limits are the harness's job. The socket mount is also what the Ryuk reaper container
+(used by testcontainers-go for test-container cleanup) requires to terminate containers
+after integration tests.
+
 ## Reporting
 
 Report suspected vulnerabilities privately via a GitHub Security Advisory on

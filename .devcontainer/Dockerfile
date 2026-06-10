@@ -67,8 +67,13 @@ RUN ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.de
 RUN go install golang.org/x/tools/cmd/goimports@latest \
     && go install honnef.co/go/tools/cmd/staticcheck@latest \
     && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest \
+    && go install github.com/rhysd/actionlint/cmd/actionlint@latest \
+    && go install github.com/zricethezav/gitleaks/v8@latest \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build
+
+RUN npm install -g bats @devcontainers/cli \
+    && rm -rf /root/.npm
 
 ENV GOTMPDIR=/home/node/.cache/go-tmp
 
