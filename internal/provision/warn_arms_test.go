@@ -176,6 +176,9 @@ func TestEnsurePlugins_InstallWarns_Continues(t *testing.T) {
 	if !strings.Contains(out, "plugin install p@v1") {
 		t.Errorf("stderr = %q, want WARN naming plugin install p@v1", out)
 	}
+	if strings.Contains(out, "marketplace add") {
+		t.Errorf("stderr = %q, want no marketplace add WARN when it succeeded", out)
+	}
 }
 
 func TestWriteEnabledPlugins_ReadJSONWarns(t *testing.T) {
@@ -478,7 +481,7 @@ func TestEnsureMCP_RegisterFailureWarns(t *testing.T) {
 			switch {
 			case strings.Contains(joined, "command -v uvx"):
 				return "", fmt.Errorf("no uvx")
-			case len(args) >= 3 && args[1] == "mcp" && args[2] == "add":
+			case len(args) >= 3 && args[1] == "mcp" && args[2] == "add" && strings.Contains(joined, "sequential-thinking"):
 				return "", fmt.Errorf("register boom")
 			}
 			return "", nil
@@ -490,8 +493,14 @@ func TestEnsureMCP_RegisterFailureWarns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureMCP = %v, want nil despite register failures", err)
 	}
-	if !strings.Contains(out, "failed to register context7") {
-		t.Errorf("stderr = %q, want WARN naming failed to register context7", out)
+	if !strings.Contains(out, "failed to register sequential-thinking") {
+		t.Errorf("stderr = %q, want WARN naming failed to register sequential-thinking", out)
+	}
+	if !strings.Contains(out, "registered context7") {
+		t.Errorf("stderr = %q, want success line naming registered context7", out)
+	}
+	if strings.Contains(out, "failed to register context7") {
+		t.Errorf("stderr = %q, want no failure WARN for context7 which registered cleanly", out)
 	}
 }
 
