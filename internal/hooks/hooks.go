@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -216,13 +217,133 @@ func memoryIndex(dir string) (string, error) {
 	return sb.String(), nil
 }
 
+func sessionHome() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
+	}
+	h, _ := os.UserHomeDir()
+	return h
+}
+
+func proxyAlive() bool {
+	resp, err := http.Get("http://127.0.0.1:8787/stats")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func sessionStartBaseURL(path string) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var m map[string]any
+	dec := json.NewDecoder(strings.NewReader(string(f)))
+	dec.UseNumber()
+	if err := dec.Decode(&m); err != nil {
+		return
+	}
+	env, _ := m["env"].(map[string]any)
+	if env == nil {
+		env = make(map[string]any)
+	}
+	env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:8787"
+	m["env"] = env
+	writeSettingsJSON(path, m)
+}
+
+func sessionRemoveBaseURL(path string) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var m map[string]any
+	dec := json.NewDecoder(strings.NewReader(string(f)))
+	dec.UseNumber()
+	if err := dec.Decode(&m); err != nil {
+		return
+	}
+	env, _ := m["env"].(map[string]any)
+	if env == nil || env["ANTHROPIC_BASE_URL"] == nil {
+		return
+	}
+	delete(env, "ANTHROPIC_BASE_URL")
+	m["env"] = env
+	writeSettingsJSON(path, m)
+}
+
+func writeSettingsJSON(path string, m map[string]any) {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: marshal settings: %v\n", err)
+		return
+	}
+	data = append(data, '\n')
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: create temp settings: %v\n", err)
+		return
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		fmt.Fprintf(os.Stderr, "[hook] WARN: write temp settings: %v\n", err)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		fmt.Fprintf(os.Stderr, "[hook] WARN: close temp settings: %v\n", err)
+		return
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		os.Remove(tmpName)
+		fmt.Fprintf(os.Stderr, "[hook] WARN: chmod temp settings: %v\n", err)
+		return
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		os.Remove(tmpName)
+		fmt.Fprintf(os.Stderr, "[hook] WARN: rename settings: %v\n", err)
+	}
+}
+
+func headroomBin() string {
+	return filepath.Join(sessionHome(), ".headroom-venv", "bin", "headroom")
+}
+
+func ensureProxyForSession() {
+	h := sessionHome()
+	sp := filepath.Join(h, ".claude", "settings.json")
+	if proxyAlive() {
+		sessionStartBaseURL(sp)
+		return
+	}
+	if _, err := os.Stat(headroomBin()); err != nil {
+		sessionRemoveBaseURL(sp)
+		return
+	}
+	_ = exec.Command("bash", "-lc",
+		`setsid nohup "$HOME/.headroom-venv/bin/headroom" proxy >"$HOME/.headroom-proxy.log" 2>&1 &`).Start()
+	deadline := time.Now().Add(35 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(1 * time.Second)
+		if proxyAlive() {
+			sessionStartBaseURL(sp)
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "[hook] WARN: headroom proxy not ready; removing ANTHROPIC_BASE_URL\n")
+	sessionRemoveBaseURL(sp)
+}
+
 func SessionStart() error {
 	_, _ = io.ReadAll(os.Stdin)
 
-	memDir := filepath.Join(os.Getenv("HOME"), ".claude", "memory")
-	if h, _ := os.UserHomeDir(); os.Getenv("HOME") == "" {
-		memDir = filepath.Join(h, ".claude", "memory")
-	}
+	ensureProxyForSession()
+
+	memDir := filepath.Join(sessionHome(), ".claude", "memory")
 
 	idx, _ := memoryIndex(memDir)
 	if idx == "" {
