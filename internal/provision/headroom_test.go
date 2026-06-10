@@ -367,3 +367,17 @@ func TestEnsureHeadroomProxy_RemoveBaseURL_AbsentIsNoop(t *testing.T) {
 		t.Errorf("settings mutated unexpectedly: %v", m)
 	}
 }
+
+func TestSetBaseURL_NoSettingsFile_Warns(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	if err := os.MkdirAll(filepath.Join(tmp, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	getErr := captureStderr(t)
+	setBaseURL()
+	errOut := getErr()
+	if !strings.Contains(errOut, "headroom proxy read settings") {
+		t.Errorf("stderr = %q, want WARN naming headroom proxy read settings", errOut)
+	}
+}
