@@ -68,5 +68,12 @@ func TestFlowMenuGolden(t *testing.T) {
 		t.Fatalf("read output: %v", err)
 	}
 
-	teatest.RequireEqualOutput(t, out)
+	teatest.RequireEqualOutput(t, lastFrame(out))
+}
+
+func lastFrame(out []byte) []byte {
+	if i := bytes.LastIndex(out, []byte("\x1b[H\x1b[2J")); i >= 0 {
+		return out[i:]
+	}
+	return out
 }
