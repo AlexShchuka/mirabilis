@@ -4,8 +4,147 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestNew_PathGetters(t *testing.T) {
+	c := New("/base")
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"SettingsSeed", c.SettingsSeed(), "/base/settings.json"},
+		{"HudConfigSeed", c.HudConfigSeed(), "/base/claude-hud.json"},
+		{"PluginsTxt", c.PluginsTxt(), "/base/plugins.txt"},
+		{"AptPackagesTxt", c.AptPackagesTxt(), "/base/apt-packages.txt"},
+	}
+	for _, tt := range tests {
+		if tt.got != tt.want {
+			t.Errorf("%s = %q, want %q", tt.name, tt.got, tt.want)
+		}
+	}
+}
+
+func TestReadStackCatalog(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		noConfig bool
+		want     []string
+	}{
+		{
+			name:     "missing file returns nil",
+			noConfig: true,
+			want:     nil,
+		},
+		{
+			name:    "filters comments and blank lines",
+			content: "# comment\n\nrust\ngo\n# another\npython\n",
+			want:    []string{"rust", "go", "python"},
+		},
+		{
+			name:    "empty file returns nil",
+			content: "",
+			want:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if !tt.noConfig {
+				if err := os.MkdirAll(filepath.Join(dir, "config"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "config", "stacks.txt"), []byte(tt.content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := ReadStackCatalog(dir)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadStackCatalog = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteStacks(t *testing.T) {
+	t.Run("creates .env with STACKS line", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteStacks(dir, "go,rust"); err != nil {
+			t.Fatal(err)
+		}
+		v, ok := ReadStacks(dir)
+		if !ok || v != "go,rust" {
+			t.Errorf("ReadStacks = (%q, %v), want (go,rust, true)", v, ok)
+		}
+	})
+
+	t.Run("preserves other keys", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("PLUGINS_DISABLED=plugin-x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteStacks(dir, "go"); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, ".env"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "PLUGINS_DISABLED=plugin-x") {
+			t.Error("WriteStacks clobbered PLUGINS_DISABLED")
+		}
+		v, _ := ReadStacks(dir)
+		if v != "go" {
+			t.Errorf("STACKS = %q, want go", v)
+		}
+	})
+
+	t.Run("overwrites existing STACKS line", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteStacks(dir, "old"); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteStacks(dir, "new"); err != nil {
+			t.Fatal(err)
+		}
+		v, _ := ReadStacks(dir)
+		if v != "new" {
+			t.Errorf("STACKS after overwrite = %q, want new", v)
+		}
+		count := strings.Count(string(func() []byte {
+			d, _ := os.ReadFile(filepath.Join(dir, ".env"))
+			return d
+		}()), "STACKS=")
+		if count != 1 {
+			t.Errorf("STACKS appears %d times, want 1", count)
+		}
+	})
+}
+
+func TestReadStacks_MissingLine(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("OTHER=val\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := ReadStacks(dir)
+	if ok || v != "" {
+		t.Errorf("ReadStacks with no STACKS line = (%q, %v), want (\"\", false)", v, ok)
+	}
+}
+
+func TestReadPluginsDisabled_EmptyValue(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("PLUGINS_DISABLED=\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := ReadPluginsDisabled(dir)
+	if got != nil {
+		t.Errorf("ReadPluginsDisabled empty value = %v, want nil", got)
+	}
+}
 
 func TestReadPluginCatalog(t *testing.T) {
 	tests := []struct {

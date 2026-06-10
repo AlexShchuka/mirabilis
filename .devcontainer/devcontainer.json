@@ -7,7 +7,8 @@
   "overrideCommand": false,
   "features": {
     "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "onCreateCommand": "mirabilis provision --phase create",
   "postStartCommand": "mirabilis provision --phase start",

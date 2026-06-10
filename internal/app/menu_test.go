@@ -1,11 +1,13 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/provision"
+	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
 
 func sizedMenu(st provision.Status) menuModel {
@@ -102,5 +104,110 @@ func TestMenuQuitKeys(t *testing.T) {
 		if action, _ := menuChoice(cmd); action != "quit" {
 			t.Errorf("key %q dispatched %q, want quit", key.String(), action)
 		}
+	}
+}
+
+func TestMenuItemMethods(t *testing.T) {
+	it := item{action: "act", title: "MyTitle", desc: "MyDesc", disabled: false}
+	if it.FilterValue() != "MyTitle" {
+		t.Errorf("FilterValue = %q, want MyTitle", it.FilterValue())
+	}
+	if it.Title() != "MyTitle" {
+		t.Errorf("Title = %q, want MyTitle", it.Title())
+	}
+	if it.Description() != "MyDesc" {
+		t.Errorf("Description = %q, want MyDesc", it.Description())
+	}
+}
+
+func TestMenuHeader(t *testing.T) {
+	tests := []struct {
+		name    string
+		st      provision.Status
+		wantIn  []string
+		wantOut []string
+	}{
+		{
+			name:   "stale workspace",
+			st:     provision.Status{Stale: true},
+			wantIn: []string{ui.MenuStale},
+		},
+		{
+			name:   "commits behind",
+			st:     provision.Status{CommitsBehind: 3},
+			wantIn: []string{"3 behind origin/main"},
+		},
+		{
+			name:   "harness off",
+			st:     provision.Status{Harness: "off"},
+			wantIn: []string{ui.MenuHarnessOff},
+		},
+		{
+			name:   "harness missing",
+			st:     provision.Status{Harness: "missing"},
+			wantIn: []string{ui.MenuHarnessMissing},
+		},
+		{
+			name:   "harness unknown",
+			st:     provision.Status{Harness: "unknown"},
+			wantIn: []string{ui.MenuHarnessUnknown},
+		},
+		{
+			name:    "no issues",
+			st:      provision.Status{},
+			wantOut: []string{ui.MenuStale, ui.MenuHarnessOff},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := header(tt.st)
+			for _, s := range tt.wantIn {
+				if !strings.Contains(h, s) {
+					t.Errorf("header(%+v) = %q, want to contain %q", tt.st, h, s)
+				}
+			}
+			for _, s := range tt.wantOut {
+				if strings.Contains(h, s) {
+					t.Errorf("header(%+v) = %q, should not contain %q", tt.st, h, s)
+				}
+			}
+		})
+	}
+}
+
+func TestMenuInit_ReturnsNil(t *testing.T) {
+	m := newMenu(provision.Status{})
+	if cmd := m.Init(); cmd != nil {
+		t.Error("menuModel.Init() should return nil")
+	}
+}
+
+func TestMenuView_ContainsHint(t *testing.T) {
+	m := sizedMenu(provision.Status{ContainerUp: true})
+	v := m.View()
+	if !strings.Contains(v, ui.MenuHint) {
+		t.Errorf("menu.View() missing hint %q, got:\n%s", ui.MenuHint, v)
+	}
+}
+
+func TestMenuView_ContainsItems(t *testing.T) {
+	m := sizedMenu(provision.Status{ContainerUp: true})
+	v := m.View()
+	for _, title := range []string{
+		ui.MenuActionLaunch,
+		ui.MenuActionReset,
+		ui.MenuActionQuit,
+	} {
+		if !strings.Contains(v, title) {
+			t.Errorf("menu.View() missing item %q, got:\n%s", title, v)
+		}
+	}
+}
+
+func TestMenuContainerOffShowsDesc(t *testing.T) {
+	m := sizedMenu(provision.Status{ContainerUp: false})
+	v := m.View()
+	if !strings.Contains(v, ui.MenuDescContainerOff) {
+		t.Errorf("menu.View() missing disabled desc %q, got:\n%s", ui.MenuDescContainerOff, v)
 	}
 }

@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,5 +246,119 @@ max_lines: 80
 	}
 	if aboutPos > noCatPos {
 		t.Error("canonical category about-me should appear before no-category entry")
+	}
+}
+
+func captureStdout(t *testing.T) (restore func() string) {
+	t.Helper()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = pw
+	t.Cleanup(func() {
+		pw.Close()
+		os.Stdout = old
+	})
+	return func() string {
+		pw.Close()
+		os.Stdout = old
+		var buf [65536]byte
+		n, _ := pr.Read(buf[:])
+		pr.Close()
+		return string(buf[:n])
+	}
+}
+
+func replaceStdin(t *testing.T, data string) {
+	t.Helper()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = pr
+	t.Cleanup(func() {
+		os.Stdin = old
+		pr.Close()
+	})
+	if _, err := pw.WriteString(data); err != nil {
+		t.Fatal(err)
+	}
+	pw.Close()
+}
+
+func TestSessionStart_WithMemoryFiles(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, memDir, "about-me.md", `---
+category: about-me
+memory_type: semantic
+summary: I am a developer.
+max_lines: 80
+---
+
+# About Me
+
+- fact one
+`)
+	t.Setenv("HOME", tmp)
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+
+	if err := SessionStart(); err != nil {
+		_ = getOut()
+		t.Fatalf("SessionStart: %v", err)
+	}
+	out := getOut()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := payload["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hookOut["additionalContext"].(string)
+	if !strings.Contains(ctx, "about-me") {
+		t.Errorf("additionalContext missing 'about-me', got:\n%s", ctx)
+	}
+
+	data, err := os.ReadFile(filepath.Join(memDir, "MEMORY.md"))
+	if err != nil {
+		t.Fatalf("MEMORY.md not written: %v", err)
+	}
+	if !strings.Contains(string(data), "about-me") {
+		t.Errorf("MEMORY.md missing 'about-me'")
+	}
+}
+
+func TestSessionStart_EmptyMemoryDir(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, ".claude", "memory"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmp)
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+
+	if err := SessionStart(); err != nil {
+		_ = getOut()
+		t.Fatalf("SessionStart: %v", err)
+	}
+	out := getOut()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := payload["hookSpecificOutput"].(map[string]any)
+	if hookOut == nil {
+		t.Fatal("hookSpecificOutput missing from payload")
+	}
+	if hookOut["hookEventName"] != "SessionStart" {
+		t.Errorf("hookEventName = %q, want SessionStart", hookOut["hookEventName"])
 	}
 }

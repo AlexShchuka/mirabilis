@@ -1,0 +1,9 @@
+[H[2J   mirabilis 
+
+> Launch             setup pipeline + Claude in container
+  Harness            container not running — Launch first
+  Open in VS Code    container not running — Launch first
+  Reset              container, image and volumes — permanent
+  Quit
+
+ enter · q quit[>4m[=0;1u[24;1H[?1049l[?25h[?2004l

@@ -17,6 +17,8 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 )
 
+var telegramAPI = "https://api.telegram.org"
+
 var eventNameRe = regexp.MustCompile(`"hook_event_name"\s*:\s*"([^"]*)"`)
 
 func eventName(data []byte) string {
@@ -64,7 +66,7 @@ func Telegram() error {
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	endpoint := "https://api.telegram.org/bot" + token + "/sendMessage"
+	endpoint := telegramAPI + "/bot" + token + "/sendMessage"
 	form := url.Values{}
 	form.Set("chat_id", chat)
 	form.Set("text", text)

@@ -25,9 +25,9 @@ jobs:
       - name: build
         run: go build ./...
       - name: vet
-        run: go vet ./...
+        run: go vet -tags integration ./...
       - name: test -race
-        run: go test -race -covermode=atomic -coverprofile=cover.out ./...
+        run: go test -race -covermode=atomic -coverprofile=cover.out -tags integration ./...
       - id: cover
         name: coverage summary
         run: |
@@ -35,7 +35,7 @@ jobs:
           pct=$(go tool cover -func=cover_filtered.out | tail -1 | awk '{print $3}')
           echo "**Coverage:** $pct" >> "$GITHUB_STEP_SUMMARY"
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
-          floor=71
+          floor=91
           num=$(echo "$pct" | tr -d '%' | awk '{printf "%d", $1}')
           if [ "$num" -lt "$floor" ]; then echo "coverage $pct below floor ${floor}%"; exit 1; fi
       - if: github.event_name == 'pull_request'
