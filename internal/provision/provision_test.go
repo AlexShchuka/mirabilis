@@ -425,7 +425,7 @@ func TestEnsureHarness_HappyPath(t *testing.T) {
 	wantContains := []string{
 		"claude plugin marketplace add AlexShchuka/neuro-matrix",
 		"claude plugin install neuro-matrix@neuro-matrix --scope user",
-		"claude plugin update neuro-matrix",
+		"claude plugin update neuro-matrix@neuro-matrix",
 	}
 	for _, want := range wantContains {
 		found := false
@@ -536,7 +536,7 @@ func TestEnsureHarness_InstallAndUpdateFail_WarnsContinues(t *testing.T) {
 			if k == "claude plugin install neuro-matrix@neuro-matrix --scope user" {
 				return "", fmt.Errorf("install failed")
 			}
-			if k == "claude plugin update neuro-matrix" {
+			if k == "claude plugin update neuro-matrix@neuro-matrix" {
 				return "", fmt.Errorf("update failed")
 			}
 			return "", nil

@@ -33,7 +33,7 @@ func EnsureHarness(ctx context.Context, r runner.Runner) error {
 		warn("plugin install neuro-matrix", err)
 	}
 
-	if _, err := r.Container(ctx, "claude", "plugin", "update", "neuro-matrix"); err != nil {
+	if _, err := r.Container(ctx, "claude", "plugin", "update", "neuro-matrix@neuro-matrix"); err != nil {
 		warn("plugin update neuro-matrix", err)
 	}
 

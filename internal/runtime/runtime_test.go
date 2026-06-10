@@ -2,6 +2,11 @@ package runtime
 
 import (
 	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -17,6 +22,31 @@ func TestResetTerminal(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("resetTerminal output mismatch: got %q, want %q", got, want)
+	}
+}
+
+func TestWithStderr_WrapsExitErrorStderr(t *testing.T) {
+	r := NewLocalRunner()
+	_, err := r.Host(context.Background(), "sh", "-c", "echo boom >&2; exit 7")
+	if err == nil {
+		t.Fatal("Host with failing command returned nil error")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("error %q does not contain stderr 'boom'", err.Error())
+	}
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) {
+		t.Errorf("wrapped error %q no longer satisfies errors.As(*exec.ExitError)", err.Error())
+	}
+}
+
+func TestWithStderr_PassesThroughNonExitError(t *testing.T) {
+	if got := withStderr(nil); got != nil {
+		t.Errorf("withStderr(nil) = %v, want nil", got)
+	}
+	plain := fmt.Errorf("plain error")
+	if got := withStderr(plain); got != plain {
+		t.Errorf("withStderr(plain) = %v, want the same error unchanged", got)
 	}
 }
 
