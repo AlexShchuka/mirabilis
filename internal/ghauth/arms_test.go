@@ -3,6 +3,7 @@ package ghauth
 import (
 	"context"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -90,7 +91,11 @@ func TestModelUpdate_LineMsg_AppendsLine(t *testing.T) {
 
 func TestOpenBrowserCmd_RunsHostBrowser(t *testing.T) {
 	shimDir := t.TempDir()
-	if err := os.WriteFile(shimDir+"/xdg-open", []byte("#!/bin/sh\nexit 0"), 0o755); err != nil {
+	opener := "xdg-open"
+	if runtime.GOOS == "darwin" {
+		opener = "open"
+	}
+	if err := os.WriteFile(shimDir+"/"+opener, []byte("#!/bin/sh\nexit 0"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", shimDir)
