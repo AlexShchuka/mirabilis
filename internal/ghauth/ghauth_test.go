@@ -73,6 +73,16 @@ func TestLoginArgsRequestWorkflowScope(t *testing.T) {
 	}
 }
 
+func TestLoginArgsUsesInsecureStorage(t *testing.T) {
+	args := loginArgs()
+	for _, a := range args {
+		if a == "--insecure-storage" {
+			return
+		}
+	}
+	t.Errorf("loginArgs must pass --insecure-storage: the container has no keyring/D-Bus, so gh's default secure storage fails after the device-flow grant; the token persists as a file in the gh-config volume. got %v", args)
+}
+
 func TestRunExitsCleanlyOnStartError(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	ctx, cancel := context.WithCancel(context.Background())

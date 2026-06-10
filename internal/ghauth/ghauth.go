@@ -84,7 +84,8 @@ func (g *Model) readNext() tea.Msg {
 func loginArgs() []string {
 	return []string{"env", "BROWSER=true",
 		"gh", "auth", "login", "--hostname", "github.com",
-		"--git-protocol", "https", "--web", "--scopes", "workflow"}
+		"--git-protocol", "https", "--web", "--scopes", "workflow",
+		"--insecure-storage"}
 }
 
 func (g *Model) run() {
