@@ -1,16 +1,9 @@
 # AGENTS.md
 
-**mirabilis** is a personal, open-source cross-platform dev container (macOS, Linux, and
-Windows via WSL2) that runs Claude Code with
+**mirabilis** is a personal, open-source cross-platform dev container that runs Claude Code with
 full autonomy, the [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) harness
 preinstalled, persistent memory, and open egress. `CLAUDE.md` is a
 symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`.
-
-## Non-goals
-
-Not a multi-user platform, not a hosted service, not reproducible (use-latest, no version
-pinning except GitHub Actions refs), not a security gate against the agent itself. KISS
-beats reliability beats security-from-exfiltration.
 
 ## Boundaries
 
@@ -48,7 +41,6 @@ bats smoke.
   (`internal/runtime`). If a token appears in a diff, stop.
 - Don't push to `main`; branch and open a PR. Keep the PR description minimal — what and
   why in a few lines, no ceremony.
-- Don't restate a behaviour here — change it in its owning file.
 
 ## Development principles
 
