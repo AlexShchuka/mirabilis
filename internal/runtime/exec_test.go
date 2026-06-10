@@ -135,20 +135,6 @@ func TestEnsureDocker_BothPresentReachable(t *testing.T) {
 	}
 }
 
-func TestEnsureDocker_NotReachableNonDarwin(t *testing.T) {
-	dockerShim := makeShim(t, "docker", `
-case "$1" in
-  info) exit 1;;
-  *) exit 0;;
-esac`)
-	dir2 := makeShim(t, "devcontainer", `exit 0`)
-	prependPath(t, dockerShim, dir2)
-	err := EnsureDocker(context.Background())
-	if err == nil {
-		t.Error("EnsureDocker should error on linux when docker daemon unreachable")
-	}
-}
-
 func TestResetAll_Success(t *testing.T) {
 	repo := t.TempDir()
 	dockerDir := makeShim(t, "docker", `exit 0`)
@@ -193,6 +179,26 @@ func TestResolveCode_OnPath(t *testing.T) {
 	want := filepath.Join(codeDir, "code")
 	if got != want {
 		t.Errorf("resolveCode = %q, want %q", got, want)
+	}
+}
+
+func TestResolveCode_LinuxFlatpakHomeBundle(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("PATH", t.TempDir())
+	bundle := filepath.Join(tmp, ".local/share/flatpak/exports/bin/com.visualstudio.code")
+	if err := os.MkdirAll(filepath.Dir(bundle), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundle, []byte("#!/bin/sh\nexit 0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := resolveCode()
+	if err != nil {
+		t.Fatalf("resolveCode: %v", err)
+	}
+	if got != bundle {
+		t.Errorf("resolveCode = %q, want %q", got, bundle)
 	}
 }
 

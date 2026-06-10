@@ -26,9 +26,10 @@ stronger isolation boundary (microVM) than a container provides.
   first-run login) and persist **inside the sandbox volumes** — `~/.config/gh`
   (`gh-config`) and `~/.claude/.credentials.json` (`claude-home`, mode `0600`).
   They never touch the repository and survive updates and rebuilds.
-- The optional **Telegram** token lives in the macOS Keychain and is injected as
-  an environment variable at run time (read by the Go launcher); Context7's MCP
-  server runs anonymously, with no key.
+- The optional **Telegram** token's source depends on the host: on macOS it lives in the
+  Keychain; on Linux and WSL it is read from the `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
+  environment variables. Either way the Go launcher injects it as an environment variable at
+  run time; Context7's MCP server runs anonymously, with no key.
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
   GitHub MCP server receives it as a request header, so it also
   lands in the container's per-user config on the `claude-home` volume — inside
