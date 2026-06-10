@@ -136,6 +136,23 @@ func TestReadStacks_MissingLine(t *testing.T) {
 	}
 }
 
+func TestReadStacks_NoEnvFile(t *testing.T) {
+	v, ok := ReadStacks(t.TempDir())
+	if ok || v != "" {
+		t.Errorf("ReadStacks with no .env = (%q, %v), want (\"\", false)", v, ok)
+	}
+}
+
+func TestReadPluginsDisabled_MissingLine(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("OTHER=val\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadPluginsDisabled(dir); got != nil {
+		t.Errorf("ReadPluginsDisabled with no PLUGINS_DISABLED line = %v, want nil", got)
+	}
+}
+
 func TestReadPluginsDisabled_EmptyValue(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("PLUGINS_DISABLED=\n"), 0o644); err != nil {

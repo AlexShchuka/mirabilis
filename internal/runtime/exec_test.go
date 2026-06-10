@@ -182,7 +182,7 @@ func TestResolveCode_OnPath(t *testing.T) {
 	}
 }
 
-func TestResolveCode_LinuxFlatpakHomeBundle(t *testing.T) {
+func TestResolveCode_FlatpakHomeBundle(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("PATH", t.TempDir())
