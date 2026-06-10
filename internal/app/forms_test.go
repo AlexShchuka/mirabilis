@@ -281,10 +281,10 @@ func TestNewHarnessForm_NotNil(t *testing.T) {
 	}
 	f := newHarnessForm(context.Background(), r, 80, 24)
 	if f == nil {
-		t.Error("newHarnessForm returned nil")
+		t.Fatal("newHarnessForm returned nil")
 	}
 	if f.form == nil {
-		t.Error("newHarnessForm form field is nil")
+		t.Fatal("newHarnessForm form field is nil")
 	}
 }
 

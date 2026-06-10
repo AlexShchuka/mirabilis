@@ -92,3 +92,15 @@ is_wsl() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"Homebrew is required"* ]]
 }
+
+@test "darwin all present: runs bootstrap and install sequence" {
+  [ "$OS" = Darwin ] || skip "darwin-only path"
+  shim git 'exit 0'
+  shim brew 'exit 0'
+  shim make 'exit 0'
+  dest="$WORKDIR/home"
+  mkdir -p "$dest/.git"
+  run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"done — run: mirabilis"* ]]
+}

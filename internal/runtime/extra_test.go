@@ -391,9 +391,7 @@ func TestLocalRunnerContainer(t *testing.T) {
 
 func dockerInspectEnv(pairs ...string) string {
 	var lines []string
-	for _, kv := range pairs {
-		lines = append(lines, kv)
-	}
+	lines = append(lines, pairs...)
 	return strings.Join(lines, "\n") + "\n"
 }
 
