@@ -26,13 +26,14 @@ func (updateStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 }
 
 func (updateStep) Run(ctx context.Context, r runner.Runner) error {
+	branch, _ := r.Host(ctx, "git", "-C", r.Repo(), "rev-parse", "--abbrev-ref", "HEAD")
+	if strings.TrimSpace(branch) != "main" {
+		return nil
+	}
 	if dirty, _ := r.Host(ctx, "git", "-C", r.Repo(), "status", "--porcelain"); dirty != "" {
 		return fmt.Errorf("local changes present — commit or stash before updating")
 	}
-	if _, err := r.Host(ctx, "git", "-C", r.Repo(), "checkout", "main"); err != nil {
-		return err
-	}
-	_, err := r.Host(ctx, "git", "-C", r.Repo(), "pull", "--ff-only")
+	_, err := r.Host(ctx, "git", "-C", r.Repo(), "merge", "--ff-only", "origin/main")
 	return err
 }
 
@@ -49,12 +50,14 @@ func (prepareStep) Run(ctx context.Context, r runner.Runner) error {
 	if out, err := makeCmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("make linux failed: %s", runtime.LastLines(string(out), 12))
 	}
-	up := exec.CommandContext(ctx, "devcontainer", "up", "--workspace-folder", repo)
-	up.Env = runtime.ComposeEnv(repo)
-	if out, err := up.CombinedOutput(); err != nil {
-		return fmt.Errorf("devcontainer up failed: %s", runtime.LastLines(string(out), 12))
-	}
-	return nil
+	return pipeline.Retry(ctx, pipeline.RetryNet, func() error {
+		up := exec.CommandContext(ctx, "devcontainer", "up", "--workspace-folder", repo)
+		up.Env = runtime.ComposeEnv(repo)
+		if out, err := up.CombinedOutput(); err != nil {
+			return fmt.Errorf("devcontainer up failed: %s", runtime.LastLines(string(out), 12))
+		}
+		return nil
+	})
 }
 
 func Steps() []pipeline.Registered {
@@ -76,7 +79,7 @@ func Steps() []pipeline.Registered {
 				Title:  "Container",
 				Detail: "starting the container — the first image build may take a few minutes",
 				Deps:   []string{"update"},
-				Retry:  pipeline.RetryNet,
+				Retry:  pipeline.RetryNone,
 			},
 			Impl: prepareStep{},
 		},

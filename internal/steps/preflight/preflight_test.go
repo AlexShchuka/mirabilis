@@ -42,27 +42,9 @@ func TestCheck_AlwaysFalse(t *testing.T) {
 	}
 }
 
-func TestRun_EmptyIPOutput_Error(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "", nil
-		},
-	}
-	impl := step{}
-	err := impl.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run must error when ipify returns empty output")
-	}
-}
-
 func TestRun_Code200_Nil(t *testing.T) {
-	calls := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "200", nil
 		},
 	}
@@ -74,13 +56,8 @@ func TestRun_Code200_Nil(t *testing.T) {
 }
 
 func TestRun_Code401_Nil(t *testing.T) {
-	calls := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "401", nil
 		},
 	}
@@ -92,13 +69,8 @@ func TestRun_Code401_Nil(t *testing.T) {
 }
 
 func TestRun_Code403_Nil(t *testing.T) {
-	calls := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "403", nil
 		},
 	}
@@ -110,13 +82,8 @@ func TestRun_Code403_Nil(t *testing.T) {
 }
 
 func TestRun_EmptyCode_Unreachable(t *testing.T) {
-	n := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			n++
-			if n == 1 {
-				return "1.2.3.4", nil
-			}
 			return "", nil
 		},
 	}
@@ -128,13 +95,8 @@ func TestRun_EmptyCode_Unreachable(t *testing.T) {
 }
 
 func TestRun_Code000_Unreachable(t *testing.T) {
-	calls := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "000", nil
 		},
 	}
@@ -149,13 +111,8 @@ func TestRun_Code000_Unreachable(t *testing.T) {
 }
 
 func TestRun_Code500_HTTPError(t *testing.T) {
-	calls := 0
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "500", nil
 		},
 	}
@@ -169,20 +126,15 @@ func TestRun_Code500_HTTPError(t *testing.T) {
 	}
 }
 
-func TestRun_ContainerError_AfterIP(t *testing.T) {
-	calls := 0
+func TestRun_ContainerError_Unreachable(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
-			calls++
-			if calls == 1 {
-				return "1.2.3.4", nil
-			}
 			return "", fmt.Errorf("network error")
 		},
 	}
 	impl := step{}
 	err := impl.Run(context.Background(), r)
 	if err == nil {
-		t.Error("Run must error when second container call fails with empty code")
+		t.Error("Run must error when container call fails with empty code")
 	}
 }

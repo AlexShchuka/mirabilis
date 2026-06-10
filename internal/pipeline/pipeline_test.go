@@ -450,3 +450,66 @@ func TestPipelineOnRan_Interactive_Retick(t *testing.T) {
 		t.Error("onRan interactive step should return non-nil batch cmd (re-tick)")
 	}
 }
+
+func TestCascadeSkip_RequiredFailMakesDependentSkipped(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+		reg(StepMeta{Name: "b", Deps: []string{"a"}}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p.onChecked(CheckedMsg{Name: "a", Err: errBoom})
+	if p.views[0].status != stFailed {
+		t.Errorf("a status = %v, want stFailed", p.views[0].status)
+	}
+	if p.views[1].status != stSkipped {
+		t.Errorf("b status = %v, want stSkipped (cascaded)", p.views[1].status)
+	}
+	if !p.failed {
+		t.Error("pipeline failed flag not set")
+	}
+}
+
+func TestCascadeSkip_RequiredRunFailMakesDependentSkipped(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+		reg(StepMeta{Name: "b", Deps: []string{"a"}}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p.onRan(RanMsg{Name: "a", Err: errBoom})
+	if p.views[0].status != stFailed {
+		t.Errorf("a status = %v, want stFailed", p.views[0].status)
+	}
+	if p.views[1].status != stSkipped {
+		t.Errorf("b status = %v, want stSkipped (cascaded)", p.views[1].status)
+	}
+}
+
+func TestCascadeSkip_DoneEmitted(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+		reg(StepMeta{Name: "b", Deps: []string{"a"}}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p.onRan(RanMsg{Name: "a", Err: errBoom})
+	if !p.done() {
+		t.Error("pipeline should be done after required-step failure cascades all dependents to skipped")
+	}
+	if !p.failed {
+		t.Error("pipeline failed flag not set, DoneMsg{Failed:true} would not be emitted")
+	}
+}
+
+func TestCascadeSkip_OptionalFailDoesNotCascade(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a", Optional: true}, funcStep{}),
+		reg(StepMeta{Name: "b", Deps: []string{"a"}}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p.onRan(RanMsg{Name: "a", Err: errBoom})
+	if p.views[0].status != stSkipped {
+		t.Errorf("optional a status = %v, want stSkipped", p.views[0].status)
+	}
+	if p.views[1].status == stSkipped {
+		t.Error("b should not be cascade-skipped when a is optional")
+	}
+}

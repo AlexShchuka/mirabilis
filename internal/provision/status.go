@@ -30,12 +30,12 @@ func ComputeStatus(ctx context.Context, r runner.Runner) Status {
 }
 
 func harnessStatus(ctx context.Context, r runner.Runner) string {
+	if !runtime.ContainerRunning(ctx, r) {
+		return "unknown"
+	}
 	pref, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`)
 	if strings.TrimSpace(pref) == "skip" {
 		return "off"
-	}
-	if !runtime.ContainerRunning(ctx, r) {
-		return "unknown"
 	}
 	if _, err := r.Container(ctx, "bash", "-lc", "claude plugin list 2>/dev/null | grep -q neuro-matrix"); err != nil {
 		return "missing"

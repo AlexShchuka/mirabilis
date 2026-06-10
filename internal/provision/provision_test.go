@@ -581,6 +581,9 @@ func TestComputeStatus_ContainerDownNotStale(t *testing.T) {
 
 func TestHarnessStatus_SkipPref(t *testing.T) {
 	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			return "true", nil
+		},
 		ContFunc: func(args []string) (string, error) {
 			return "skip", nil
 		},
@@ -592,17 +595,22 @@ func TestHarnessStatus_SkipPref(t *testing.T) {
 }
 
 func TestHarnessStatus_ContainerDown(t *testing.T) {
+	containerCalled := false
 	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "", nil
-		},
 		HostFunc: func(name string, args []string) (string, error) {
 			return "false", nil
+		},
+		ContFunc: func(args []string) (string, error) {
+			containerCalled = true
+			return "", nil
 		},
 	}
 	got := harnessStatus(context.Background(), r)
 	if got != "unknown" {
 		t.Errorf("harnessStatus = %q, want unknown when container not running", got)
+	}
+	if containerCalled {
+		t.Error("harnessStatus must not call Container when container is not running")
 	}
 }
 

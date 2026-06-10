@@ -15,9 +15,6 @@ type step struct{}
 func (step) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
 
 func (step) Run(ctx context.Context, r runner.Runner) error {
-	if ip, _ := r.Container(ctx, "curl", "-s", "-m", "8", "https://api.ipify.org"); strings.TrimSpace(ip) == "" {
-		return fmt.Errorf("egress: the container has no outbound network")
-	}
 	code, _ := r.Container(ctx, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-m", "12", "https://api.anthropic.com/v1/models")
 	switch strings.TrimSpace(code) {
 	case "200", "401", "403":
