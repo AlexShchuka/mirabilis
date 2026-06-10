@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +16,14 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
+
+func withStderr(err error) error {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && len(bytes.TrimSpace(ee.Stderr)) > 0 {
+		return fmt.Errorf("%w: %s", err, bytes.TrimSpace(ee.Stderr))
+	}
+	return err
+}
 
 const (
 	exitAltScreen     = "\x1b[?1049l"
@@ -52,14 +62,14 @@ func (e *execRunner) Repo() string { return e.repo }
 
 func (e *execRunner) Host(ctx context.Context, name string, args ...string) (string, error) {
 	out, err := exec.CommandContext(ctx, name, args...).Output()
-	return strings.TrimSpace(string(out)), err
+	return strings.TrimSpace(string(out)), withStderr(err)
 }
 
 func (e *execRunner) Container(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "devcontainer", append([]string{"exec", "--workspace-folder", e.repo}, args...)...)
 	cmd.Env = ComposeEnv(e.repo)
 	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
+	return strings.TrimSpace(string(out)), withStderr(err)
 }
 
 type localRunner struct{}
@@ -70,7 +80,7 @@ func (l *localRunner) Repo() string { return "" }
 
 func (l *localRunner) Host(ctx context.Context, name string, args ...string) (string, error) {
 	out, err := exec.CommandContext(ctx, name, args...).Output()
-	return strings.TrimSpace(string(out)), err
+	return strings.TrimSpace(string(out)), withStderr(err)
 }
 
 func (l *localRunner) Container(ctx context.Context, args ...string) (string, error) {
@@ -78,7 +88,7 @@ func (l *localRunner) Container(ctx context.Context, args ...string) (string, er
 		return "", fmt.Errorf("localRunner.Container: no args")
 	}
 	out, err := exec.CommandContext(ctx, args[0], args[1:]...).Output()
-	return strings.TrimSpace(string(out)), err
+	return strings.TrimSpace(string(out)), withStderr(err)
 }
 
 func ComposeEnv(repo string) []string {
