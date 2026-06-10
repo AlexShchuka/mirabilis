@@ -39,7 +39,8 @@ bats smoke.
 ## Don't
 
 - No comments in code or config — prose lives in `.md` only (shell, Dockerfile, Makefile,
-  JSON, YAML, `.env`).
+  JSON, YAML, `.env`). One exception: the version comment after a SHA-pinned `uses:` in
+  `.github/workflows` — tool-consumed metadata, not prose.
 - Never commit secrets. Sign-in is native and persists in volumes; the only host-side
   secret is the optional Telegram token, read from the macOS Keychain in `internal/runtime`.
   If a token appears in a diff, stop.
