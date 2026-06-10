@@ -81,7 +81,7 @@ is_wsl() {
   shim make 'exit 0'
   dest="$WORKDIR/home"
   mkdir -p "$dest/.git"
-  run env PATH="$BASEDIR:$PATH" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
+  run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [[ "$output" == *"WSL detected"* ]]
 }
 

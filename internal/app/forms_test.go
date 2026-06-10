@@ -90,13 +90,11 @@ func TestUpdateForm_AbortedEmitsBackToMenu(t *testing.T) {
 
 	a.form, _ = a.form.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if !a.form.aborted() {
-		t.Skip("form did not enter aborted state — skipping updateForm abort path")
+		t.Fatal("ctrl+c should abort the reset form")
 	}
-	a2, cmd := a.updateForm(tea.KeyPressMsg{})
-	result := a2.(appModel)
-	_ = result
+	_, cmd := a.updateForm(tea.KeyPressMsg{})
 	if cmd == nil {
-		t.Error("updateForm on aborted form should return non-nil cmd")
+		t.Fatal("updateForm on aborted form should return non-nil cmd")
 	}
 	msg := cmd()
 	if _, ok := msg.(backToMenuMsg); !ok {

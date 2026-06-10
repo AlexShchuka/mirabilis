@@ -443,19 +443,18 @@ func TestAppForwardSize_PhaseForm(t *testing.T) {
 	}
 }
 
-func TestAppUpdateForm_CompletedApplies(t *testing.T) {
+func TestAppUpdateForm_AbortedEmits(t *testing.T) {
 	a := newTestApp()
 	f := newResetForm(context.Background(), &runner.FakeRunner{}, 80, 24)
 	f2, _ := f.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	if f2.aborted() {
-		a.form = f2
-		a.phase = phaseForm
-		_, cmd := a.updateForm(tea.KeyPressMsg{})
-		if cmd == nil {
-			t.Fatal("updateForm on aborted form should return emit cmd")
-		}
-	} else {
-		t.Skip("could not get form to aborted state to test updateForm abort path")
+	if !f2.aborted() {
+		t.Fatal("ctrl+c should abort the reset form")
+	}
+	a.form = f2
+	a.phase = phaseForm
+	_, cmd := a.updateForm(tea.KeyPressMsg{})
+	if cmd == nil {
+		t.Fatal("updateForm on aborted form should return emit cmd")
 	}
 }
 
