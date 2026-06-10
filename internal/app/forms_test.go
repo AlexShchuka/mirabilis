@@ -183,7 +183,7 @@ func TestApplyHarness_Reinstall_TwoCalls(t *testing.T) {
 	if len(calls) < 2 {
 		t.Fatalf("applyHarness(reinstall) made %d container calls, want >= 2", len(calls))
 	}
-	if !strings.Contains(calls[0], "echo install") {
+	if !strings.Contains(calls[0], "install") {
 		t.Errorf("first container call = %q, want the install marker write", calls[0])
 	}
 }

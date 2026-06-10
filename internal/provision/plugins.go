@@ -13,9 +13,9 @@ import (
 )
 
 func readHarnessChoice() string {
-	data, err := os.ReadFile(filepath.Join(claudeDir(), ".mirabilis-harness"))
+	data, err := os.ReadFile(filepath.Join(claudeDir(), FileHarness))
 	if err != nil {
-		return "install"
+		return HarnessInstall
 	}
 	return strings.TrimSpace(string(data))
 }
@@ -39,7 +39,7 @@ func readPluginCatalog(cfg config.Config) []string {
 }
 
 func readDisabledPlugins() []string {
-	data, err := os.ReadFile(filepath.Join(claudeDir(), ".mirabilis-plugins-disabled"))
+	data, err := os.ReadFile(filepath.Join(claudeDir(), FilePluginsDisabled))
 	if err != nil {
 		return nil
 	}
@@ -108,7 +108,7 @@ func writeEnabledPlugins(_ context.Context, _ runner.Runner, cfg config.Config) 
 	}
 
 	enabled := make(map[string]any)
-	if harness != "skip" {
+	if harness != HarnessSkip {
 		enabled["neuro-matrix@neuro-matrix"] = true
 	}
 	for _, p := range catalog {

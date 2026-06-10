@@ -30,8 +30,7 @@ func ComputeStatus(ctx context.Context, r runner.Runner) Status {
 }
 
 func harnessStatus(ctx context.Context, r runner.Runner) string {
-	pref, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`)
-	if strings.TrimSpace(pref) == "skip" {
+	if ReadHarnessChoiceContainer(ctx, r) == HarnessSkip {
 		return "off"
 	}
 	if !runtime.ContainerRunning(ctx, r) {

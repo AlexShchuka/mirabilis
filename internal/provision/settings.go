@@ -95,7 +95,7 @@ func EnsureSettings(cfg config.Config) error {
 }
 
 func EnsureTheme(cfg config.Config) error {
-	themeFile := filepath.Join(claudeDir(), ".mirabilis-theme")
+	themeFile := themeFilePath()
 	data, err := os.ReadFile(themeFile)
 	if err != nil {
 		return nil

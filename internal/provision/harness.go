@@ -10,8 +10,8 @@ import (
 )
 
 func HarnessInstalled(ctx context.Context, r runner.Runner) (bool, error) {
-	pref, _ := os.ReadFile(filepath.Join(claudeDir(), ".mirabilis-harness"))
-	if strings.TrimSpace(string(pref)) == "skip" {
+	pref, _ := os.ReadFile(filepath.Join(claudeDir(), FileHarness))
+	if strings.TrimSpace(string(pref)) == HarnessSkip {
 		return true, nil
 	}
 	_, err := r.Container(ctx, "bash", "-lc", "claude plugin list 2>/dev/null | grep -q neuro-matrix")

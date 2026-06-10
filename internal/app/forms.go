@@ -129,13 +129,11 @@ func newLaunchForm(r runner.Runner, w, h int) *formScreen {
 func applyHarness(ctx context.Context, r runner.Runner, choice string) error {
 	switch choice {
 	case "off":
-		_, err := r.Container(ctx, "bash", "-lc", `echo skip > "$HOME/.claude/.mirabilis-harness"`)
-		return err
+		return provision.WriteHarnessChoiceContainer(ctx, r, provision.HarnessSkip)
 	case "on":
-		_, err := r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`)
-		return err
+		return provision.WriteHarnessChoiceContainer(ctx, r, provision.HarnessInstall)
 	case "reinstall":
-		if _, err := r.Container(ctx, "bash", "-lc", `echo install > "$HOME/.claude/.mirabilis-harness"`); err != nil {
+		if err := provision.WriteHarnessChoiceContainer(ctx, r, provision.HarnessInstall); err != nil {
 			return err
 		}
 		return provision.EnsureHarness(ctx, r)
@@ -163,7 +161,7 @@ func doVSCodeCmd(ctx context.Context, r runner.Runner) tea.Cmd {
 
 func newHarnessForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
 	current := "on"
-	if pref, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`); strings.TrimSpace(pref) == "skip" {
+	if provision.ReadHarnessChoiceContainer(ctx, r) == provision.HarnessSkip {
 		current = "off"
 	}
 	choice := current
