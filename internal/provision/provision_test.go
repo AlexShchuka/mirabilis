@@ -556,6 +556,42 @@ func TestEnsureHarness_InstallAndUpdateFail_WarnsContinues(t *testing.T) {
 	}
 }
 
+func TestReadProvisionStatus_OkReturnsEmpty(t *testing.T) {
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			return "ok", nil
+		},
+	}
+	got := readProvisionStatus(context.Background(), r)
+	if got != "" {
+		t.Errorf("readProvisionStatus(ok) = %q, want empty", got)
+	}
+}
+
+func TestReadProvisionStatus_WarnedReturnsValue(t *testing.T) {
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			return "3/12 warned", nil
+		},
+	}
+	got := readProvisionStatus(context.Background(), r)
+	if got != "3/12 warned" {
+		t.Errorf("readProvisionStatus = %q, want 3/12 warned", got)
+	}
+}
+
+func TestReadProvisionStatus_ErrorReturnsEmpty(t *testing.T) {
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			return "", fmt.Errorf("container not running")
+		},
+	}
+	got := readProvisionStatus(context.Background(), r)
+	if got != "" {
+		t.Errorf("readProvisionStatus on error = %q, want empty", got)
+	}
+}
+
 func TestComputeStatus_ContainerDownNotStale(t *testing.T) {
 	tmp := t.TempDir()
 	r := &runner.FakeRunner{
@@ -640,75 +676,6 @@ func TestHarnessStatus_HarnessOn(t *testing.T) {
 	got := harnessStatus(context.Background(), r)
 	if got != "on" {
 		t.Errorf("harnessStatus = %q, want on when container up and neuro-matrix present", got)
-	}
-}
-
-func TestEnsureAptPackages_NoFile(t *testing.T) {
-	r := &runner.FakeRunner{}
-	cfg := config.New(t.TempDir())
-	err := EnsureAptPackages(context.Background(), r, cfg)
-	if err != nil {
-		t.Errorf("EnsureAptPackages with no file = %v, want nil", err)
-	}
-}
-
-func TestEnsureAptPackages_AllInstalled(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "apt-packages.txt"), []byte("curl\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			return "ok", nil
-		},
-	}
-	cfg := config.New(dir)
-	if err := EnsureAptPackages(context.Background(), r, cfg); err != nil {
-		t.Errorf("EnsureAptPackages = %v, want nil", err)
-	}
-}
-
-func TestEnsureAptPackages_MissingPackage_UpdateFails(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "apt-packages.txt"), []byte("missing-pkg\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "dpkg" {
-				return "", fmt.Errorf("not installed")
-			}
-			if name == "sudo" && len(args) > 0 && args[0] == "apt-get" && args[1] == "update" {
-				return "", fmt.Errorf("update failed")
-			}
-			return "", nil
-		},
-	}
-	cfg := config.New(dir)
-	if err := EnsureAptPackages(context.Background(), r, cfg); err != nil {
-		t.Errorf("EnsureAptPackages = %v, want nil (warns-and-continues)", err)
-	}
-}
-
-func TestEnsureAptPackages_MissingPackage_InstallFails(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "apt-packages.txt"), []byte("missing-pkg\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "dpkg" {
-				return "", fmt.Errorf("not installed")
-			}
-			if name == "sudo" && len(args) > 0 && args[0] == "apt-get" && args[1] == "install" {
-				return "", fmt.Errorf("install failed")
-			}
-			return "", nil
-		},
-	}
-	cfg := config.New(dir)
-	if err := EnsureAptPackages(context.Background(), r, cfg); err != nil {
-		t.Errorf("EnsureAptPackages = %v, want nil", err)
 	}
 }
 
@@ -1174,6 +1141,166 @@ func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
 	}
 	if !strings.Contains(string(got), "orig") {
 		t.Errorf("dest content = %q, want unchanged orig content", string(got))
+	}
+}
+
+func TestWriteProvisionStatus_Ok(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	writeProvisionStatus(0, 10)
+	data, err := os.ReadFile(filepath.Join(tmp, ".claude", ".mirabilis-provision-status"))
+	if err != nil {
+		t.Fatalf("status file not written: %v", err)
+	}
+	if string(data) != "ok" {
+		t.Errorf("status = %q, want ok", string(data))
+	}
+}
+
+func TestWriteProvisionStatus_Warned(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	writeProvisionStatus(3, 12)
+	data, err := os.ReadFile(filepath.Join(tmp, ".claude", ".mirabilis-provision-status"))
+	if err != nil {
+		t.Fatalf("status file not written: %v", err)
+	}
+	if string(data) != "3/12 warned" {
+		t.Errorf("status = %q, want 3/12 warned", string(data))
+	}
+}
+
+func TestEnsureAll_WritesStatusFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	r := &runner.FakeRunner{
+		RepoVal: tmp,
+		HostFunc: func(name string, args []string) (string, error) {
+			return "", nil
+		},
+		ContFunc: func(args []string) (string, error) {
+			return "", fmt.Errorf("claude not available")
+		},
+	}
+	cfg := config.New(t.TempDir())
+	if err := Create(context.Background(), r, cfg); err != nil {
+		t.Fatalf("Create = %v, want nil", err)
+	}
+	if _, err := os.Stat(filepath.Join(tmp, ".claude", ".mirabilis-provision-status")); err != nil {
+		t.Errorf("status file not written after Create: %v", err)
+	}
+}
+
+func TestEnsureAll_SummaryLineOnWarns(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
+
+	if os.Getuid() == 0 {
+		t.Skip("permission-based mkdir failure is not reproducible as root")
+	}
+
+	r := &runner.FakeRunner{
+		RepoVal: tmp,
+		HostFunc: func(name string, args []string) (string, error) {
+			return "", nil
+		},
+		ContFunc: func(args []string) (string, error) {
+			return "", fmt.Errorf("claude not available")
+		},
+	}
+	cfg := config.New(t.TempDir())
+
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := os.Stderr
+	os.Stderr = pw
+	Create(context.Background(), r, cfg) //nolint:errcheck
+	pw.Close()
+	os.Stderr = orig
+	var buf [65536]byte
+	n, _ := pr.Read(buf[:])
+	pr.Close()
+	got := string(buf[:n])
+
+	if !strings.Contains(got, "steps warned") {
+		t.Errorf("stderr = %q, want '[provision] N of M steps warned'", got)
+	}
+}
+
+func TestParseMCPList(t *testing.T) {
+	tests := []struct {
+		give string
+		want map[string]bool
+	}{
+		{"", map[string]bool{}},
+		{"context7 (http)\nsequential-thinking (stdio)\n", map[string]bool{"context7": true, "sequential-thinking": true}},
+		{"  context7  \n", map[string]bool{"context7": true}},
+		{"no-space-entry\n", map[string]bool{"no-space-entry": true}},
+		{"\n\n", map[string]bool{}},
+	}
+	for _, tt := range tests {
+		got := parseMCPList(tt.give)
+		for k := range tt.want {
+			if !got[k] {
+				t.Errorf("parseMCPList(%q) missing %q", tt.give, k)
+			}
+		}
+		for k := range got {
+			if !tt.want[k] {
+				t.Errorf("parseMCPList(%q) unexpected %q", tt.give, k)
+			}
+		}
+	}
+}
+
+func TestEnsureMCP_AddIfAbsent_SkipsRegistered(t *testing.T) {
+	var addedNames []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			joined := strings.Join(args, " ")
+			switch {
+			case strings.Contains(joined, "command -v claude"):
+				return "", nil
+			case strings.Contains(joined, "command -v uvx"):
+				return "", fmt.Errorf("no uvx")
+			case joined == "claude mcp list":
+				return "context7 (http)\n", nil
+			case strings.Contains(joined, "mcp add") && strings.Contains(joined, "sequential-thinking"):
+				addedNames = append(addedNames, "sequential-thinking")
+				return "", nil
+			case strings.Contains(joined, "mcp add") && strings.Contains(joined, "context7"):
+				addedNames = append(addedNames, "context7")
+				return "", nil
+			}
+			return "", nil
+		},
+	}
+	if err := EnsureMCP(context.Background(), r); err != nil {
+		t.Fatalf("EnsureMCP = %v, want nil", err)
+	}
+	for _, n := range addedNames {
+		if n == "context7" {
+			t.Error("context7 was added despite being already registered")
+		}
+	}
+	found := false
+	for _, n := range addedNames {
+		if n == "sequential-thinking" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("sequential-thinking not added despite being absent")
 	}
 }
 

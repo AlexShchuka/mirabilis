@@ -157,6 +157,16 @@ func TestMenuHeader(t *testing.T) {
 			st:      provision.Status{},
 			wantOut: []string{ui.MenuStale, ui.MenuHarnessOff},
 		},
+		{
+			name:   "provision warned",
+			st:     provision.Status{ProvisionWarn: "3/12 warned"},
+			wantIn: []string{"provision: 3/12 warned"},
+		},
+		{
+			name:    "provision ok (empty string)",
+			st:      provision.Status{ProvisionWarn: ""},
+			wantOut: []string{"provision:"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

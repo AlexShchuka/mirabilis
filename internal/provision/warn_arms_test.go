@@ -654,14 +654,3 @@ func TestCopyFile_SourceMissing(t *testing.T) {
 		t.Error("copyFile = nil, want error when the source does not exist")
 	}
 }
-
-func TestEnsureAptPackages_BlankLinesSkipped(t *testing.T) {
-	cfgDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(cfgDir, "apt-packages.txt"), []byte("\n\n   \n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	r := &runner.FakeRunner{}
-	if err := EnsureAptPackages(context.Background(), r, config.New(cfgDir)); err != nil {
-		t.Errorf("EnsureAptPackages = %v, want nil for a file of only blank lines", err)
-	}
-}

@@ -42,7 +42,32 @@ func writeJSON(path string, m map[string]any) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(path, data, 0o644)
+	if _, serr := os.Stat(path); serr == nil {
+		f, werr := os.OpenFile(path, os.O_WRONLY, 0)
+		if werr != nil {
+			return werr
+		}
+		f.Close()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func mergeSettings(dest, seed map[string]any) map[string]any {

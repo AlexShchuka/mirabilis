@@ -179,3 +179,76 @@ func TestTelegram_ServerUnreachable_NoError(t *testing.T) {
 		t.Errorf("Telegram() = %v, want nil even on unreachable server", err)
 	}
 }
+
+func TestCWDBaseName(t *testing.T) {
+	tests := []struct {
+		give string
+		want string
+	}{
+		{`{"hook_event_name":"Stop","cwd":"/workspace/myproject"}`, "myproject"},
+		{`{"hook_event_name":"Stop","cwd":"/home/user/repos/other-proj"}`, "other-proj"},
+		{`{"hook_event_name":"Stop","cwd":""}`, ""},
+		{`{"hook_event_name":"Stop"}`, ""},
+		{`not json`, ""},
+		{`{}`, ""},
+	}
+	for _, tt := range tests {
+		got := cwdBaseName([]byte(tt.give))
+		if got != tt.want {
+			t.Errorf("cwdBaseName(%q) = %q, want %q", tt.give, got, tt.want)
+		}
+	}
+}
+
+func TestTelegram_WithCWD_AppendsProject(t *testing.T) {
+	var gotText string
+	var counter atomic.Int32
+	setupTelegramServer(t, "tok1", "chat1", &counter, func(r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("ParseForm: %v", err)
+		}
+		gotText = r.FormValue("text")
+	})
+	replaceStdin(t, `{"hook_event_name":"Stop","cwd":"/workspace/myproject"}`)
+	if err := Telegram(); err != nil {
+		t.Fatalf("Telegram() = %v, want nil", err)
+	}
+	if !strings.Contains(gotText, "[myproject]") {
+		t.Errorf("text = %q, want to contain [myproject]", gotText)
+	}
+}
+
+func TestTelegram_WithoutCWD_NoProjectSuffix(t *testing.T) {
+	var gotText string
+	var counter atomic.Int32
+	setupTelegramServer(t, "tok1", "chat1", &counter, func(r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("ParseForm: %v", err)
+		}
+		gotText = r.FormValue("text")
+	})
+	replaceStdin(t, `{"hook_event_name":"Stop"}`)
+	if err := Telegram(); err != nil {
+		t.Fatalf("Telegram() = %v, want nil", err)
+	}
+	if gotText != "✅ mirabilis: task finished" {
+		t.Errorf("text = %q, want original message without project", gotText)
+	}
+}
+
+func TestTelegram_ServerUnreachable_LogsToStderr(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tok1")
+	t.Setenv("TELEGRAM_CHAT_ID", "chat1")
+	old := telegramAPI
+	telegramAPI = "http://127.0.0.1:0"
+	t.Cleanup(func() { telegramAPI = old })
+	replaceStdin(t, `{"hook_event_name":"Stop"}`)
+	getErr := captureStderr(t)
+	if err := Telegram(); err != nil {
+		t.Errorf("Telegram() = %v, want nil even on unreachable server", err)
+	}
+	errOut := getErr()
+	if !strings.Contains(errOut, "[hook] WARN: telegram sendMessage") {
+		t.Errorf("stderr = %q, want WARN naming telegram sendMessage", errOut)
+	}
+}

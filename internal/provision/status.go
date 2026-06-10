@@ -14,6 +14,7 @@ type Status struct {
 	CommitsBehind int
 	Stale         bool
 	ContainerUp   bool
+	ProvisionWarn string
 }
 
 func ComputeStatus(ctx context.Context, r runner.Runner) Status {
@@ -26,7 +27,20 @@ func ComputeStatus(ctx context.Context, r runner.Runner) Status {
 	}
 	st.ContainerUp = runtime.ContainerRunning(ctx, r)
 	st.Harness = harnessStatus(ctx, r)
+	st.ProvisionWarn = readProvisionStatus(ctx, r)
 	return st
+}
+
+func readProvisionStatus(ctx context.Context, r runner.Runner) string {
+	out, err := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-provision-status" 2>/dev/null`)
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(out)
+	if v == "ok" || v == "" {
+		return ""
+	}
+	return v
 }
 
 func harnessStatus(ctx context.Context, r runner.Runner) string {
