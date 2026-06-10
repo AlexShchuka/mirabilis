@@ -1,0 +1,3 @@
+[hooks]
+exclude_commands = ["pytest", "playwright", "jest", "vitest", "go test", "cargo test", "find"]
+transparent_prefixes = []

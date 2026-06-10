@@ -32,6 +32,7 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 	warn("mcp", EnsureMCP(ctx, r))
 	warn("skills", EnsureSkills(ctx, r))
 	warn("rtk", EnsureRTK(ctx, r, cfg))
+	warn("rtk config", EnsureRTKConfig(cfg))
 	warn("headroom", EnsureHeadroom(ctx, r))
 }
 
