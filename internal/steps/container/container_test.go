@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
@@ -95,9 +96,57 @@ func TestUpdateCheck_RevListError_Satisfied(t *testing.T) {
 	}
 }
 
+func TestUpdateRun_FeatureBranch_NoOp(t *testing.T) {
+	var cmds []string
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			cmds = append(cmds, name+" "+strings.Join(args, " "))
+			if name == "git" && len(args) >= 2 && args[len(args)-1] == "HEAD" {
+				return "feature/my-work", nil
+			}
+			return "", nil
+		},
+	}
+	err := updateStep{}.Run(context.Background(), r)
+	if err != nil {
+		t.Errorf("Run = %v, want nil on feature branch", err)
+	}
+	for _, c := range cmds {
+		if strings.Contains(c, "checkout") || strings.Contains(c, "merge") {
+			t.Errorf("Run issued git %q on feature branch, want no checkout/merge", c)
+		}
+	}
+}
+
+func TestUpdateRun_OnMain_FFMerge(t *testing.T) {
+	var mergeArgs []string
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			if name == "git" && len(args) >= 2 && args[len(args)-1] == "HEAD" {
+				return "main", nil
+			}
+			if name == "git" && len(args) >= 2 && args[len(args)-2] == "--ff-only" {
+				mergeArgs = args
+				return "", nil
+			}
+			return "", nil
+		},
+	}
+	err := updateStep{}.Run(context.Background(), r)
+	if err != nil {
+		t.Errorf("Run = %v, want nil on main with ff-merge", err)
+	}
+	if mergeArgs == nil {
+		t.Error("git merge --ff-only not issued when on main")
+	}
+}
+
 func TestUpdateRun_DirtyStatus_Error(t *testing.T) {
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
+			if name == "git" && len(args) >= 2 && args[len(args)-1] == "HEAD" {
+				return "main", nil
+			}
 			if name == "git" && len(args) >= 3 && args[2] == "status" {
 				return "M internal/foo.go", nil
 			}
@@ -110,27 +159,12 @@ func TestUpdateRun_DirtyStatus_Error(t *testing.T) {
 	}
 }
 
-func TestUpdateRun_CheckoutError_Propagated(t *testing.T) {
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "git" && len(args) >= 3 && args[2] == "status" {
-				return "", nil
-			}
-			if name == "git" && len(args) >= 3 && args[2] == "checkout" {
-				return "", fmt.Errorf("checkout failed")
-			}
-			return "", nil
-		},
-	}
-	err := updateStep{}.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run must propagate checkout error")
-	}
-}
-
 func TestUpdateRun_CleanPath_Nil(t *testing.T) {
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
+			if name == "git" && len(args) >= 2 && args[len(args)-1] == "HEAD" {
+				return "main", nil
+			}
 			return "", nil
 		},
 	}
@@ -217,6 +251,28 @@ func TestPrepareCheck_NotRunning_Unsatisfied(t *testing.T) {
 	}
 	if got {
 		t.Error("Check = true when container not running, want false")
+	}
+}
+
+func TestPrepareRun_MakeFails_ExactlyOnce(t *testing.T) {
+	repo := t.TempDir()
+	counter := filepath.Join(t.TempDir(), "make-calls")
+	makeDir := makeShim(t, "make", `echo x >> `+counter+`
+exit 1`)
+	prependPath(t, makeDir)
+
+	r := &runner.FakeRunner{RepoVal: repo}
+	err := prepareStep{}.Run(context.Background(), r)
+	if err == nil {
+		t.Error("prepareStep.Run must error when make fails")
+	}
+	data, rerr := os.ReadFile(counter)
+	if rerr != nil {
+		t.Fatalf("counter file not written: %v", rerr)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 1 {
+		t.Errorf("make invoked %d times, want exactly 1", len(lines))
 	}
 }
 

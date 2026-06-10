@@ -29,6 +29,10 @@ func (p RetryPolicy) delay(attempt int) time.Duration {
 	return half + time.Duration(rand.Int63n(int64(half)+1))
 }
 
+func Retry(ctx context.Context, p RetryPolicy, fn func() error) error {
+	return retry(ctx, p, fn)
+}
+
 func retry(ctx context.Context, p RetryPolicy, fn func() error) error {
 	attempts := p.Attempts
 	if attempts < 1 {

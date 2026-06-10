@@ -44,11 +44,11 @@ func readProvisionStatus(ctx context.Context, r runner.Runner) string {
 }
 
 func harnessStatus(ctx context.Context, r runner.Runner) string {
-	if ReadHarnessChoiceContainer(ctx, r) == HarnessSkip {
-		return "off"
-	}
 	if !runtime.ContainerRunning(ctx, r) {
 		return "unknown"
+	}
+	if ReadHarnessChoiceContainer(ctx, r) == HarnessSkip {
+		return "off"
 	}
 	if _, err := r.Container(ctx, "bash", "-lc", "claude plugin list 2>/dev/null | grep -q neuro-matrix"); err != nil {
 		return "missing"

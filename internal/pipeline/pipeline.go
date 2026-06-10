@@ -227,6 +227,26 @@ func (p *Pipeline) Update(msg tea.Msg) (*Pipeline, tea.Cmd) {
 	return p, nil
 }
 
+func (p *Pipeline) cascadeSkip() {
+	changed := true
+	for changed {
+		changed = false
+		for _, v := range p.views {
+			if v.status != stPending {
+				continue
+			}
+			for _, d := range v.reg.Meta.Deps {
+				dep, ok := p.byName[d]
+				if ok && dep.status == stFailed && !dep.reg.Meta.Optional {
+					v.status = stSkipped
+					changed = true
+					break
+				}
+			}
+		}
+	}
+}
+
 func (p *Pipeline) onChecked(m CheckedMsg) tea.Cmd {
 	v, ok := p.byName[m.Name]
 	if !ok {
@@ -238,6 +258,7 @@ func (p *Pipeline) onChecked(m CheckedMsg) tea.Cmd {
 	case m.Err != nil:
 		v.status, v.err = stFailed, m.Err
 		p.failed = true
+		p.cascadeSkip()
 	case m.Satisfied:
 		v.status = stSkipped
 	case v.reg.Meta.Interactive:
@@ -267,6 +288,7 @@ func (p *Pipeline) onRan(m RanMsg) tea.Cmd {
 	default:
 		v.status, v.err = stFailed, m.Err
 		p.failed = true
+		p.cascadeSkip()
 	}
 	if reTick {
 		return tea.Batch(p.advance(), p.spin.Tick)
