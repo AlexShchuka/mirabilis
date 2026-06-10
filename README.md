@@ -1,9 +1,7 @@
 # mirabilis — a Claude Code sandbox for autonomous AI coding agents
 
-**mirabilis** is a one-command **cross-platform dev container** (macOS, Linux, and Windows
-via WSL2) that runs **Claude Code** as an **autonomous AI coding agent** in an isolated
-Docker sandbox. You get full bypass autonomy
-behind a container boundary, the
+**mirabilis** is a one-command **cross-platform dev container** that runs **Claude Code** as an **autonomous AI coding agent** in an isolated
+Docker sandbox. You get full bypass autonomy behind a container boundary, the
 [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) agent harness preinstalled,
 persistent memory, and open egress — a personal, open-source workspace
 where the agent can build, research, and learn without touching your PC.
@@ -37,14 +35,6 @@ mass–energy equivalence, E=mc²) reshaped physics in a single year.
   enable Docker Desktop's WSL integration for the distro, or install docker-ce inside WSL.
 
 ## Quick start
-
-macOS:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.sh | bash
-```
-
-Linux (and Windows inside a WSL2 shell), with the prerequisites above installed:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.sh | bash
