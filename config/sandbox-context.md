@@ -1,13 +1,9 @@
 You are running isolated dev container.
 
-- **Storage — know where things live:**
-  - `/workspace` — the only place to clone repos and write code; a named volume the sandbox
-    owns. Work here; organize it however you like.
-  - `~/.claude` — **persistent memory** and `~/.config`
-    live in volumes inside the sandbox and survive updates and
-    rebuilds. Keep them tidy — store durable memory here, not scratch.
-  - `/tmp` and everything else is **ephemeral**: wiped on restart/update. Scratch only; no
-    inbox, no drop folder — bring files in by editing `/workspace`.
+- **Storage**
+  - `/workspace` — Work only here; organize it however you like.
+  - `~/.claude` — **persistent memory** and `~/.config`. Keep them tidy — store durable memory here, not scratch.
+  - `/tmp` and everything else is **ephemeral**. Scratch only; no inbox, no drop folder — bring files in by editing `/workspace`.
 - **Memory layout:**
   - Durable memory lives in `~/.claude/memory/` as category files. Each holds brief one-line
     invariants as `- ` bullets. `MEMORY.md` is auto-generated on session start — do not edit it.
