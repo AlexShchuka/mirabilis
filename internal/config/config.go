@@ -16,6 +16,7 @@ func (c Config) SettingsSeed() string  { return filepath.Join(c.Base, "settings.
 func (c Config) HudConfigSeed() string { return filepath.Join(c.Base, "claude-hud.json") }
 func (c Config) RTKConfigSeed() string { return filepath.Join(c.Base, "rtk-config.toml") }
 func (c Config) PluginsTxt() string    { return filepath.Join(c.Base, "plugins.txt") }
+func (c Config) SkillsTxt() string     { return filepath.Join(c.Base, "skills.txt") }
 
 type MemoryCategory struct {
 	Name       string
@@ -130,5 +131,50 @@ func WritePluginsDisabled(repo string, disabled []string) error {
 		out += "\n"
 	}
 	out += "PLUGINS_DISABLED=" + strings.Join(disabled, ",") + "\n"
+	return os.WriteFile(path, []byte(out), 0o644)
+}
+
+func ReadSkillCatalog(repo string) []string {
+	data, err := os.ReadFile(filepath.Join(repo, "config", "skills.txt"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line = strings.TrimSpace(line); line != "" && !strings.HasPrefix(line, "#") {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func ReadSkills(repo string) (string, bool) {
+	data, err := os.ReadFile(filepath.Join(repo, ".env"))
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, "SKILLS="); ok {
+			return strings.TrimSpace(rest), true
+		}
+	}
+	return "", false
+}
+
+func WriteSkills(repo, csv string) error {
+	path := filepath.Join(repo, ".env")
+	var keep []string
+	if data, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.HasPrefix(line, "SKILLS=") {
+				keep = append(keep, line)
+			}
+		}
+	}
+	out := strings.TrimRight(strings.Join(keep, "\n"), "\n")
+	if out != "" {
+		out += "\n"
+	}
+	out += "SKILLS=" + csv + "\n"
 	return os.WriteFile(path, []byte(out), 0o644)
 }

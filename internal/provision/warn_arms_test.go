@@ -328,8 +328,12 @@ func TestEnsureSettings_MkdirClaudeFails(t *testing.T) {
 func TestEnsureSkills_PullWarns_Continues(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	icDir := filepath.Join(tmp, ".claude", "skills", "interview-coach")
-	if err := os.MkdirAll(filepath.Join(icDir, ".git"), 0o755); err != nil {
+	skillDir := filepath.Join(tmp, ".claude", "skills", "interview-coach-skill")
+	if err := os.MkdirAll(filepath.Join(skillDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.WriteFile(filepath.Join(cd, FileSkills), []byte("noamseg/interview-coach-skill\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r := &runner.FakeRunner{
@@ -340,20 +344,31 @@ func TestEnsureSkills_PullWarns_Continues(t *testing.T) {
 			return "", nil
 		},
 	}
+	cfgDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cfgDir, "skills.txt"), []byte("noamseg/interview-coach-skill\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	getErr := captureStderr(t)
-	err := EnsureSkills(context.Background(), r)
+	err := EnsureSkills(context.Background(), r, config.New(cfgDir))
 	out := getErr()
 	if err != nil {
 		t.Fatalf("EnsureSkills = %v, want nil despite pull failure", err)
 	}
-	if !strings.Contains(out, "interview-coach pull") {
-		t.Errorf("stderr = %q, want WARN naming interview-coach pull", out)
+	if !strings.Contains(out, "noamseg/interview-coach-skill pull") {
+		t.Errorf("stderr = %q, want WARN naming noamseg/interview-coach-skill pull", out)
 	}
 }
 
 func TestEnsureSkills_CloneWarns_Continues(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, FileSkills), []byte("noamseg/interview-coach-skill\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
 			if name == "git" && len(args) >= 1 && args[0] == "clone" {
@@ -362,14 +377,18 @@ func TestEnsureSkills_CloneWarns_Continues(t *testing.T) {
 			return "", nil
 		},
 	}
+	cfgDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cfgDir, "skills.txt"), []byte("noamseg/interview-coach-skill\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	getErr := captureStderr(t)
-	err := EnsureSkills(context.Background(), r)
+	err := EnsureSkills(context.Background(), r, config.New(cfgDir))
 	out := getErr()
 	if err != nil {
 		t.Fatalf("EnsureSkills = %v, want nil despite clone failure", err)
 	}
-	if !strings.Contains(out, "interview-coach skill not installed") {
-		t.Errorf("stderr = %q, want WARN naming interview-coach skill not installed", out)
+	if !strings.Contains(out, "noamseg/interview-coach-skill clone") {
+		t.Errorf("stderr = %q, want WARN naming noamseg/interview-coach-skill clone", out)
 	}
 }
 

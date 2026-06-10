@@ -64,15 +64,18 @@ func newLaunchForm(r runner.Runner, w, h int) *formScreen {
 	repo := r.Repo()
 	stackCatalog := config.ReadStackCatalog(repo)
 	pluginCatalog := config.ReadPluginCatalog(repo)
-	if len(stackCatalog) == 0 && len(pluginCatalog) == 0 {
+	skillCatalog := config.ReadSkillCatalog(repo)
+	if len(stackCatalog) == 0 && len(pluginCatalog) == 0 && len(skillCatalog) == 0 {
 		return nil
 	}
 
 	currentStacks := splitCSV(func() string { v, _ := config.ReadStacks(repo); return v }())
 	disabledPlugins := config.ReadPluginsDisabled(repo)
+	currentSkills := splitCSV(func() string { v, _ := config.ReadSkills(repo); return v }())
 
 	var chosenStacks []string
 	var chosenPlugins []string
+	var chosenSkills []string
 
 	var groups []*huh.Group
 
@@ -100,6 +103,18 @@ func newLaunchForm(r runner.Runner, w, h int) *formScreen {
 		))
 	}
 
+	if len(skillCatalog) > 0 {
+		opts := make([]huh.Option[string], 0, len(skillCatalog))
+		for _, s := range skillCatalog {
+			opts = append(opts, huh.NewOption(s, s).Selected(contains(currentSkills, s)))
+		}
+		groups = append(groups, huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(ui.FormTitleSkills).
+				Options(opts...).Value(&chosenSkills),
+		))
+	}
+
 	form := huh.NewForm(groups...).WithWidth(w).WithHeight(h)
 
 	apply := func() tea.Cmd {
@@ -118,6 +133,11 @@ func newLaunchForm(r runner.Runner, w, h int) *formScreen {
 				}
 				if err := config.WritePluginsDisabled(repo, newDisabled); err != nil {
 					return backToMenuMsg{notice: ui.NoticePluginsErr + err.Error()}
+				}
+			}
+			if len(skillCatalog) > 0 {
+				if err := config.WriteSkills(repo, joinCSV(chosenSkills)); err != nil {
+					return backToMenuMsg{notice: ui.NoticeSkillsErr + err.Error()}
 				}
 			}
 			return launchReadyMsg{}

@@ -19,6 +19,7 @@ func TestNew_PathGetters(t *testing.T) {
 		{"HudConfigSeed", c.HudConfigSeed(), "/base/claude-hud.json"},
 		{"RTKConfigSeed", c.RTKConfigSeed(), "/base/rtk-config.toml"},
 		{"PluginsTxt", c.PluginsTxt(), "/base/plugins.txt"},
+		{"SkillsTxt", c.SkillsTxt(), "/base/skills.txt"},
 	}
 	for _, tt := range tests {
 		if tt.got != tt.want {
@@ -308,6 +309,118 @@ func TestWritePluginsDisabled(t *testing.T) {
 		got := ReadPluginsDisabled(dir)
 		if got != nil {
 			t.Errorf("got %v, want nil for empty disabled list", got)
+		}
+	})
+}
+
+func TestReadSkillCatalog(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		noConfig bool
+		want     []string
+	}{
+		{
+			name:     "missing file returns nil",
+			noConfig: true,
+			want:     nil,
+		},
+		{
+			name:    "filters comments and blank lines",
+			content: "# comment\n\nowner/skill-a\nowner/skill-b\n",
+			want:    []string{"owner/skill-a", "owner/skill-b"},
+		},
+		{
+			name:    "empty file returns nil",
+			content: "",
+			want:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if !tt.noConfig {
+				if err := os.MkdirAll(filepath.Join(dir, "config"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, "config", "skills.txt"), []byte(tt.content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := ReadSkillCatalog(dir)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadSkillCatalog = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadSkills_NoEnvFile(t *testing.T) {
+	v, ok := ReadSkills(t.TempDir())
+	if ok || v != "" {
+		t.Errorf("ReadSkills with no .env = (%q, %v), want (\"\", false)", v, ok)
+	}
+}
+
+func TestReadSkills_MissingLine(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("OTHER=val\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	v, ok := ReadSkills(dir)
+	if ok || v != "" {
+		t.Errorf("ReadSkills with no SKILLS line = (%q, %v), want (\"\", false)", v, ok)
+	}
+}
+
+func TestWriteSkills(t *testing.T) {
+	t.Run("creates .env with SKILLS line", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteSkills(dir, "owner/skill-a,owner/skill-b"); err != nil {
+			t.Fatal(err)
+		}
+		v, ok := ReadSkills(dir)
+		if !ok || v != "owner/skill-a,owner/skill-b" {
+			t.Errorf("ReadSkills = (%q, %v), want (owner/skill-a,owner/skill-b, true)", v, ok)
+		}
+	})
+
+	t.Run("preserves other keys", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("STACKS=go\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteSkills(dir, "owner/skill-a"); err != nil {
+			t.Fatal(err)
+		}
+		stacks, _ := ReadStacks(dir)
+		if stacks != "go" {
+			t.Errorf("WriteSkills clobbered STACKS: got %q, want go", stacks)
+		}
+		v, _ := ReadSkills(dir)
+		if v != "owner/skill-a" {
+			t.Errorf("SKILLS = %q, want owner/skill-a", v)
+		}
+	})
+
+	t.Run("overwrites existing SKILLS line", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteSkills(dir, "old"); err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteSkills(dir, "new"); err != nil {
+			t.Fatal(err)
+		}
+		v, _ := ReadSkills(dir)
+		if v != "new" {
+			t.Errorf("SKILLS after overwrite = %q, want new", v)
+		}
+		count := strings.Count(string(func() []byte {
+			d, _ := os.ReadFile(filepath.Join(dir, ".env"))
+			return d
+		}()), "SKILLS=")
+		if count != 1 {
+			t.Errorf("SKILLS appears %d times, want 1", count)
 		}
 	})
 }

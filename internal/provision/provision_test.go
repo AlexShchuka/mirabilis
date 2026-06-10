@@ -748,9 +748,64 @@ func TestEnsureGitIdentity_UserWithNoEmail(t *testing.T) {
 	}
 }
 
+func makeSkillsConfig(t *testing.T, catalog string) config.Config {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "skills.txt"), []byte(catalog), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return config.New(dir)
+}
+
+func writeSkillsStatefile(t *testing.T, homeDir, content string) {
+	t.Helper()
+	cd := filepath.Join(homeDir, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, FileSkills), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEnsureSkills_NoCatalog_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			t.Errorf("unexpected host call: %s %v", name, args)
+			return "", nil
+		},
+	}
+	cfg := config.New(t.TempDir())
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil when catalog empty", err)
+	}
+}
+
+func TestEnsureSkills_NothingSelected_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	hostCalled := false
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			hostCalled = true
+			return "", nil
+		},
+	}
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil when nothing selected", err)
+	}
+	if hostCalled {
+		t.Error("EnsureSkills should not call host when nothing selected")
+	}
+}
+
 func TestEnsureSkills_GitMissing(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	writeSkillsStatefile(t, tmp, "noamseg/interview-coach-skill\n")
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
 			if name == "git" && len(args) > 0 && args[0] == "version" {
@@ -759,33 +814,40 @@ func TestEnsureSkills_GitMissing(t *testing.T) {
 			return "", nil
 		},
 	}
-	if err := EnsureSkills(context.Background(), r); err != nil {
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
 		t.Errorf("EnsureSkills = %v, want nil when git missing", err)
 	}
 }
 
-func TestEnsureSkills_MkdirFails_Noop(t *testing.T) {
+func TestEnsureSkills_DeselectedEntry_Untouched(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	cd := filepath.Join(tmp, ".claude")
-	if err := os.WriteFile(cd, []byte("not a dir"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeSkillsStatefile(t, tmp, "")
+	var hostCalls []string
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
+			hostCalls = append(hostCalls, name+" "+strings.Join(args, " "))
 			return "", nil
 		},
 	}
-	if err := EnsureSkills(context.Background(), r); err != nil {
-		t.Errorf("EnsureSkills = %v, want nil when mkdir fails", err)
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil", err)
+	}
+	for _, c := range hostCalls {
+		if strings.Contains(c, "clone") || strings.Contains(c, "pull") {
+			t.Errorf("EnsureSkills cloned/pulled deselected entry; got %v", hostCalls)
+		}
 	}
 }
 
 func TestEnsureSkills_ExistingRepoGitPull(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	icDir := filepath.Join(tmp, ".claude", "skills", "interview-coach")
-	if err := os.MkdirAll(filepath.Join(icDir, ".git"), 0o755); err != nil {
+	writeSkillsStatefile(t, tmp, "noamseg/interview-coach-skill\n")
+	skillDir := filepath.Join(tmp, ".claude", "skills", "interview-coach-skill")
+	if err := os.MkdirAll(filepath.Join(skillDir, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	pullCalled := false
@@ -798,7 +860,8 @@ func TestEnsureSkills_ExistingRepoGitPull(t *testing.T) {
 			return "", nil
 		},
 	}
-	if err := EnsureSkills(context.Background(), r); err != nil {
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
 		t.Errorf("EnsureSkills = %v, want nil", err)
 	}
 	if !pullCalled {
@@ -809,21 +872,56 @@ func TestEnsureSkills_ExistingRepoGitPull(t *testing.T) {
 func TestEnsureSkills_CloneNewRepo(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	writeSkillsStatefile(t, tmp, "noamseg/interview-coach-skill\n")
 	cloneCalled := false
+	var cloneURL string
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
 			if name == "git" && len(args) > 0 && args[0] == "clone" {
 				cloneCalled = true
+				for _, a := range args {
+					if strings.HasPrefix(a, "https://") {
+						cloneURL = a
+					}
+				}
 				return "", nil
 			}
 			return "", nil
 		},
 	}
-	if err := EnsureSkills(context.Background(), r); err != nil {
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
 		t.Errorf("EnsureSkills = %v, want nil", err)
 	}
 	if !cloneCalled {
 		t.Error("git clone not called for new repo")
+	}
+	want := "https://github.com/noamseg/interview-coach-skill.git"
+	if cloneURL != want {
+		t.Errorf("clone URL = %q, want %q", cloneURL, want)
+	}
+}
+
+func TestEnsureSkills_MkdirFails_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	writeSkillsStatefile(t, tmp, "noamseg/interview-coach-skill\n")
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.Chmod(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
+	if os.Getuid() == 0 {
+		t.Skip("permission-based mkdir failure is not reproducible as root")
+	}
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			return "", nil
+		},
+	}
+	cfg := makeSkillsConfig(t, "noamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil when mkdir fails", err)
 	}
 }
 

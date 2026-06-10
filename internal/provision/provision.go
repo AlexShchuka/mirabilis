@@ -59,7 +59,7 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 		step("harness", EnsureHarness(ctx, r))
 	}
 	step("mcp", EnsureMCP(ctx, r))
-	step("skills", EnsureSkills(ctx, r))
+	step("skills", EnsureSkills(ctx, r, cfg))
 	step("rtk", EnsureRTK(ctx, r, cfg))
 	step("rtk config", EnsureRTKConfig(cfg))
 	step("headroom", EnsureHeadroom(ctx, r))
