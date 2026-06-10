@@ -237,6 +237,10 @@ func resolveCode() (string, error) {
 		"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
 		filepath.Join(home, "Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"),
 		"/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code",
+		"/usr/share/code/bin/code",
+		"/snap/bin/code",
+		"/var/lib/flatpak/exports/bin/com.visualstudio.code",
+		filepath.Join(home, ".local/share/flatpak/exports/bin/com.visualstudio.code"),
 	} {
 		if fi, err := os.Stat(b); err == nil && !fi.IsDir() {
 			return b, nil

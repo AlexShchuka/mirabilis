@@ -1,1 +1,5 @@
+* text=auto
+*.sh text eol=lf
+*.bats text eol=lf
+.githooks/* text eol=lf
 internal/app/testdata/* -text

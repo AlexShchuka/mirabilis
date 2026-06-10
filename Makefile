@@ -1,7 +1,12 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
 PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
 BINDIR ?= $(PREFIX)/bin
+else
+BINDIR ?= $(HOME)/.local/bin
+endif
 BIN := bin/mirabilis
 LINUX_BIN := .build/mirabilis-linux
 GOARCH_LINUX := $(if $(filter arm64 aarch64,$(shell uname -m)),arm64,amd64)
@@ -24,6 +29,7 @@ help:
 	@printf '  reset       remove container + image + volumes\n'
 
 bootstrap:
+	@test "$(UNAME_S)" = Darwin || { printf 'mirabilis: bootstrap is macOS-only (Homebrew); on Linux install prerequisites via install.sh or your package manager\n' >&2; exit 1; }
 	brew bundle --file=Brewfile
 	npm install -g @devcontainers/cli
 	git config core.hooksPath .githooks
@@ -37,10 +43,12 @@ linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH_LINUX) go build -o $(LINUX_BIN) ./cmd/mirabilis
 
 install: menu
-	@test -w "$(BINDIR)" || test -w "$(dir $(BINDIR))" || { printf 'mirabilis: %s is not writable — retry with a writable PATH dir, e.g. "make install PREFIX=$$(brew --prefix)", or run "sudo make install"\n' "$(BINDIR)" >&2; exit 1; }
+	@mkdir -p $(BINDIR) 2>/dev/null || true
+	@test -w "$(BINDIR)" || test -w "$(dir $(BINDIR))" || { printf 'mirabilis: %s is not writable — retry with a writable PATH dir, e.g. "make install BINDIR=$$HOME/.local/bin", or run "sudo make install"\n' "$(BINDIR)" >&2; exit 1; }
 	@mkdir -p $(BINDIR)
 	@ln -sf "$(CURDIR)/$(BIN)" $(BINDIR)/mirabilis
 	@printf 'installed %s/mirabilis — run: mirabilis\n' "$(BINDIR)"
+	@case ":$(PATH):" in *":$(BINDIR):"*) ;; *) printf 'note: %s is not on your PATH — add it, e.g. echo '"'"'export PATH="%s:$$PATH"'"'"' >> ~/.bashrc\n' "$(BINDIR)" "$(BINDIR)" >&2 ;; esac
 
 uninstall:
 	@rm -f $(BINDIR)/mirabilis && printf 'removed %s/mirabilis\n' "$(BINDIR)"

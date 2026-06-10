@@ -211,6 +211,11 @@ func openHostBrowser(url string) error {
 	if gort.GOOS == "darwin" {
 		name = "open"
 	}
+	if _, err := exec.LookPath(name); err != nil {
+		if _, werr := exec.LookPath("wslview"); werr == nil {
+			name = "wslview"
+		}
+	}
 	return exec.Command(name, url).Start()
 }
 

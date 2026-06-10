@@ -10,5 +10,5 @@ import (
 func keychainLookup(_ string) (string, bool) { return "", false }
 
 func tryStartDocker(_ context.Context) error {
-	return fmt.Errorf("docker daemon is not running")
+	return fmt.Errorf("docker daemon is not running — start it with 'sudo systemctl start docker', or on WSL enable Docker Desktop's WSL integration for this distro")
 }

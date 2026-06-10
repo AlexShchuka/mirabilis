@@ -375,6 +375,28 @@ func TestRelinkHarness_Error(t *testing.T) {
 	}
 }
 
+func TestRelinkHarness_ExportsPluginRoot(t *testing.T) {
+	var got string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			got = strings.Join(args, " ")
+			return "", nil
+		},
+	}
+	if err := relinkHarness(context.Background(), r); err != nil {
+		t.Fatalf("relinkHarness = %v, want nil", err)
+	}
+	if !strings.Contains(got, `export CLAUDE_PLUGIN_ROOT="$HOME/.neuro-matrix"`) {
+		t.Errorf("relinkHarness command missing CLAUDE_PLUGIN_ROOT export; got %q", got)
+	}
+	if !strings.Contains(got, "grep -qxF") {
+		t.Errorf("relinkHarness export must be idempotent via a grep guard; got %q", got)
+	}
+	if !strings.Contains(got, `>>"$HOME/.bashrc"`) {
+		t.Errorf("relinkHarness must append the export to the shell profile; got %q", got)
+	}
+}
+
 func harnessCmdKey(args []string) string { return strings.Join(args, " ") }
 
 func TestEnsureHarness_ClaudeAbsent(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	gort "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -303,6 +304,20 @@ func TestOpenHostBrowser_RunsShim(t *testing.T) {
 	t.Setenv("PATH", shimDir+":"+base)
 	if err := openHostBrowser("https://example.com"); err != nil {
 		t.Errorf("openHostBrowser: %v", err)
+	}
+}
+
+func TestOpenHostBrowser_WslviewFallback(t *testing.T) {
+	if gort.GOOS == "darwin" {
+		t.Skip("darwin uses open, not the wslview fallback")
+	}
+	shimDir := t.TempDir()
+	if err := os.WriteFile(shimDir+"/wslview", []byte("#!/bin/sh\nexit 0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir)
+	if err := openHostBrowser("https://example.com"); err != nil {
+		t.Errorf("openHostBrowser with only wslview on PATH: %v", err)
 	}
 }
 
