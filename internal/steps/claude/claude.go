@@ -2,10 +2,12 @@ package claude
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
+	"github.com/AlexShchuka/mirabilis/internal/provision"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
@@ -32,10 +34,12 @@ func (themeStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 }
 
 func (themeStep) Run(ctx context.Context, r runner.Runner) error {
-	_, err := r.Container(ctx, "bash", "-lc", `
-		th="$(cat "$HOME/.claude/.mirabilis-theme" 2>/dev/null)"; [ -n "$th" ] || th=auto
+	script := fmt.Sprintf(`
+		th="$(cat "$HOME/.claude/%s" 2>/dev/null)"; [ -n "$th" ] || th=auto
 		tmp="$(mktemp)"
-		jq --arg t "$th" '.theme=$t' "$HOME/.claude/settings.json" >"$tmp" && mv "$tmp" "$HOME/.claude/settings.json" || rm -f "$tmp"`)
+		jq --arg t "$th" '.theme=$t' "$HOME/.claude/settings.json" >"$tmp" && mv "$tmp" "$HOME/.claude/settings.json" || rm -f "$tmp"`,
+		provision.FileTheme)
+	_, err := r.Container(ctx, "bash", "-lc", script)
 	return err
 }
 

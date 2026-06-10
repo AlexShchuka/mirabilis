@@ -8,13 +8,14 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/pipeline"
+	"github.com/AlexShchuka/mirabilis/internal/provision"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
 type step struct{}
 
 func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
-	raw, _ := r.Container(ctx, "bash", "-lc", `cat "$HOME/.claude/.mirabilis-plugins-disabled" 2>/dev/null`)
+	raw := provision.ReadDisabledPluginsContainer(ctx, r)
 	containerDisabled := splitLines(raw)
 	hostDisabled := config.ReadPluginsDisabled(r.Repo())
 	return setsEqual(containerDisabled, hostDisabled), nil
@@ -23,8 +24,7 @@ func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
 func (step) Run(ctx context.Context, r runner.Runner) error {
 	disabled := config.ReadPluginsDisabled(r.Repo())
 	content := strings.Join(disabled, "\n")
-	if _, err := r.Container(ctx, "env", "MDIS="+content,
-		"bash", "-lc", `printf '%s' "$MDIS" > "$HOME/.claude/.mirabilis-plugins-disabled"`); err != nil {
+	if err := provision.WriteDisabledPluginsContainer(ctx, r, content); err != nil {
 		return err
 	}
 	_, err := r.Container(ctx, "mirabilis", "provision", "--phase", "plugins")

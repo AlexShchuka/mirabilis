@@ -33,7 +33,8 @@ RUN arch="$(dpkg --print-architecture)" \
     && rm -f "/tmp/rtk-${target}.tar.gz" /tmp/rtk-checksums.txt \
     && chmod 0755 /usr/local/bin/rtk
 
-RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://astral.sh/uv/install.sh \
+ARG UV_VERSION=0.11.19
+RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL "https://astral.sh/uv/${UV_VERSION}/install.sh" \
     | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
 
 ARG STACKS=
@@ -64,11 +65,16 @@ RUN ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.de
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm -f /tmp/go.tar.gz
 
-RUN go install golang.org/x/tools/cmd/goimports@latest \
-    && go install honnef.co/go/tools/cmd/staticcheck@latest \
-    && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest \
-    && go install github.com/rhysd/actionlint/cmd/actionlint@latest \
-    && go install github.com/zricethezav/gitleaks/v8@latest \
+ARG GOIMPORTS_VERSION=v0.45.0
+ARG STATICCHECK_VERSION=v0.7.0
+ARG FIELDALIGNMENT_VERSION=v0.45.0
+ARG ACTIONLINT_VERSION=v1.7.12
+ARG GITLEAKS_VERSION=v8.30.1
+RUN go install golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION} \
+    && go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION} \
+    && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@${FIELDALIGNMENT_VERSION} \
+    && go install github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION} \
+    && go install github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION} \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build
 

@@ -36,11 +36,11 @@ bootstrap:
 
 menu:
 	@mkdir -p bin
-	go build -mod=readonly -o $(BIN) ./cmd/mirabilis
+	go build -mod=readonly -ldflags "-X main.version=$(MIRABILIS_VERSION)" -o $(BIN) ./cmd/mirabilis
 
 linux:
 	@mkdir -p .build
-	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH_LINUX) go build -o $(LINUX_BIN) ./cmd/mirabilis
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH_LINUX) go build -ldflags "-X main.version=$(MIRABILIS_VERSION)" -o $(LINUX_BIN) ./cmd/mirabilis
 
 install: menu
 	@mkdir -p $(BINDIR) 2>/dev/null || true
@@ -51,7 +51,7 @@ install: menu
 	@case ":$(PATH):" in *":$(BINDIR):"*) ;; *) printf 'note: %s is not on your PATH — add it, e.g. echo '"'"'export PATH="%s:$$PATH"'"'"' >> ~/.bashrc\n' "$(BINDIR)" "$(BINDIR)" >&2 ;; esac
 
 uninstall:
-	@rm -f $(BINDIR)/mirabilis && printf 'removed %s/mirabilis\n' "$(BINDIR)"
+	@rm -f $(BINDIR)/mirabilis $(BIN) && printf 'removed %s/mirabilis\n' "$(BINDIR)"
 
 up: linux
 	devcontainer up --workspace-folder .
