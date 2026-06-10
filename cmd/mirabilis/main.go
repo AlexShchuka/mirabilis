@@ -12,11 +12,23 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runtime"
 )
 
+var version = "unknown"
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "mirabilis: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func effectiveVersion() string {
+	if version != "unknown" {
+		return version
+	}
+	if v := os.Getenv("MIRABILIS_VERSION"); v != "" {
+		return v
+	}
+	return "unknown"
 }
 
 func run(args []string) error {
@@ -25,6 +37,12 @@ func run(args []string) error {
 		return app.Run(ctx)
 	}
 	switch args[0] {
+	case "-version", "--version", "version":
+		fmt.Println(effectiveVersion())
+		return nil
+	case "-h", "-help", "--help", "help":
+		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
+		return nil
 	case "provision":
 		return runProvision(ctx, args[1:])
 	case "hook":
@@ -33,7 +51,7 @@ func run(args []string) error {
 		}
 		return hooks.Dispatch(args[1])
 	default:
-		return app.Run(ctx)
+		return fmt.Errorf("unknown argument %q — run 'mirabilis --help' for usage", args[0])
 	}
 }
 
