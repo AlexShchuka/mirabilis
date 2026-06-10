@@ -8,6 +8,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/steps/harness"
 	"github.com/AlexShchuka/mirabilis/internal/steps/plugins"
 	"github.com/AlexShchuka/mirabilis/internal/steps/preflight"
+	"github.com/AlexShchuka/mirabilis/internal/steps/skills"
 )
 
 func BuildSteps() []pipeline.Registered {
@@ -17,6 +18,7 @@ func BuildSteps() []pipeline.Registered {
 	out = append(out, harness.Steps()...)
 	out = append(out, auth.Steps()...)
 	out = append(out, plugins.Steps()...)
+	out = append(out, skills.Steps()...)
 	out = append(out, preflight.Steps()...)
 	return out
 }

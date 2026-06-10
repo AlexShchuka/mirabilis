@@ -3,6 +3,7 @@ package provision
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +14,7 @@ const (
 	FileHarness         = ".mirabilis-harness"
 	FilePluginsDisabled = ".mirabilis-plugins-disabled"
 	FileTheme           = ".mirabilis-theme"
+	FileSkills          = ".mirabilis-skills"
 
 	HarnessSkip    = "skip"
 	HarnessInstall = "install"
@@ -45,4 +47,25 @@ func WriteDisabledPluginsContainer(ctx context.Context, r runner.Runner, content
 
 func themeFilePath() string {
 	return filepath.Join(claudeDir(), FileTheme)
+}
+
+func ReadSkillsContainer(ctx context.Context, r runner.Runner) string {
+	out, _ := r.Container(ctx, "bash", "-lc",
+		fmt.Sprintf(`cat "$HOME/.claude/%s" 2>/dev/null`, FileSkills))
+	return out
+}
+
+func WriteSkillsContainer(ctx context.Context, r runner.Runner, content string) error {
+	_, err := r.Container(ctx, "env", "MSKILLS="+content,
+		"bash", "-lc",
+		fmt.Sprintf(`printf '%%s' "$MSKILLS" > "$HOME/.claude/%s"`, FileSkills))
+	return err
+}
+
+func readSkillsFile() string {
+	data, err := os.ReadFile(filepath.Join(claudeDir(), FileSkills))
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }

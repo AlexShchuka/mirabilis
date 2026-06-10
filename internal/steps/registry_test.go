@@ -9,7 +9,7 @@ import (
 func TestRegistryShape(t *testing.T) {
 	registered := steps.BuildSteps()
 
-	wantNames := []string{"update", "prepare", "claude", "theme", "harness", "gh", "plugins", "preflight"}
+	wantNames := []string{"update", "prepare", "claude", "theme", "harness", "gh", "plugins", "skills", "preflight"}
 	if len(registered) != len(wantNames) {
 		t.Fatalf("BuildSteps() returned %d steps, want %d", len(registered), len(wantNames))
 	}

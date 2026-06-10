@@ -2,6 +2,8 @@ package provision
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -125,5 +127,77 @@ func TestWriteDisabledPluginsContainer_PassesContent(t *testing.T) {
 	}
 	if !strings.Contains(joined, content) {
 		t.Errorf("WriteDisabledPluginsContainer args = %v, want content %q", capturedArgs, content)
+	}
+}
+
+func TestReadSkillsContainer_ReturnsRaw(t *testing.T) {
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			return "owner/skill-a\nowner/skill-b\n", nil
+		},
+	}
+	got := ReadSkillsContainer(context.Background(), r)
+	if !strings.Contains(got, "owner/skill-a") || !strings.Contains(got, "owner/skill-b") {
+		t.Errorf("ReadSkillsContainer = %q, want owner/skill-a and owner/skill-b", got)
+	}
+}
+
+func TestReadSkillsContainer_UsesCorrectFile(t *testing.T) {
+	var capturedScript string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			capturedScript = strings.Join(args, " ")
+			return "", nil
+		},
+	}
+	ReadSkillsContainer(context.Background(), r)
+	if !strings.Contains(capturedScript, FileSkills) {
+		t.Errorf("ReadSkillsContainer script = %q, want to reference %s", capturedScript, FileSkills)
+	}
+}
+
+func TestWriteSkillsContainer_PassesContent(t *testing.T) {
+	content := "owner/skill-a\nowner/skill-b"
+	var capturedArgs []string
+	r := &runner.FakeRunner{
+		ContFunc: func(args []string) (string, error) {
+			capturedArgs = args
+			return "", nil
+		},
+	}
+	if err := WriteSkillsContainer(context.Background(), r, content); err != nil {
+		t.Fatalf("WriteSkillsContainer = %v, want nil", err)
+	}
+	joined := strings.Join(capturedArgs, " ")
+	if !strings.Contains(joined, FileSkills) {
+		t.Errorf("WriteSkillsContainer args = %v, want to reference %s", capturedArgs, FileSkills)
+	}
+	if !strings.Contains(joined, content) {
+		t.Errorf("WriteSkillsContainer args = %v, want content %q", capturedArgs, content)
+	}
+}
+
+func TestReadSkillsFile_Absent(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	got := readSkillsFile()
+	if got != "" {
+		t.Errorf("readSkillsFile absent = %q, want empty", got)
+	}
+}
+
+func TestReadSkillsFile_Present(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, FileSkills), []byte("owner/skill-a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := readSkillsFile()
+	if !strings.Contains(got, "owner/skill-a") {
+		t.Errorf("readSkillsFile = %q, want to contain owner/skill-a", got)
 	}
 }

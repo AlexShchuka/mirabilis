@@ -474,3 +474,67 @@ func TestFormScreen_Update_SizeMsg(t *testing.T) {
 		t.Error("Update should return non-nil formScreen")
 	}
 }
+
+func TestNewLaunchForm_WithSkillsCatalog_ApplyWrites(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir+"/config", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/config/skills.txt", []byte("owner/skill-a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &runner.FakeRunner{RepoVal: dir}
+	f := newLaunchForm(r, 80, 24)
+	if f == nil {
+		t.Fatal("newLaunchForm with skills catalog should return non-nil")
+	}
+	cmd := f.apply()
+	if cmd == nil {
+		t.Fatal("apply returned nil cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(launchReadyMsg); !ok {
+		t.Fatalf("apply() emits %T, want launchReadyMsg", msg)
+	}
+}
+
+func TestNewLaunchForm_WithSkillsCatalog_ApplyError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(dir+"/config", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/config/skills.txt", []byte("owner/skill-a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) })
+
+	r := &runner.FakeRunner{RepoVal: dir}
+	f := newLaunchForm(r, 80, 24)
+	if f == nil {
+		t.Fatal("newLaunchForm with skills catalog should return non-nil")
+	}
+	cmd := f.apply()
+	if cmd == nil {
+		t.Fatal("apply returned nil")
+	}
+	msg := cmd()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("apply() on error emits %T, want backToMenuMsg", msg)
+	}
+	if !strings.HasPrefix(btm.notice, ui.NoticeSkillsErr) {
+		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeSkillsErr)
+	}
+}
+
+func TestNewLaunchForm_AllCatalogsEmpty_Nil(t *testing.T) {
+	dir := t.TempDir()
+	r := &runner.FakeRunner{RepoVal: dir}
+	f := newLaunchForm(r, 80, 24)
+	if f != nil {
+		t.Error("newLaunchForm with no catalogs should return nil")
+	}
+}

@@ -36,6 +36,7 @@ const (
 	NoticePluginsErr     = "plugins: "
 	NoticeHarnessErr     = "harness: "
 	NoticeResetErr       = "reset: "
+	NoticeSkillsErr      = "skills: "
 	NoticeStacksErr      = "stacks: "
 	NoticeVSCodeErr      = "VS Code: "
 	NoticeResetDone      = "everything removed — next launch will rebuild the sandbox"
@@ -49,5 +50,6 @@ const (
 	FormDescReset     = "Container, image and volumes (/workspace code, ~/.claude memory and auth, gh) will be permanently erased."
 	FormConfirmReset  = "Delete everything"
 	FormCancelReset   = "Cancel"
+	FormTitleSkills   = "Optional skills (space — toggle, Enter — ok)"
 	FormTitleStacks   = "Optional stacks (node + python + go already in base)"
 )
