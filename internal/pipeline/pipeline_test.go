@@ -3,10 +3,16 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/AlexShchuka/mirabilis/internal/runner"
+	"github.com/AlexShchuka/mirabilis/internal/ui"
 )
 
 var errBoom = errors.New("boom")
@@ -260,5 +266,187 @@ func TestProgressWidth(t *testing.T) {
 		if got := progressWidth(tt.give); got != tt.want {
 			t.Errorf("progressWidth(%d) = %d, want %d", tt.give, got, tt.want)
 		}
+	}
+}
+
+func TestPipelineInit_NonNilCmd(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+	})
+	cmd := p.Init()
+	if cmd == nil {
+		t.Error("Init() returned nil cmd, want non-nil batch")
+	}
+	if p.start.IsZero() {
+		t.Error("Init() did not set start time")
+	}
+}
+
+func TestPipelineUpdate_WindowSizeMsg(t *testing.T) {
+	p := trivialPipeline(nil)
+	p2, _ := p.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if p2.progress.Width() != progressWidth(80) {
+		t.Errorf("progress width after WindowSizeMsg = %d, want %d", p2.progress.Width(), progressWidth(80))
+	}
+}
+
+func TestPipelineUpdate_SpinnerTickMsg(t *testing.T) {
+	p := trivialPipeline(nil)
+	p2, cmd := p.Update(spinner.TickMsg{})
+	if p2 == nil {
+		t.Fatal("Update returned nil pipeline")
+	}
+	_ = cmd
+}
+
+func TestPipelineUpdate_ProgressFrameMsg(t *testing.T) {
+	p := trivialPipeline(nil)
+	p2, cmd := p.Update(progress.FrameMsg{})
+	if p2 == nil {
+		t.Fatal("Update returned nil pipeline")
+	}
+	_ = cmd
+}
+
+func TestPipelineUpdate_UnknownMsg(t *testing.T) {
+	p := trivialPipeline(nil)
+	p2, cmd := p.Update("unknown msg")
+	if p2 == nil {
+		t.Fatal("Update returned nil")
+	}
+	if cmd != nil {
+		cmd()
+	}
+}
+
+func TestPipelineView_RunningStep(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a", Title: "doing-a"}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	v := p.View()
+	if !strings.Contains(v, ui.PipelineTitle) {
+		t.Errorf("View missing PipelineTitle, got:\n%s", v)
+	}
+	if !strings.Contains(v, "doing-a") {
+		t.Errorf("View missing running step title, got:\n%s", v)
+	}
+	if !strings.Contains(v, ui.HintEscCancel) {
+		t.Errorf("View missing HintEscCancel, got:\n%s", v)
+	}
+}
+
+func TestPipelineView_FailedStep(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a", Title: "bad-step"}, funcStep{}),
+	})
+	p.views[0].status = stFailed
+	p.views[0].err = errBoom
+	p.failed = true
+	v := p.View()
+	if !strings.Contains(v, "bad-step") {
+		t.Errorf("View missing failed step title, got:\n%s", v)
+	}
+	if !strings.Contains(v, ui.HintAnyKeyMenu) {
+		t.Errorf("View missing HintAnyKeyMenu, got:\n%s", v)
+	}
+}
+
+func TestPipelineView_AllDone(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a", Title: "step-a"}, funcStep{}),
+	})
+	p.views[0].status = stDone
+	v := p.View()
+	if !strings.Contains(v, ui.LabelDone) {
+		t.Errorf("View missing LabelDone, got:\n%s", v)
+	}
+}
+
+func TestPipelineElapsed(t *testing.T) {
+	p := trivialPipeline(nil)
+	if p.elapsed() != 0 {
+		t.Error("elapsed with zero start should be 0")
+	}
+	p.start = time.Now().Add(-5 * time.Second)
+	if p.elapsed() < 4*time.Second {
+		t.Error("elapsed should be >= 4s after setting start to 5s ago")
+	}
+}
+
+func TestPipelineFmtElapsed_65s(t *testing.T) {
+	got := FmtElapsed(65 * time.Second)
+	if got != "01:05" {
+		t.Errorf("FmtElapsed(65s) = %q, want 01:05", got)
+	}
+}
+
+func TestPipelineSetProgress_EmptyViews(t *testing.T) {
+	p := trivialPipeline(nil)
+	cmd := p.setProgress()
+	if cmd != nil {
+		t.Error("setProgress with no views should return nil cmd")
+	}
+}
+
+func TestPipelineSetProgress_NonEmpty(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+	})
+	cmd := p.setProgress()
+	if cmd == nil {
+		t.Error("setProgress with views should return non-nil cmd")
+	}
+}
+
+func TestPipelineUpdate_CheckedMsg(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p2, cmd := p.Update(CheckedMsg{Name: "a", Satisfied: true})
+	if p2 == nil {
+		t.Fatal("Update returned nil")
+	}
+	if p2.views[0].status != stSkipped {
+		t.Errorf("status after CheckedMsg(satisfied) = %v, want skipped", p2.views[0].status)
+	}
+	_ = cmd
+}
+
+func TestPipelineUpdate_RanMsg(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a"}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p2, _ := p.Update(RanMsg{Name: "a", Err: nil})
+	if p2.views[0].status != stDone {
+		t.Errorf("status after RanMsg(ok) = %v, want done", p2.views[0].status)
+	}
+}
+
+func TestPipelineView_CurrentDetail(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "a", Title: "step-a", Detail: "doing detail"}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	v := p.View()
+	if !strings.Contains(v, "doing detail") {
+		t.Errorf("View missing currentDetail, got:\n%s", v)
+	}
+}
+
+func TestPipelineOnRan_Interactive_Retick(t *testing.T) {
+	p := trivialPipeline([]Registered{
+		reg(StepMeta{Name: "gh", Interactive: true, Optional: true}, funcStep{}),
+	})
+	p.views[0].status = stRunning
+	p.interacting = true
+	cmd := p.onRan(RanMsg{Name: "gh", Err: nil})
+	if p.interacting {
+		t.Error("onRan should clear interacting for interactive step")
+	}
+	if cmd == nil {
+		t.Error("onRan interactive step should return non-nil batch cmd (re-tick)")
 	}
 }

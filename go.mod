@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.7
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.3
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
 	github.com/gkampitakis/go-snaps v0.5.22
 	github.com/testcontainers/testcontainers-go v0.42.0
 )
@@ -16,6 +17,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/aymanbagabas/go-udiff v0.4.1 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -23,6 +25,7 @@ require (
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/x/exp/golden v0.0.0-20251109135125-8916d276318f // indirect
 	github.com/charmbracelet/x/exp/ordered v0.1.0 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
