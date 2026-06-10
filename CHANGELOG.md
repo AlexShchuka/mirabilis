@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- automated patch release on every PR merge to main; `release:minor` / `release:major` labels raise the bump (refs #91)
 - staticcheck and actionlint as required CI gates (refs #97)
 - dependabot docker ecosystem coverage for `.devcontainer/Dockerfile` (refs #97)
 - darwin success-path bats test for install.sh bootstrap sequence (refs #97)
