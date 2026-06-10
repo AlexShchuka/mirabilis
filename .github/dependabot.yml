@@ -16,3 +16,11 @@ updates:
       gomod:
         patterns:
           - "*"
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker:
+        patterns:
+          - "*"

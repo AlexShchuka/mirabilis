@@ -1,5 +1,7 @@
 # mirabilis — a Claude Code sandbox for autonomous AI coding agents
 
+[![ci](https://github.com/AlexShchuka/mirabilis/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexShchuka/mirabilis/actions/workflows/ci.yml)
+
 **mirabilis** is a one-command **cross-platform dev container** that runs **Claude Code** as an **autonomous AI coding agent** in an isolated
 Docker sandbox. You get full bypass autonomy behind a container boundary, the
 [`neuro-matrix`](https://github.com/AlexShchuka/neuro-matrix) agent harness preinstalled,

@@ -26,6 +26,14 @@ jobs:
         run: go build ./...
       - name: vet
         run: go vet -tags integration ./...
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          staticcheck ./...
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint
       - name: test -race
         run: go test -race -covermode=atomic -coverprofile=cover.out -tags integration ./...
       - id: cover
