@@ -1,9 +1,9 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"io"
 	"testing"
 
 	"charm.land/bubbles/v2/list"
@@ -201,7 +201,11 @@ func (fakeListItem) FilterValue() string { return "x" }
 
 func TestMenuDelegateRender_NonItemEarlyReturn(t *testing.T) {
 	d := delegate{}
-	d.Render(io.Discard, list.Model{}, 0, fakeListItem{})
+	var buf bytes.Buffer
+	d.Render(&buf, list.Model{}, 0, fakeListItem{})
+	if buf.Len() != 0 {
+		t.Errorf("Render(non-item) should write nothing, got %q", buf.String())
+	}
 }
 
 func TestApplyHarness_Reinstall_FirstCallErrors(t *testing.T) {
