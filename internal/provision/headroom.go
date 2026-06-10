@@ -11,10 +11,18 @@ func EnsureHeadroom(ctx context.Context, r runner.Runner) error {
 		return nil
 	}
 
-	_, err := r.Container(ctx, "bash", "-lc",
-		`python3 -m venv "$HOME/.headroom-venv" && "$HOME/.headroom-venv/bin/pip" install -q "headroom-ai[all]" && mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.headroom-venv/bin/headroom" "$HOME/.local/bin/headroom"`)
-	if err != nil {
-		warn("headroom install", err)
+	if _, err := r.Container(ctx, "bash", "-lc", `python3 -m venv "$HOME/.headroom-venv"`); err != nil {
+		warn("headroom venv", err)
+		return nil
+	}
+
+	if _, err := r.Container(ctx, "bash", "-lc", `timeout 600 "$HOME/.headroom-venv/bin/pip" install "headroom-ai[mcp,proxy]"`); err != nil {
+		warn("headroom pip install", err)
+		return nil
+	}
+
+	if _, err := r.Container(ctx, "bash", "-lc", `mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.headroom-venv/bin/headroom" "$HOME/.local/bin/headroom"`); err != nil {
+		warn("headroom symlink", err)
 		return nil
 	}
 
