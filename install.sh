@@ -83,6 +83,10 @@ install_linux() {
 
   [ "$missing" -eq 0 ] || die "install the prerequisites above, then re-run this script"
 
+  if ! command -v gitleaks >/dev/null 2>&1; then
+    say "warning: gitleaks not found — the pre-commit hook will skip secret scanning; install with: go install github.com/zricethezav/gitleaks/v8@latest"
+  fi
+
   clone_and_finish
 }
 
