@@ -41,6 +41,7 @@ bats smoke.
   (`internal/runtime`). If a token appears in a diff, stop.
 - Don't push to `main`; branch and open a PR. Keep the PR description minimal — what and
   why in a few lines, no ceremony.
+- Every PR merge to `main` auto-releases a patch bump; label `release:minor` / `release:major` to raise; direct pushes don't release.
 
 ## Development principles
 
