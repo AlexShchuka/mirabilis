@@ -3,24 +3,31 @@ package runner
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
-func TestFakeRunner_NilFuncsReturnSilentSuccess(t *testing.T) {
+func TestFakeRunner_NilFuncsErrorOnUnexpectedCall(t *testing.T) {
 	f := &FakeRunner{}
 	out, err := f.Host(context.Background(), "cmd", "arg1")
-	if err != nil {
-		t.Errorf("Host with nil HostFunc: err = %v, want nil", err)
+	if err == nil {
+		t.Fatal("Host with nil HostFunc: err = nil, want non-nil")
 	}
 	if out != "" {
 		t.Errorf("Host with nil HostFunc: out = %q, want empty", out)
 	}
+	if !strings.Contains(err.Error(), "cmd") || !strings.Contains(err.Error(), "arg1") {
+		t.Errorf("Host err = %q, want it to name command and args", err)
+	}
 	out, err = f.Container(context.Background(), "arg1", "arg2")
-	if err != nil {
-		t.Errorf("Container with nil ContFunc: err = %v, want nil", err)
+	if err == nil {
+		t.Fatal("Container with nil ContFunc: err = nil, want non-nil")
 	}
 	if out != "" {
 		t.Errorf("Container with nil ContFunc: out = %q, want empty", out)
+	}
+	if !strings.Contains(err.Error(), "arg1") || !strings.Contains(err.Error(), "arg2") {
+		t.Errorf("Container err = %q, want it to name args", err)
 	}
 }
 
