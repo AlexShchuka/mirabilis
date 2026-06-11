@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
+	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/google/uuid"
 )
 
 var telegramAPI = "https://api.telegram.org"
@@ -61,10 +63,17 @@ func messageFor(event string) (string, bool) {
 	return "", false
 }
 
+func telegramQueueDir() string {
+	repo := os.Getenv("MIRABILIS_REPO")
+	if repo == "" {
+		repo = "/workspace"
+	}
+	return telegram.OutboxDir(repo)
+}
+
 func Telegram() error {
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	chat := os.Getenv("TELEGRAM_CHAT_ID")
-	if token == "" || chat == "" {
+	if chat == "" {
 		return nil
 	}
 
@@ -84,17 +93,15 @@ func Telegram() error {
 		text = strings.Replace(text, "mirabilis:", "mirabilis ["+proj+"]:", 1)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	endpoint := telegramAPI + "/bot" + token + "/sendMessage"
-	form := url.Values{}
-	form.Set("chat_id", chat)
-	form.Set("text", text)
-	resp, err := client.PostForm(endpoint, form)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram sendMessage: %v\n", err)
-		return nil
+	job := telegram.Job{
+		ID:        uuid.NewString(),
+		ChatID:    chat,
+		Text:      text,
+		CreatedAt: time.Now().UTC(),
 	}
-	resp.Body.Close()
+	if err := telegram.WriteJob(telegramQueueDir(), job); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram queue: %v\n", err)
+	}
 	return nil
 }
 
@@ -156,6 +163,29 @@ func countInvariants(data []byte) int {
 	return n
 }
 
+func readBullets(data []byte) []string {
+	var bullets []string
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	pastFront := false
+	inFront := false
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "---" {
+			if !inFront {
+				inFront = true
+				continue
+			}
+			pastFront = true
+			inFront = false
+			continue
+		}
+		if pastFront && strings.HasPrefix(line, "- ") {
+			bullets = append(bullets, line)
+		}
+	}
+	return bullets
+}
+
 func memoryIndex(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -166,6 +196,7 @@ func memoryIndex(dir string) (string, error) {
 		meta     memoryMeta
 		fileName string
 		count    int
+		data     []byte
 	}
 
 	knownCats := make(map[string]bool, len(config.MemoryCategories))
@@ -186,7 +217,7 @@ func memoryIndex(dir string) (string, error) {
 		}
 		meta := parseFrontmatter(data)
 		count := countInvariants(data)
-		fi := fileInfo{meta: meta, count: count, fileName: e.Name()}
+		fi := fileInfo{meta: meta, count: count, fileName: e.Name(), data: data}
 		if knownCats[meta.category] {
 			if _, exists := byCategory[meta.category]; !exists {
 				byCategory[meta.category] = fi
@@ -205,6 +236,14 @@ func memoryIndex(dir string) (string, error) {
 	for _, cat := range config.MemoryCategories {
 		fi, ok := byCategory[cat.Name]
 		if !ok {
+			continue
+		}
+		if fi.meta.category == "sandbox-ops" {
+			fmt.Fprintf(&sb, "## sandbox-ops\n\n")
+			for _, bullet := range readBullets(fi.data) {
+				sb.WriteString(bullet + "\n")
+			}
+			sb.WriteString("\n")
 			continue
 		}
 		fmt.Fprintf(&sb, "- **%s** (%s, %d) — %s  · memory/%s\n",
@@ -491,12 +530,118 @@ func telegramTokenSecretPath() string {
 	return defaultPath
 }
 
+const (
+	postToolUseFailureBulletCap = 10
+	postToolUseFailureByteCap   = 2048
+)
+
+func tokenize(s string) []string {
+	fields := strings.FieldsFunc(s, func(r rune) bool {
+		switch r {
+		case ' ', '\t', '\n', '\r', ':', '/', '\\', '.', ',', ';', '!', '?', '"', '\'', '(', ')', '[', ']', '{', '}', '=', '-', '_':
+			return true
+		}
+		return false
+	})
+	var out []string
+	for _, f := range fields {
+		if len(f) >= 3 {
+			out = append(out, strings.ToLower(f))
+		}
+	}
+	return out
+}
+
+func matchesBullet(bullet string, tokens []string) bool {
+	low := strings.ToLower(bullet)
+	for _, tok := range tokens {
+		if strings.Contains(low, tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func PostToolUseFailure() error {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: PostToolUseFailure: read stdin: %v\n", err)
+		return nil
+	}
+
+	var payload struct {
+		ToolInput struct {
+			Command string `json:"command"`
+		} `json:"tool_input"`
+		ToolResponse struct {
+			Stdout string `json:"stdout"`
+		} `json:"tool_response"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil
+	}
+
+	combined := payload.ToolInput.Command + " " + payload.ToolResponse.Stdout
+	tokens := tokenize(combined)
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	memDir := filepath.Join(sessionHome(), ".claude", "memory")
+	entries, err := os.ReadDir(memDir)
+	if err != nil {
+		return nil
+	}
+
+	var matched []string
+	totalBytes := 0
+outer:
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == "MEMORY.md" {
+			continue
+		}
+		fileData, err := os.ReadFile(filepath.Join(memDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, bullet := range readBullets(fileData) {
+			if !matchesBullet(bullet, tokens) {
+				continue
+			}
+			if len(matched) >= postToolUseFailureBulletCap {
+				break outer
+			}
+			if totalBytes+len(bullet) > postToolUseFailureByteCap {
+				break outer
+			}
+			matched = append(matched, bullet)
+			totalBytes += len(bullet)
+		}
+	}
+
+	if len(matched) == 0 {
+		return nil
+	}
+
+	additionalContext := "Relevant memory:\n" + strings.Join(matched, "\n")
+	out, _ := json.Marshal(map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "PostToolUseFailure",
+			"additionalContext": additionalContext,
+		},
+	})
+	_, _ = os.Stdout.Write(out)
+	return nil
+}
+
 func Dispatch(name string) error {
 	switch name {
 	case "telegram":
 		return Telegram()
 	case "session-start":
 		return SessionStart()
+	case "post-tool-use-failure":
+		return PostToolUseFailure()
 	default:
 		return fmt.Errorf("unknown hook: %s", name)
 	}

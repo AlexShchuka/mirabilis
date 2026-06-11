@@ -23,6 +23,15 @@ jobs:
         run: make linux
       - name: docker build (default stacks)
         run: docker build -f .devcontainer/Dockerfile -t mirabilis:canary .
+      - name: nag if newer Go is available
+        run: |
+          pinned="$(grep 'ARG GO_VERSION=' .devcontainer/Dockerfile | head -1 | cut -d= -f2)"
+          latest="$(curl -fsSL https://go.dev/VERSION?m=text | head -1)"
+          if [ "$pinned" != "$latest" ]; then
+            echo "[canary] newer Go available: pinned=$pinned latest=$latest — update ARG GO_VERSION in .devcontainer/Dockerfile"
+          else
+            echo "[canary] Go is up to date: $pinned"
+          fi
 
   devcontainer:
     name: devcontainer up + configured assertions (best-effort)
@@ -42,6 +51,53 @@ jobs:
         run: devcontainer up --workspace-folder .
       - name: assert settings seeded (no in-container sandbox)
         run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
+      - name: assert harness-presence canary (CLAUDE.md symlink + CLAUDE_PLUGIN_ROOT in .bashrc)
+        run: |
+          devcontainer exec --workspace-folder . bash -lc '
+            test -L "$HOME/.neuro-matrix/CLAUDE.md" || { echo "[canary] CLAUDE.md symlink missing — harness not installed"; exit 1; }
+            grep -q "CLAUDE_PLUGIN_ROOT" "$HOME/.bashrc" || { echo "[canary] CLAUDE_PLUGIN_ROOT missing from .bashrc — harness not installed"; exit 1; }
+          ' || echo "[canary] harness presence check skipped — neuro-matrix not installed in this CI run"
+
+  devcontainer-upgrade:
+    name: devcontainer upgrade — open PR if lock is stale (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: install devcontainer CLI
+        run: npm install -g @devcontainers/cli
+      - name: devcontainer upgrade --dry-run
+        run: devcontainer upgrade --workspace-folder . --dry-run
+      - name: apply upgrade
+        run: devcontainer upgrade --workspace-folder .
+      - name: check for changes
+        id: diff
+        run: |
+          if git diff --quiet .devcontainer/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: open PR if lock is stale
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="canary/devcontainer-upgrade-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add .devcontainer/
+          git commit -m "chore(deps): devcontainer feature upgrade (canary $(date +%Y-%m-%d))"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(deps): devcontainer feature upgrade ($(date +%Y-%m-%d))" \
+            --body "Automated canary upgrade of devcontainer feature pins. Validate via \`workflow_dispatch\` post-merge." \
+            --base main \
+            --head "$branch"
 
   tests:
     name: re-run go + install.sh smoke (best-effort)

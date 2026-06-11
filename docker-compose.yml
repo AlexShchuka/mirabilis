@@ -34,6 +34,7 @@ services:
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
     volumes:
       - workspace:/workspace
+      - ./.mirabilis:/workspace/.mirabilis
       - claude-home:/home/node/.claude
       - gh-config:/home/node/.config/gh
     tmpfs:

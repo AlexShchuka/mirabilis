@@ -45,6 +45,17 @@
           }
         ]
       }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mirabilis hook post-tool-use-failure",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

@@ -166,9 +166,9 @@ func applyHarness(ctx context.Context, r runner.Runner, choice string) error {
 	return nil
 }
 
-func resetAllCmd(ctx context.Context, r runner.Runner) tea.Cmd {
+func resetAllCmd(ctx context.Context, r runner.Runner, preserve bool) tea.Cmd {
 	return func() tea.Msg {
-		if err := runtime.ResetAll(ctx, r); err != nil {
+		if err := runtime.ResetAll(ctx, r, preserve); err != nil {
 			return backToMenuMsg{notice: ui.NoticeResetErr + err.Error()}
 		}
 		return backToMenuMsg{notice: ui.NoticeResetDone}
@@ -341,8 +341,16 @@ func applyClaudeToken(ctx context.Context, r runner.Runner, configure bool, toke
 }
 
 func newResetForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
+	preserve := true
 	var confirmed bool
 	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[bool]().
+			Title(ui.FormTitleResetMemory).
+			Options(
+				huh.NewOption(ui.FormOptResetPreserve, true),
+				huh.NewOption(ui.FormOptResetDestroyAll, false),
+			).
+			Value(&preserve),
 		huh.NewConfirm().
 			Title(ui.FormTitleReset).
 			Description(ui.FormDescReset).
@@ -354,7 +362,7 @@ func newResetForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
 		if !confirmed {
 			return emit(backToMenuMsg{})
 		}
-		return resetAllCmd(ctx, r)
+		return resetAllCmd(ctx, r, preserve)
 	}
 	return &formScreen{form: form, apply: apply}
 }

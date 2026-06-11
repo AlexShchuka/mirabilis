@@ -362,3 +362,163 @@ func TestSessionStart_EmptyMemoryDir(t *testing.T) {
 		t.Errorf("hookEventName = %q, want SessionStart", hookOut["hookEventName"])
 	}
 }
+
+func TestSessionStart_SandboxOpsBulletsInlined(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, memDir, "sandbox-ops.md", `---
+category: sandbox-ops
+memory_type: procedural
+summary: How to operate this container.
+max_lines: 80
+---
+
+# Sandbox Ops
+
+- run tests with go test ./...
+- build with make linux
+- no gcc in this container
+`)
+	t.Setenv("HOME", tmp)
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+
+	if err := SessionStart(); err != nil {
+		_ = getOut()
+		t.Fatalf("SessionStart: %v", err)
+	}
+	out := getOut()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := payload["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hookOut["additionalContext"].(string)
+
+	if !strings.Contains(ctx, "go test ./...") {
+		t.Errorf("additionalContext missing sandbox-ops bullet text; got:\n%s", ctx)
+	}
+	if !strings.Contains(ctx, "make linux") {
+		t.Errorf("additionalContext missing 'make linux' bullet; got:\n%s", ctx)
+	}
+	if !strings.Contains(ctx, "no gcc in this container") {
+		t.Errorf("additionalContext missing 'no gcc' bullet; got:\n%s", ctx)
+	}
+}
+
+func TestPostToolUseFailure_MatchedBulletInContext(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, memDir, "sandbox-ops.md", `---
+category: sandbox-ops
+memory_type: procedural
+summary: ops
+---
+
+- no gcc in this container; use go test not go test -race
+- always run gofmt before committing
+`)
+	t.Setenv("HOME", tmp)
+
+	payload := `{
+		"hook_event_name": "PostToolUseFailure",
+		"tool_name": "Bash",
+		"tool_input": {"command": "gcc main.c -o main"},
+		"tool_response": {"stdout": "gcc: command not found", "stderr": ""}
+	}`
+	replaceStdin(t, payload)
+	getOut := captureStdout(t)
+
+	if err := PostToolUseFailure(); err != nil {
+		_ = getOut()
+		t.Fatalf("PostToolUseFailure: %v", err)
+	}
+	out := getOut()
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := result["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hookOut["additionalContext"].(string)
+	if !strings.Contains(ctx, "no gcc") {
+		t.Errorf("additionalContext missing matched bullet; got:\n%s", ctx)
+	}
+}
+
+func TestPostToolUseFailure_NoMatch_EmptyOutput(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, memDir, "sandbox-ops.md", `---
+category: sandbox-ops
+memory_type: procedural
+summary: ops
+---
+
+- always run gofmt before committing
+`)
+	t.Setenv("HOME", tmp)
+
+	payload := `{
+		"tool_input": {"command": "python main.py"},
+		"tool_response": {"stdout": "ImportError: module not found", "stderr": ""}
+	}`
+	replaceStdin(t, payload)
+	getOut := captureStdout(t)
+
+	if err := PostToolUseFailure(); err != nil {
+		_ = getOut()
+		t.Fatalf("PostToolUseFailure: %v", err)
+	}
+	out := getOut()
+	if out != "" {
+		t.Errorf("expected no output when no bullets match; got: %s", out)
+	}
+}
+
+func TestPostToolUseFailure_Cap_LimitsBullets(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var content strings.Builder
+	content.WriteString("---\ncategory: sandbox-ops\nmemory_type: procedural\nsummary: ops\n---\n\n")
+	for i := 0; i < 20; i++ {
+		content.WriteString("- error tip number " + strings.Repeat("x", i) + "\n")
+	}
+	writeTestFile(t, memDir, "sandbox-ops.md", content.String())
+	t.Setenv("HOME", tmp)
+
+	payload := `{"tool_input": {"command": "erroring command"}, "tool_response": {"stdout": "error tip"}}`
+	replaceStdin(t, payload)
+	getOut := captureStdout(t)
+
+	if err := PostToolUseFailure(); err != nil {
+		_ = getOut()
+		t.Fatalf("PostToolUseFailure: %v", err)
+	}
+	out := getOut()
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := result["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hookOut["additionalContext"].(string)
+	count := strings.Count(ctx, "- error tip")
+	if count > postToolUseFailureBulletCap {
+		t.Errorf("bullet count = %d, want <= %d", count, postToolUseFailureBulletCap)
+	}
+}

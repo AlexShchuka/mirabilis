@@ -70,12 +70,22 @@ func writeJSON(path string, m map[string]any) error {
 	return os.Rename(tmpName, path)
 }
 
+var seedManagedKeys = map[string]bool{
+	"hooks":      true,
+	"statusLine": true,
+	"env":        true,
+}
+
 func mergeSettings(dest, seed map[string]any) map[string]any {
 	out := make(map[string]any, len(dest))
 	for k, v := range dest {
 		out[k] = v
 	}
 	for k, sv := range seed {
+		if seedManagedKeys[k] {
+			out[k] = sv
+			continue
+		}
 		if dv, ok := out[k]; ok {
 			dm, dIsMap := dv.(map[string]any)
 			sm, sIsMap := sv.(map[string]any)
@@ -84,7 +94,9 @@ func mergeSettings(dest, seed map[string]any) map[string]any {
 				continue
 			}
 		}
-		out[k] = sv
+		if _, exists := out[k]; !exists {
+			out[k] = sv
+		}
 	}
 	return out
 }

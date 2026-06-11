@@ -2,12 +2,56 @@ package provision
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 )
+
+func RestoreMemory(root string) {
+	src := filepath.Join(root, ".mirabilis", "saved-memory")
+	if _, err := os.Stat(src); err != nil {
+		return
+	}
+	dst := filepath.Join(claudeDir(), "memory")
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		warn("restore memory: mkdir", err)
+		return
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		warn("restore memory: readdir", err)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		srcPath := filepath.Join(src, e.Name())
+		dstPath := filepath.Join(dst, e.Name())
+		if err := copyMemFile(srcPath, dstPath); err != nil {
+			warn("restore memory: copy "+e.Name(), err)
+		}
+	}
+	warn("restore memory: remove snapshot", os.RemoveAll(src))
+}
+
+func copyMemFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
 
 func titleCase(s string) string {
 	s = strings.ReplaceAll(s, "-", " ")

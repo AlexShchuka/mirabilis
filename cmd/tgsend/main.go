@@ -11,8 +11,8 @@
 // injected by ComposeEnv (not a secret — set from host keychain at container
 // start).
 //
-// Queue directory: derived from MIRABILIS_REPO env var (set by ComposeEnv)
-// via internal/telegram.OutboxDir. Falls back to /workspace if not set.
+// Queue directory: derived from MIRABILIS_REPO env var when set; defaults to
+// /workspace (the bind-mounted subtree root) via internal/telegram.OutboxDir.
 //
 // Dry-run (default): prints what would be queued, writes nothing.
 // With --confirm: writes the job file atomically.
