@@ -69,7 +69,7 @@ func TestInbox_PollChannelPosts(t *testing.T) {
 	}
 	inbox.withBaseURL(srv.URL)
 
-	msgs, newOffset, err := inbox.Poll(context.Background(), "", 0)
+	msgs, newOffset, err := inbox.Poll(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestInbox_SkipsNonChannelPost(t *testing.T) {
 	}
 	inbox.withBaseURL(srv.URL)
 
-	msgs, _, err := inbox.Poll(context.Background(), "", 0)
+	msgs, _, err := inbox.Poll(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestInbox_TokenNeverInError(t *testing.T) {
 	}
 	inbox.withBaseURL(srv.URL)
 
-	_, _, err = inbox.Poll(context.Background(), "", 0)
+	_, _, err = inbox.Poll(context.Background(), 0)
 	if err == nil {
 		t.Fatal("expected error from mocked server")
 	}

@@ -42,7 +42,7 @@ func NewInbox(tokenPath, mirrorPath string) (*Inbox, error) {
 	}, nil
 }
 
-func (in *Inbox) Poll(ctx context.Context, chatID string, offset int) ([]Message, int, error) {
+func (in *Inbox) Poll(ctx context.Context, offset int) ([]Message, int, error) {
 	token, err := in.readToken()
 	if err != nil {
 		return nil, offset, fmt.Errorf("telegram inbox: cannot read token: %w", err)
