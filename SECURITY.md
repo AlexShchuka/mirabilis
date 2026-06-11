@@ -47,8 +47,8 @@ responses, fetched documents — can trigger a memory write. If that content is 
 insert adversarial bullets, those bullets survive across sessions and are replayed by the
 same hooks.
 
-**Accepted risk:** The container's open-egress design (see above — `SECURITY.md:10-12` is
-unchanged) means there is no in-container network gate. Poisoned content reaches the agent;
+**Accepted risk:** The container's open-egress design (see **Egress is open** in the Threat model section above)
+means there is no in-container network gate. Poisoned content reaches the agent;
 the memory layer has no source attribution.
 
 **Mitigations in place:**

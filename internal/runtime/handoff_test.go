@@ -148,44 +148,6 @@ func TestHandoff_NoGHToken_Errors(t *testing.T) {
 	}
 }
 
-func TestSystemPromptScript_FallbackPath(t *testing.T) {
-	r := &runner.FakeRunner{
-		RepoVal: t.TempDir(),
-		ContFunc: func(args []string) (string, error) {
-			if len(args) >= 3 && args[0] == "gh" && args[1] == "auth" && args[2] == "token" {
-				return "ghtoken\n", nil
-			}
-			return "", nil
-		},
-	}
-	_ = r
-	spf := ""
-	if spf = strings.TrimSpace(spf); spf == "" {
-		spf = "/opt/mirabilis/config/sandbox-context.md"
-	}
-	if spf != "/opt/mirabilis/config/sandbox-context.md" {
-		t.Errorf("fallback path = %q, want /opt/mirabilis/config/sandbox-context.md", spf)
-	}
-}
-
-func TestSystemPromptScript_ContainerPath_UsedWhenPresent(t *testing.T) {
-	want := "/tmp/mirabilis-system-prompt.md"
-	r := &runner.FakeRunner{
-		RepoVal: t.TempDir(),
-		ContFunc: func(args []string) (string, error) {
-			return want + "\n", nil
-		},
-	}
-	ctx := t.Context()
-	spf, _ := r.Container(ctx, "bash", "-lc", systemPromptScript)
-	if spf = strings.TrimSpace(spf); spf == "" {
-		spf = "/opt/mirabilis/config/sandbox-context.md"
-	}
-	if spf != want {
-		t.Errorf("got %q, want %q", spf, want)
-	}
-}
-
 func TestHandoff_DockerMissing_Errors(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	r := &runner.FakeRunner{

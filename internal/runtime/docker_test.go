@@ -182,6 +182,86 @@ func TestResetAll_Preserve_SavesMemoryBeforeDown(t *testing.T) {
 	}
 }
 
+func TestRestoreMemoryFromHost_NoSnapshot_Noop(t *testing.T) {
+	repo := t.TempDir()
+	r := &runner.FakeRunner{
+		RepoVal: repo,
+		HostFunc: func(name string, args []string) (string, error) {
+			t.Errorf("unexpected Host call: %s %v", name, args)
+			return "", nil
+		},
+	}
+	if err := RestoreMemoryFromHost(context.Background(), r); err != nil {
+		t.Errorf("RestoreMemoryFromHost with no snapshot = %v, want nil", err)
+	}
+}
+
+func TestRestoreMemoryFromHost_DockerCp_InvocationAndCleanup(t *testing.T) {
+	repo := t.TempDir()
+	savePath := MemorySavePath(repo)
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savePath, "sandbox-ops.md"), []byte("---\ncategory: sandbox-ops\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var capturedName string
+	var capturedArgs []string
+	r := &runner.FakeRunner{
+		RepoVal: repo,
+		HostFunc: func(name string, args []string) (string, error) {
+			capturedName = name
+			capturedArgs = args
+			return "", nil
+		},
+	}
+
+	if err := RestoreMemoryFromHost(context.Background(), r); err != nil {
+		t.Fatalf("RestoreMemoryFromHost = %v, want nil", err)
+	}
+
+	if capturedName != "docker" {
+		t.Errorf("Host called with %q, want %q", capturedName, "docker")
+	}
+	wantArgs := []string{"cp", savePath + "/.", "mirabilis:/home/node/.claude/memory/"}
+	if len(capturedArgs) != len(wantArgs) {
+		t.Fatalf("docker cp args = %v, want %v", capturedArgs, wantArgs)
+	}
+	for i, want := range wantArgs {
+		if capturedArgs[i] != want {
+			t.Errorf("arg[%d] = %q, want %q", i, capturedArgs[i], want)
+		}
+	}
+
+	if _, err := os.Stat(savePath); err == nil {
+		t.Error("staging dir must be removed after docker cp")
+	}
+}
+
+func TestRestoreMemoryFromHost_DockerCpError_Propagated(t *testing.T) {
+	repo := t.TempDir()
+	savePath := MemorySavePath(repo)
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	r := &runner.FakeRunner{
+		RepoVal: repo,
+		HostFunc: func(name string, args []string) (string, error) {
+			return "", fmt.Errorf("container not running")
+		},
+	}
+
+	err := RestoreMemoryFromHost(context.Background(), r)
+	if err == nil {
+		t.Error("RestoreMemoryFromHost must return error when docker cp fails")
+	}
+	if !strings.Contains(err.Error(), "restore memory") {
+		t.Errorf("error %v does not mention 'restore memory'", err)
+	}
+}
+
 func TestContainerRunning(t *testing.T) {
 	tests := []struct {
 		name    string

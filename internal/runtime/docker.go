@@ -99,6 +99,20 @@ func SaveMemory(repoRoot string) error {
 	return nil
 }
 
+func RestoreMemoryFromHost(ctx context.Context, r runner.Runner) error {
+	src := MemorySavePath(r.Repo())
+	if _, err := os.Stat(src); err != nil {
+		return nil
+	}
+	if _, err := r.Host(ctx, "docker", "cp", src+"/.", "mirabilis:/home/node/.claude/memory/"); err != nil {
+		return fmt.Errorf("restore memory: docker cp: %w", err)
+	}
+	if err := os.RemoveAll(src); err != nil {
+		fmt.Fprintf(os.Stderr, "[runtime] WARN: restore memory: remove staging dir: %v\n", err)
+	}
+	return nil
+}
+
 func ResetAll(ctx context.Context, r runner.Runner, preserve bool) error {
 	if preserve {
 		if err := SaveMemory(r.Repo()); err != nil {
