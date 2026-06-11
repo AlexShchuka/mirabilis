@@ -52,4 +52,11 @@ const (
 	FormCancelReset   = "Cancel"
 	FormTitleSkills   = "Optional skills (space — toggle, Enter — ok)"
 	FormTitleStacks   = "Optional stacks (node + python + go already in base)"
+
+	FormTitleTelegram    = "Telegram"
+	FormOptTelegramConfigure = "Настроить"
+	FormOptTelegramSkip  = "Пропустить"
+	FormTitleTelegramToken = "Токен бота"
+	FormDescTelegramToken  = "Токен от @BotFather. Хранится в файле-секрете, не в git, не в образе."
+	NoticeTelegramErr    = "telegram: "
 )

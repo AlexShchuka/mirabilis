@@ -538,3 +538,190 @@ func TestNewLaunchForm_AllCatalogsEmpty_Nil(t *testing.T) {
 		t.Error("newLaunchForm with no catalogs should return nil")
 	}
 }
+
+// ── Telegram form tests ────────────────────────────────────────────────────
+
+func TestNewTelegramForm_NotNil(t *testing.T) {
+	f := newTelegramForm(80, 24)
+	if f == nil {
+		t.Fatal("newTelegramForm returned nil")
+	}
+	if f.form == nil {
+		t.Fatal("newTelegramForm form field is nil")
+	}
+}
+
+func TestNewTelegramForm_View_NonEmpty(t *testing.T) {
+	// Calling View exercises the form rendering path including WithHideFunc.
+	f := newTelegramForm(80, 24)
+	if f.Init() == nil {
+		// Init is required before rendering.
+	}
+	v := f.View()
+	if v == "" {
+		t.Error("newTelegramForm.View() should return non-empty string")
+	}
+	// The options are rendered with ANSI codes; check the raw UTF-8 text is present.
+	if !strings.Contains(v, "Пропустить") {
+		t.Errorf("newTelegramForm.View() missing Пропустить option, got:\n%s", v)
+	}
+}
+
+func TestNewTelegramForm_SkipPath_EmitsStartPipelineMsg(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	f := newTelegramForm(80, 24)
+	// Default is "skip" (configure = false), so apply() without changing
+	// anything should immediately emit startPipelineMsg.
+	cmd := f.apply()
+	if cmd == nil {
+		t.Fatal("apply() on skip path returned nil cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("skip path apply() emits %T, want startPipelineMsg", msg)
+	}
+}
+
+func TestNewTelegramForm_SkipPath_WritesNoFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	f := newTelegramForm(80, 24)
+	cmd := f.apply()
+	if cmd == nil {
+		t.Fatal("apply() returned nil")
+	}
+	cmd()
+
+	// The token file must NOT be created on the skip path.
+	tokenFile := tmp + "/.claude/.mirabilis-telegram-token"
+	if _, err := os.Stat(tokenFile); err == nil {
+		t.Error("skip path must not write the token file")
+	}
+}
+
+func TestNewTelegramForm_ConfigurePath_WritesTokenFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Simulate user choosing "configure" and entering a token by directly
+	// setting the captured closure variables via the form's internal state.
+	// We do this via a test-only wrapper that simulates the configure=true state.
+	msg := applyTelegramConfigure(t, "bot999:TestToken")
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("configure path apply() emits %T, want startPipelineMsg", msg)
+	}
+
+	tokenFile := tmp + "/.claude/.mirabilis-telegram-token"
+	data, err := os.ReadFile(tokenFile)
+	if err != nil {
+		t.Fatalf("token file not written: %v", err)
+	}
+	got := strings.TrimRight(string(data), "\r\n")
+	if got != "bot999:TestToken" {
+		t.Errorf("token file content = %q, want bot999:TestToken", got)
+	}
+}
+
+func TestNewTelegramForm_ConfigurePath_FileHas0600(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	applyTelegramConfigure(t, "bot999:PermTest")
+
+	tokenFile := tmp + "/.claude/.mirabilis-telegram-token"
+	info, err := os.Stat(tokenFile)
+	if err != nil {
+		t.Fatalf("token file not found: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("token file mode = %04o, want 0600", info.Mode().Perm())
+	}
+}
+
+func TestNewTelegramForm_ConfigurePath_EmptyToken_BackToMenu(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Directly test the defensive guard in apply() for empty token with
+	// configure=true (this path is normally blocked by huh Validate, but the
+	// apply() function guards against it defensively).
+	msg := applyTelegramConfigure(t, "   ")
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("empty-token configure path emits %T, want backToMenuMsg", msg)
+	}
+	if !strings.HasPrefix(btm.notice, ui.NoticeTelegramErr) {
+		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeTelegramErr)
+	}
+}
+
+// applyTelegramConfigure exercises the configure=true branch of the Telegram
+// form by calling the extracted applyTelegramToken function directly.
+func applyTelegramConfigure(t *testing.T, token string) tea.Msg {
+	t.Helper()
+	return applyTelegramToken(true, token)()
+}
+
+// ── validateTelegramToken tests ───────────────────────────────────────────
+
+func TestValidateTelegramToken_Empty_ReturnsError(t *testing.T) {
+	if err := validateTelegramToken(""); err == nil {
+		t.Error("validateTelegramToken('') = nil, want error")
+	}
+}
+
+func TestValidateTelegramToken_Spaces_ReturnsError(t *testing.T) {
+	if err := validateTelegramToken("   "); err == nil {
+		t.Error("validateTelegramToken('   ') = nil, want error")
+	}
+}
+
+func TestValidateTelegramToken_Valid_ReturnsNil(t *testing.T) {
+	if err := validateTelegramToken("bot123:abc"); err != nil {
+		t.Errorf("validateTelegramToken(valid) = %v, want nil", err)
+	}
+}
+
+// ── applyTelegramToken tests ──────────────────────────────────────────────
+
+func TestApplyTelegramToken_Skip_EmitsStartPipeline(t *testing.T) {
+	msg := applyTelegramToken(false, "")()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("applyTelegramToken(skip) emits %T, want startPipelineMsg", msg)
+	}
+}
+
+func TestApplyTelegramToken_Configure_WritesAndEmitsStartPipeline(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	msg := applyTelegramToken(true, "bot456:hello")()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("applyTelegramToken(configure) = %T, want startPipelineMsg", msg)
+	}
+}
+
+func TestApplyTelegramToken_Configure_WriteError_BackToMenu(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks not effective as root")
+	}
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	// Make ~/.claude a read-only dir so WriteTelegramToken fails.
+	cd := tmp + "/.claude"
+	if err := os.MkdirAll(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
+
+	msg := applyTelegramToken(true, "bot789:fail")()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("applyTelegramToken write-error = %T, want backToMenuMsg", msg)
+	}
+	if !strings.HasPrefix(btm.notice, ui.NoticeTelegramErr) {
+		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeTelegramErr)
+	}
+}

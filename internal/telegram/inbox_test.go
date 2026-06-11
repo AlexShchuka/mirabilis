@@ -347,6 +347,22 @@ func TestInbox_Append_OpenError(t *testing.T) {
 	}
 }
 
+func TestInbox_Poll_InvalidBaseURL_BuildRequestFails(t *testing.T) {
+	// A base URL with a control character makes http.NewRequestWithContext fail.
+	tok := writeTokenFile(t, "tok-invalid")
+	mirror := filepath.Join(t.TempDir(), "mirror.jsonl")
+	inbox, err := NewInbox(tok, mirror)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox.withBaseURL("http://invalid\x00host")
+
+	_, _, err = inbox.Poll(context.Background(), 0)
+	if err == nil {
+		t.Fatal("expected error for invalid base URL")
+	}
+}
+
 func TestInbox_ReadToken_EmptyFile(t *testing.T) {
 	tok := writeTokenFile(t, "   \n")
 	mirror := filepath.Join(t.TempDir(), "mirror.jsonl")

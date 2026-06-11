@@ -71,6 +71,11 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backToMenuMsg:
 		return a.toMenu(msg.notice)
 	case launchReadyMsg:
+		// Catalog form finished — show the optional Telegram step before launching.
+		f := newTelegramForm(a.w, a.h)
+		a.form, a.phase = f, phaseForm
+		return a, f.Init()
+	case startPipelineMsg:
 		a.form = nil
 		return a.startPipeline()
 	case pipeline.DoneMsg:
@@ -148,7 +153,10 @@ func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 	case "launch":
 		f := newLaunchForm(a.r, a.w, a.h)
 		if f == nil {
-			return a.startPipeline()
+			// No catalog — skip directly to the optional Telegram step.
+			tg := newTelegramForm(a.w, a.h)
+			a.form, a.phase = tg, phaseForm
+			return a, tg.Init()
 		}
 		a.form, a.phase = f, phaseForm
 		return a, f.Init()

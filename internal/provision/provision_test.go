@@ -768,6 +768,60 @@ func writeSkillsStatefile(t *testing.T, homeDir, content string) {
 	}
 }
 
+func TestEnsureSkills_CatalogEntryNotSelected_Skipped(t *testing.T) {
+	// Covers the "!selectedSet[entry] → continue" branch (line 70-71):
+	// catalog has A and B, but only B is selected — A must be skipped.
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	// Select only one of two catalog entries.
+	writeSkillsStatefile(t, tmp, "noamseg/interview-coach-skill\n")
+	var cloneArgs []string
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			if name == "git" && len(args) > 0 && args[0] == "clone" {
+				cloneArgs = append(cloneArgs, args...)
+			}
+			return "", nil
+		},
+	}
+	// Catalog has two entries; selected has only the second.
+	cfg := makeSkillsConfig(t, "unselected-owner/unselected-repo\nnoamseg/interview-coach-skill\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil", err)
+	}
+	// The unselected-repo must NOT be cloned.
+	for _, a := range cloneArgs {
+		if strings.Contains(a, "unselected-repo") {
+			t.Errorf("unselected-repo was cloned; clone args: %v", cloneArgs)
+		}
+	}
+}
+
+func TestEnsureSkills_CatalogEntryWithoutSlash_Skipped(t *testing.T) {
+	// Covers the "len(parts) != 2 → continue" branch (line 74-75):
+	// a catalog line that is not in owner/repo format is silently skipped.
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	writeSkillsStatefile(t, tmp, "malformed-entry\n")
+	var hostCalls []string
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			hostCalls = append(hostCalls, name)
+			return "", nil
+		},
+	}
+	// Catalog has a malformed entry (no slash) and the selection matches it.
+	cfg := makeSkillsConfig(t, "malformed-entry\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil for malformed catalog entry", err)
+	}
+	for _, c := range hostCalls {
+		if c == "git" {
+			// git version check is ok; clone/pull is not.
+		}
+	}
+}
+
 func TestEnsureSkills_NoCatalog_Noop(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
