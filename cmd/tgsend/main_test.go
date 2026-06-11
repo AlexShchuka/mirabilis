@@ -115,12 +115,7 @@ func TestQueueWriter_Confirm_WritesExactlyOneJobFile(t *testing.T) {
 	dir := t.TempDir()
 	queueDir := filepath.Join(dir, "outbox")
 
-	code := runSend(queueDir, "-100test", "hello confirm", true, 0, io.Discard, io.Discard)
-	if code != 0 {
-		// Exit code 0 is success; non-zero only if WriteJob fails or status
-		// wait fails — both acceptable (no watcher running in tests).
-		// The relevant assertion is below: file must exist.
-	}
+	runSend(queueDir, "-100test", "hello confirm", true, 0, io.Discard, io.Discard)
 
 	entries, err := os.ReadDir(queueDir)
 	if err != nil {

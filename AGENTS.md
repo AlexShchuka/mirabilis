@@ -24,17 +24,17 @@ symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`.
 `internal/` Go packages: TUI host launcher (`internal/app`), pipeline engine
 (`internal/pipeline`), provisioner (`internal/provision`), OS seam and Docker primitives
 (`internal/runtime`), Claude hook handlers (`internal/hooks`), step implementations
-(`internal/steps/*`), GitHub device-flow (`internal/ghauth`), and supporting leaves
+(`internal/steps`), GitHub device-flow (`internal/ghauth`), and supporting leaves
 (`internal/runner`, `internal/ui`, `internal/config`) ·
-`.devcontainer/` + `docker-compose.yml` the container definition (Dockerfile for build-time
-layers; `devcontainer.json` for features and lifecycle hooks) · `test/` the install.sh
+`.devcontainer/` + `docker-compose.yml` the container definition · `test/` the install.sh
 bats smoke.
 
 ## Don't
 
 - No comments in code or config — prose lives in `.md` only (shell, Dockerfile, Makefile,
-  JSON, YAML, `.env`). One exception: the version comment after a SHA-pinned `uses:` in
-  `.github/workflows` — tool-consumed metadata, not prose.
+  JSON, YAML, `.env`). Two exceptions, both tool-consumed metadata not prose: the version
+  comment after a SHA-pinned `uses:` in `.github/workflows`, and `# shellcheck disable=`
+  directives in workflow `run:` scripts where the suppression is structurally correct.
 - Never commit secrets. There are two host-side secrets: the Claude OAuth token
   (`claude setup-token` on the host, stored in the macOS Keychain or
   `~/.claude/.mirabilis-claude-token` on Linux/WSL, injected as
@@ -60,8 +60,8 @@ Operating agreement for working **on this repo** (complements the harness's gene
 8. **Human gate before protocol-level shared state.** Protocol artifacts (invariant table, glossary) need the non-producing human's sign-off, paired to Common Code v3 `signed_by` (neuro-matrix#29).
 9. **BLUF.** Lead with the conclusion.
 
-The mechanical toolchain (`go test`, bats — see `.github/workflows/ci.yml`) is the source of
-mechanical rules; don't duplicate them in prose. Go code follows the
-[Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md), [Effective Go](https://go.dev/doc/effective_go), and [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments); code is `gofmt`/`goimports`-clean (CI enforces `gofmt`). **How** to work in general lives in the
+The mechanical toolchain (`go test`, bats, golangci-lint — see `.github/workflows/ci.yml`) is
+the source of mechanical rules; don't duplicate them in prose. Go code follows the
+[Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md), [Effective Go](https://go.dev/doc/effective_go), and [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments); formatting and static analysis are CI-enforced. **How** to work in general lives in the
 neuro-matrix harness; this file says **what** the repo is, plus the repo-specific principles
 above.

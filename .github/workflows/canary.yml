@@ -50,9 +50,12 @@ jobs:
       - name: devcontainer up
         run: devcontainer up --workspace-folder .
       - name: assert settings seeded (no in-container sandbox)
-        run: devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
+        run: |
+          # shellcheck disable=SC2016
+          devcontainer exec --workspace-folder . bash -lc 'test -f "$HOME/.claude/settings.json" && jq -e ".sandbox == null" "$HOME/.claude/settings.json"'
       - name: assert harness-presence canary (CLAUDE.md symlink + CLAUDE_PLUGIN_ROOT in .bashrc)
         run: |
+          # shellcheck disable=SC2016
           devcontainer exec --workspace-folder . bash -lc '
             test -L "$HOME/.neuro-matrix/CLAUDE.md" || { echo "[canary] CLAUDE.md symlink missing — harness not installed"; exit 1; }
             grep -q "CLAUDE_PLUGIN_ROOT" "$HOME/.bashrc" || { echo "[canary] CLAUDE_PLUGIN_ROOT missing from .bashrc — harness not installed"; exit 1; }
