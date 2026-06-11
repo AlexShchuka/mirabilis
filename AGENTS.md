@@ -35,10 +35,13 @@ bats smoke.
 - No comments in code or config — prose lives in `.md` only (shell, Dockerfile, Makefile,
   JSON, YAML, `.env`). One exception: the version comment after a SHA-pinned `uses:` in
   `.github/workflows` — tool-consumed metadata, not prose.
-- Never commit secrets. Sign-in is native and persists in volumes; the only host-side
-  secret is the optional Telegram token — read from the macOS Keychain on macOS, and from
-  the `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` environment variables on Linux and WSL
-  (`internal/runtime`). If a token appears in a diff, stop.
+- Never commit secrets. There are two host-side secrets: the Claude OAuth token
+  (`claude setup-token` on the host, stored in the macOS Keychain or
+  `~/.claude/.mirabilis-claude-token` on Linux/WSL, injected as
+  `CLAUDE_CODE_OAUTH_TOKEN`) and the optional Telegram token (macOS Keychain or
+  `~/.claude/.mirabilis-telegram-token` on Linux/WSL, injected as
+  `TELEGRAM_BOT_TOKEN`). Both are blocked from host-env pass-through by
+  `blockedFromContainer` (`internal/runtime`). If a token appears in a diff, stop.
 - Don't push to `main`; branch and open a PR. Keep the PR description minimal — what and
   why in a few lines, no ceremony.
 - Every PR merge to `main` auto-releases a patch bump; label `release:minor` / `release:major` to raise; direct pushes don't release.

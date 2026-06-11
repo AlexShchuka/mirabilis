@@ -22,20 +22,30 @@ stronger isolation boundary (microVM) than a container provides.
 
 ## Secrets
 
-- **GitHub and Claude** sign-in use the native flows (`gh auth login`, Claude's
-  first-run login) and persist **inside the sandbox volumes** — `~/.config/gh`
-  (`gh-config`) and `~/.claude/.credentials.json` (`claude-home`, mode `0600`).
-  They never touch the repository and survive updates and rebuilds.
+- **GitHub** sign-in uses the native flow (`gh auth login`) and persists inside the
+  sandbox volume `~/.config/gh` (`gh-config`). It never touches the repository and
+  survives updates and rebuilds.
+- **Claude** authentication uses a 1-year OAuth token produced by running
+  `claude setup-token` on the host. On macOS the token is stored in the Keychain
+  under the service name `mirabilis-claude-token-token`; on Linux and WSL it is
+  stored in `~/.claude/.mirabilis-claude-token` (mode `0600`). The Go launcher
+  injects it as `CLAUDE_CODE_OAUTH_TOKEN` at container launch and `blockedFromContainer`
+  prevents the host environment variable from being passed through by accident.
+  `claude setup-token` on the host replaces in-container `/login` as the setup path.
+  Note: `~/.claude/.credentials.json` produced by in-container `/login` has higher
+  precedence than the env token — if that file exists in the `claude-home` volume,
+  it silently wins. The provision-phase TUI warns the owner if both are present.
 - The optional **Telegram** token's source depends on the host: on macOS it lives in the
-  Keychain; on Linux and WSL it is read from the `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`
-  environment variables. Either way the Go launcher injects it as an environment variable at
-  run time; Context7's MCP server runs anonymously, with no key.
+  Keychain; on Linux and WSL it lives in `~/.claude/.mirabilis-telegram-token`
+  (mode `0600`). The Go launcher injects it as `TELEGRAM_BOT_TOKEN` at container
+  launch; Context7's MCP server runs anonymously, with no key.
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
   GitHub MCP server receives it as a request header, so it also
   lands in the container's per-user config on the `claude-home` volume — inside
   the container, never in the repo. Anyone with access to the Docker socket (or
   host root) can read container secrets via `docker inspect mirabilis` or
-  `/proc/1/environ`; the Docker socket is part of the secret trust boundary.
+  `/proc/1/environ` — including `CLAUDE_CODE_OAUTH_TOKEN`; the Docker socket is
+  part of the secret trust boundary.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately.
 
