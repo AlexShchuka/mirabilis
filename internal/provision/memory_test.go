@@ -9,6 +9,90 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 )
 
+func TestRestoreMemory_RoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	root := t.TempDir()
+
+	savePath := filepath.Join(root, ".mirabilis", "saved-memory")
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const content1 = "---\ncategory: sandbox-ops\n---\n\n- bullet one\n"
+	const content2 = "---\ncategory: about-me\n---\n\n- bullet two\n"
+	if err := os.WriteFile(filepath.Join(savePath, "sandbox-ops.md"), []byte(content1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savePath, "about-me.md"), []byte(content2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	RestoreMemory(root)
+
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	for name, want := range map[string]string{"sandbox-ops.md": content1, "about-me.md": content2} {
+		data, err := os.ReadFile(filepath.Join(memDir, name))
+		if err != nil {
+			t.Errorf("memory file %s not restored: %v", name, err)
+			continue
+		}
+		if string(data) != want {
+			t.Errorf("restored %s = %q, want %q", name, string(data), want)
+		}
+	}
+	if _, err := os.Stat(savePath); err == nil {
+		t.Error("snapshot dir must be removed after restore")
+	}
+}
+
+func TestRestoreMemory_NoSnapshot_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	root := t.TempDir()
+
+	RestoreMemory(root)
+
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	entries, _ := os.ReadDir(memDir)
+	if len(entries) != 0 {
+		t.Errorf("RestoreMemory with no snapshot created files: %v", entries)
+	}
+}
+
+func TestRestoreMemory_OverwritesExistingFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	root := t.TempDir()
+
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existingPath := filepath.Join(memDir, "sandbox-ops.md")
+	if err := os.WriteFile(existingPath, []byte("old content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	savePath := filepath.Join(root, ".mirabilis", "saved-memory")
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const restored = "---\ncategory: sandbox-ops\n---\n\n- restored bullet\n"
+	if err := os.WriteFile(filepath.Join(savePath, "sandbox-ops.md"), []byte(restored), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	RestoreMemory(root)
+
+	data, err := os.ReadFile(existingPath)
+	if err != nil {
+		t.Fatalf("memory file gone after restore: %v", err)
+	}
+	if string(data) != restored {
+		t.Errorf("file not overwritten: got %q, want %q", string(data), restored)
+	}
+}
+
 func TestEnsureMemory_SeedsAllCategories(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)

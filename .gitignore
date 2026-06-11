@@ -20,6 +20,7 @@ bin/
 
 .mcp.json
 .claude/
+.mirabilis/
 /mirabilis
 cover.out
 .bats-exec.*

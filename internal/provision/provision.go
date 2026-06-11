@@ -8,7 +8,6 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/runtime"
 )
 
 func warn(step string, err error) {
@@ -50,7 +49,7 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 
 	step("settings", EnsureSettings(cfg))
 	step("theme", EnsureTheme(cfg))
-	step("restore memory", runtime.RestoreMemoryFromHost(ctx, r))
+	RestoreMemory("/workspace")
 	step("memory", EnsureMemory())
 	step("git identity", EnsureGitIdentity(ctx, r))
 	step("plugins", EnsurePlugins(ctx, r, cfg))

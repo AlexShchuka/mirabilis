@@ -219,17 +219,3 @@ func TestComposeEnv_ManagedKeys(t *testing.T) {
 		t.Errorf("STACKS = %q, want go,rust", v)
 	}
 }
-
-func TestComposeEnv_MirabiliisRepoSet(t *testing.T) {
-	repo := makeGitRepo(t)
-	env := ComposeEnv(repo)
-	var found string
-	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok && k == "MIRABILIS_REPO" {
-			found = v
-		}
-	}
-	if found != repo {
-		t.Errorf("MIRABILIS_REPO = %q, want %q", found, repo)
-	}
-}

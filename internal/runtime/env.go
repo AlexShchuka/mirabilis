@@ -16,7 +16,6 @@ var blockedFromContainer = map[string]bool{
 func ComposeEnv(repo string) []string {
 	managed := map[string]string{
 		"MIRABILIS_VERSION": GitShort(repo),
-		"MIRABILIS_REPO":    repo,
 		"TELEGRAM_CHAT_ID":  keychainGet("telegram-chat"),
 	}
 	if stacks, ok := config.ReadStacks(repo); ok {
