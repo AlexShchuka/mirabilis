@@ -156,6 +156,29 @@ func countInvariants(data []byte) int {
 	return n
 }
 
+func readBullets(data []byte) []string {
+	var bullets []string
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	pastFront := false
+	inFront := false
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "---" {
+			if !inFront {
+				inFront = true
+				continue
+			}
+			pastFront = true
+			inFront = false
+			continue
+		}
+		if pastFront && strings.HasPrefix(line, "- ") {
+			bullets = append(bullets, line)
+		}
+	}
+	return bullets
+}
+
 func memoryIndex(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -166,6 +189,7 @@ func memoryIndex(dir string) (string, error) {
 		meta     memoryMeta
 		fileName string
 		count    int
+		data     []byte
 	}
 
 	knownCats := make(map[string]bool, len(config.MemoryCategories))
@@ -186,7 +210,7 @@ func memoryIndex(dir string) (string, error) {
 		}
 		meta := parseFrontmatter(data)
 		count := countInvariants(data)
-		fi := fileInfo{meta: meta, count: count, fileName: e.Name()}
+		fi := fileInfo{meta: meta, count: count, fileName: e.Name(), data: data}
 		if knownCats[meta.category] {
 			if _, exists := byCategory[meta.category]; !exists {
 				byCategory[meta.category] = fi
@@ -205,6 +229,14 @@ func memoryIndex(dir string) (string, error) {
 	for _, cat := range config.MemoryCategories {
 		fi, ok := byCategory[cat.Name]
 		if !ok {
+			continue
+		}
+		if fi.meta.category == "sandbox-ops" {
+			fmt.Fprintf(&sb, "## sandbox-ops\n\n")
+			for _, bullet := range readBullets(fi.data) {
+				sb.WriteString(bullet + "\n")
+			}
+			sb.WriteString("\n")
 			continue
 		}
 		fmt.Fprintf(&sb, "- **%s** (%s, %d) — %s  · memory/%s\n",

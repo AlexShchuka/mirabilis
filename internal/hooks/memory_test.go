@@ -362,3 +362,50 @@ func TestSessionStart_EmptyMemoryDir(t *testing.T) {
 		t.Errorf("hookEventName = %q, want SessionStart", hookOut["hookEventName"])
 	}
 }
+
+func TestSessionStart_SandboxOpsBulletsInlined(t *testing.T) {
+	tmp := t.TempDir()
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	if err := os.MkdirAll(memDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, memDir, "sandbox-ops.md", `---
+category: sandbox-ops
+memory_type: procedural
+summary: How to operate this container.
+max_lines: 80
+---
+
+# Sandbox Ops
+
+- run tests with go test ./...
+- build with make linux
+- no gcc in this container
+`)
+	t.Setenv("HOME", tmp)
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+
+	if err := SessionStart(); err != nil {
+		_ = getOut()
+		t.Fatalf("SessionStart: %v", err)
+	}
+	out := getOut()
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("output not valid JSON: %v\noutput: %s", err, out)
+	}
+	hookOut, _ := payload["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hookOut["additionalContext"].(string)
+
+	if !strings.Contains(ctx, "go test ./...") {
+		t.Errorf("additionalContext missing sandbox-ops bullet text; got:\n%s", ctx)
+	}
+	if !strings.Contains(ctx, "make linux") {
+		t.Errorf("additionalContext missing 'make linux' bullet; got:\n%s", ctx)
+	}
+	if !strings.Contains(ctx, "no gcc in this container") {
+		t.Errorf("additionalContext missing 'no gcc' bullet; got:\n%s", ctx)
+	}
+}
