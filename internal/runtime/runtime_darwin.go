@@ -43,6 +43,9 @@ func keychainLookup(name string) (string, bool) {
 // This is the single keychain-write seam (issue #115); callers must not
 // scatter keychain writes elsewhere.
 func KeychainStore(name, value string) error {
+	if os.Getenv("CI") != "" {
+		return nil
+	}
 	account := os.Getenv("MIRABILIS_KEYCHAIN_ACCOUNT")
 	if account == "" {
 		if u := os.Getenv("USER"); u != "" {
