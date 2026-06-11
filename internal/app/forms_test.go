@@ -578,8 +578,8 @@ func TestNewTelegramForm_SkipPath_EmitsStartPipelineMsg(t *testing.T) {
 		t.Fatal("apply() on skip path returned nil cmd")
 	}
 	msg := cmd()
-	if _, ok := msg.(startPipelineMsg); !ok {
-		t.Fatalf("skip path apply() emits %T, want startPipelineMsg", msg)
+	if _, ok := msg.(telegramDoneMsg); !ok {
+		t.Fatalf("skip path apply() emits %T, want telegramDoneMsg", msg)
 	}
 }
 
@@ -609,8 +609,8 @@ func TestNewTelegramForm_ConfigurePath_WritesTokenFile(t *testing.T) {
 	// setting the captured closure variables via the form's internal state.
 	// We do this via a test-only wrapper that simulates the configure=true state.
 	msg := applyTelegramConfigure(t, "bot999:TestToken")
-	if _, ok := msg.(startPipelineMsg); !ok {
-		t.Fatalf("configure path apply() emits %T, want startPipelineMsg", msg)
+	if _, ok := msg.(telegramDoneMsg); !ok {
+		t.Fatalf("configure path apply() emits %T, want telegramDoneMsg", msg)
 	}
 
 	tokenFile := tmp + "/.claude/.mirabilis-telegram-token"
@@ -686,19 +686,19 @@ func TestValidateTelegramToken_Valid_ReturnsNil(t *testing.T) {
 
 // ── applyTelegramToken tests ──────────────────────────────────────────────
 
-func TestApplyTelegramToken_Skip_EmitsStartPipeline(t *testing.T) {
+func TestApplyTelegramToken_Skip_EmitsTelegramDone(t *testing.T) {
 	msg := applyTelegramToken(false, "")()
-	if _, ok := msg.(startPipelineMsg); !ok {
-		t.Fatalf("applyTelegramToken(skip) emits %T, want startPipelineMsg", msg)
+	if _, ok := msg.(telegramDoneMsg); !ok {
+		t.Fatalf("applyTelegramToken(skip) emits %T, want telegramDoneMsg", msg)
 	}
 }
 
-func TestApplyTelegramToken_Configure_WritesAndEmitsStartPipeline(t *testing.T) {
+func TestApplyTelegramToken_Configure_WritesAndEmitsTelegramDone(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	msg := applyTelegramToken(true, "bot456:hello")()
-	if _, ok := msg.(startPipelineMsg); !ok {
-		t.Fatalf("applyTelegramToken(configure) = %T, want startPipelineMsg", msg)
+	if _, ok := msg.(telegramDoneMsg); !ok {
+		t.Fatalf("applyTelegramToken(configure) = %T, want telegramDoneMsg", msg)
 	}
 }
 
@@ -722,5 +722,121 @@ func TestApplyTelegramToken_Configure_WriteError_BackToMenu(t *testing.T) {
 	}
 	if !strings.HasPrefix(btm.notice, ui.NoticeTelegramErr) {
 		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeTelegramErr)
+	}
+}
+
+// ── newClaudeTokenForm / applyClaudeToken tests ───────────────────────────
+
+func TestNewClaudeTokenForm_NonEmpty(t *testing.T) {
+	r := &runner.FakeRunner{}
+	f := newClaudeTokenForm(context.Background(), r, 80, 24)
+	if f == nil {
+		t.Fatal("newClaudeTokenForm returned nil")
+	}
+	if f.View() == "" {
+		t.Error("newClaudeTokenForm View() is empty")
+	}
+}
+
+func TestApplyClaudeToken_Skip_EmitsStartPipeline(t *testing.T) {
+	r := &runner.FakeRunner{}
+	msg := applyClaudeToken(context.Background(), r, false, "")()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("applyClaudeToken(skip) emits %T, want startPipelineMsg", msg)
+	}
+}
+
+func TestApplyClaudeToken_EmptyToken_BackToMenu(t *testing.T) {
+	r := &runner.FakeRunner{}
+	msg := applyClaudeToken(context.Background(), r, true, "   ")()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("applyClaudeToken empty token = %T, want backToMenuMsg", msg)
+	}
+	if !strings.HasPrefix(btm.notice, ui.NoticeClaudeErr) {
+		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeClaudeErr)
+	}
+}
+
+func TestApplyClaudeToken_Configure_NoConflict_EmitsStartPipeline(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	r := &runner.FakeRunner{
+		ContFunc: func(_ []string) (string, error) { return "no\n", nil },
+	}
+	msg := applyClaudeToken(context.Background(), r, true, "oauth-test-token")()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("applyClaudeToken(configure, no conflict) = %T, want startPipelineMsg", msg)
+	}
+}
+
+func TestApplyClaudeToken_Configure_Conflict_BackToMenu(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	r := &runner.FakeRunner{
+		ContFunc: func(_ []string) (string, error) { return "yes\n", nil },
+	}
+	msg := applyClaudeToken(context.Background(), r, true, "oauth-test-token")()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("applyClaudeToken(configure, conflict) = %T, want backToMenuMsg", msg)
+	}
+	if btm.notice != ui.NoticeClaudeConflict {
+		t.Errorf("notice = %q, want %q", btm.notice, ui.NoticeClaudeConflict)
+	}
+}
+
+func TestApplyClaudeToken_Configure_WriteError_BackToMenu(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks not effective as root")
+	}
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cd := tmp + "/.claude"
+	if err := os.MkdirAll(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
+
+	r := &runner.FakeRunner{}
+	msg := applyClaudeToken(context.Background(), r, true, "oauth-fail")()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("applyClaudeToken write-error = %T, want backToMenuMsg", msg)
+	}
+	if !strings.HasPrefix(btm.notice, ui.NoticeClaudeErr) {
+		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeClaudeErr)
+	}
+}
+
+func TestValidateClaudeToken_Empty_ReturnsError(t *testing.T) {
+	if err := validateClaudeToken(""); err == nil {
+		t.Error("validateClaudeToken('') = nil, want error")
+	}
+}
+
+func TestValidateClaudeToken_Spaces_ReturnsError(t *testing.T) {
+	if err := validateClaudeToken("   "); err == nil {
+		t.Error("validateClaudeToken('   ') = nil, want error")
+	}
+}
+
+func TestValidateClaudeToken_Valid_ReturnsNil(t *testing.T) {
+	if err := validateClaudeToken("oauth-valid-token"); err != nil {
+		t.Errorf("validateClaudeToken(valid) = %v, want nil", err)
+	}
+}
+
+func TestApplyClaudeToken_ContainerError_EmitsStartPipeline(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	r := &runner.FakeRunner{
+		ContFunc: func(_ []string) (string, error) {
+			return "", errors.New("container not running")
+		},
+	}
+	msg := applyClaudeToken(context.Background(), r, true, "oauth-ok-token")()
+	if _, ok := msg.(startPipelineMsg); !ok {
+		t.Fatalf("applyClaudeToken(container error) = %T, want startPipelineMsg", msg)
 	}
 }

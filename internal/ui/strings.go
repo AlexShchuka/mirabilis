@@ -59,4 +59,12 @@ const (
 	FormTitleTelegramToken   = "Токен бота"
 	FormDescTelegramToken    = "Токен от @BotFather. Хранится в файле-секрете, не в git, не в образе."
 	NoticeTelegramErr        = "telegram: "
+
+	FormTitleClaude        = "Claude"
+	FormOptClaudeConfigure = "Настроить"
+	FormOptClaudeSkip      = "Пропустить"
+	FormTitleClaudeToken   = "OAuth-токен"
+	FormDescClaudeToken    = "Запустите `claude setup-token` на хосте и вставьте токен. Хранится в keychain / файле-секрете."
+	NoticeClaudeErr        = "claude: "
+	NoticeClaudeConflict   = "claude: ~/.claude/.credentials.json найден в томе — он перекрывает токен хоста. Удалите его или не запускайте /login внутри контейнера."
 )

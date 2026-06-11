@@ -216,9 +216,9 @@ func newHarnessForm(ctx context.Context, r runner.Runner, w, h int) *formScreen 
 // echo-hidden input so the token is never shown in the TUI.
 //
 // On apply:
-//   - Skip  → emits startPipelineMsg{} immediately; nothing is written.
+//   - Skip  → emits telegramDoneMsg{} immediately; nothing is written.
 //   - Configure → writes the token to the host-side secret file via
-//     provision.WriteTelegramToken and emits startPipelineMsg{}.
+//     provision.WriteTelegramToken and emits telegramDoneMsg{}.
 //
 // Channel-ID auto-detection is intentionally NOT implemented here. The bot
 // token is sufficient: after the first message is sent via the running bot,
@@ -270,15 +270,71 @@ func validateTelegramToken(s string) error {
 func applyTelegramToken(configure bool, token string) tea.Cmd {
 	return func() tea.Msg {
 		if !configure {
-			return startPipelineMsg{}
+			return telegramDoneMsg{}
 		}
 		trimmed := strings.TrimSpace(token)
 		if trimmed == "" {
-			// validateTelegramToken should have blocked this; guard defensively.
 			return backToMenuMsg{notice: ui.NoticeTelegramErr + "токен пустой"}
 		}
 		if err := provision.WriteTelegramToken(trimmed); err != nil {
 			return backToMenuMsg{notice: ui.NoticeTelegramErr + err.Error()}
+		}
+		return telegramDoneMsg{}
+	}
+}
+
+func newClaudeTokenForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {
+	configure := false
+	var token string
+
+	selectGroup := huh.NewGroup(
+		huh.NewSelect[bool]().
+			Title(ui.FormTitleClaude).
+			Options(
+				huh.NewOption(ui.FormOptClaudeSkip, false),
+				huh.NewOption(ui.FormOptClaudeConfigure, true),
+			).
+			Value(&configure),
+	)
+
+	tokenGroup := huh.NewGroup(
+		huh.NewInput().
+			Title(ui.FormTitleClaudeToken).
+			Description(ui.FormDescClaudeToken).
+			EchoMode(huh.EchoModePassword).
+			Value(&token).
+			Validate(validateClaudeToken),
+	).WithHideFunc(func() bool { return !configure })
+
+	form := huh.NewForm(selectGroup, tokenGroup).WithWidth(w).WithHeight(h)
+
+	apply := func() tea.Cmd {
+		return applyClaudeToken(ctx, r, configure, token)
+	}
+	return &formScreen{form: form, apply: apply}
+}
+
+func validateClaudeToken(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return fmt.Errorf("токен не может быть пустым")
+	}
+	return nil
+}
+
+func applyClaudeToken(ctx context.Context, r runner.Runner, configure bool, token string) tea.Cmd {
+	return func() tea.Msg {
+		if !configure {
+			return startPipelineMsg{}
+		}
+		trimmed := strings.TrimSpace(token)
+		if trimmed == "" {
+			return backToMenuMsg{notice: ui.NoticeClaudeErr + "токен пустой"}
+		}
+		if err := provision.WriteClaudeToken(trimmed); err != nil {
+			return backToMenuMsg{notice: ui.NoticeClaudeErr + err.Error()}
+		}
+		if provision.ClaudeCredentialsConflict(ctx, r) {
+			return backToMenuMsg{notice: ui.NoticeClaudeConflict}
 		}
 		return startPipelineMsg{}
 	}
