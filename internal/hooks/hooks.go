@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
+	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/google/uuid"
 )
 
 var telegramAPI = "https://api.telegram.org"
@@ -61,10 +63,17 @@ func messageFor(event string) (string, bool) {
 	return "", false
 }
 
+func telegramQueueDir() string {
+	repo := os.Getenv("MIRABILIS_REPO")
+	if repo == "" {
+		repo = "/workspace"
+	}
+	return telegram.OutboxDir(repo)
+}
+
 func Telegram() error {
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	chat := os.Getenv("TELEGRAM_CHAT_ID")
-	if token == "" || chat == "" {
+	if chat == "" {
 		return nil
 	}
 
@@ -84,17 +93,15 @@ func Telegram() error {
 		text = strings.Replace(text, "mirabilis:", "mirabilis ["+proj+"]:", 1)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	endpoint := telegramAPI + "/bot" + token + "/sendMessage"
-	form := url.Values{}
-	form.Set("chat_id", chat)
-	form.Set("text", text)
-	resp, err := client.PostForm(endpoint, form)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram sendMessage: %v\n", err)
-		return nil
+	job := telegram.Job{
+		ID:        uuid.NewString(),
+		ChatID:    chat,
+		Text:      text,
+		CreatedAt: time.Now().UTC(),
 	}
-	resp.Body.Close()
+	if err := telegram.WriteJob(telegramQueueDir(), job); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram queue: %v\n", err)
+	}
 	return nil
 }
 
