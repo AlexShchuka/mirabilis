@@ -39,6 +39,29 @@ stronger isolation boundary (microVM) than a container provides.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately.
 
+## Persistent-memory poisoning
+
+mirabilis injects memory into every session via the `PostToolUseFailure` and `SessionStart`
+hooks (see `internal/hooks/hooks.go`). Any content the agent reads — web pages, MCP tool
+responses, fetched documents — can trigger a memory write. If that content is crafted to
+insert adversarial bullets, those bullets survive across sessions and are replayed by the
+same hooks.
+
+**Accepted risk:** The container's open-egress design (see above — `SECURITY.md:10-12` is
+unchanged) means there is no in-container network gate. Poisoned content reaches the agent;
+the memory layer has no source attribution.
+
+**Mitigations in place:**
+- The `PostToolUseFailure` hook caps injected context at 10 bullets / 2 KB per event —
+  a single poisoned file cannot flood the context window.
+- Memory files live on the `claude-home` volume; they are not persisted in the repository
+  and do not leave the container boundary automatically.
+- The behavioural half of this defence — a source-aware memory-write gate that refuses to
+  persist content fetched from untrusted URLs — is harness-side (neuro-matrix `[harness/now]`
+  issue). It is not implemented in this repo.
+
+Do not point mirabilis at untrusted content sources without the harness-side gate in place.
+
 ## Docker socket (DooD)
 
 The devcontainer uses docker-outside-of-docker: the host Docker socket is bind-mounted
