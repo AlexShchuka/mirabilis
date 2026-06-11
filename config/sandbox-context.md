@@ -15,5 +15,6 @@ You are running isolated dev container.
     - `domain-knowledge` (semantic) — durable facts from studying, researching, reading
     - `research-log` (episodic) — dated findings from a specific investigation, paper, or bug; append-only, compact when long
     - `prep` (episodic) — interview-prep state: topics drilled, weak spots, study targets
+    - `shared-codebook` (semantic) — bilaterally agreed term mappings: term → definition — example — external anchor; hard cap ~20 entries; real boundary is kernel-reducibility (Common Code v3)
   - Keep `~/.claude/rules/*.md` ONLY for genuine path-scoped per-file-type rules (the `paths:`
     frontmatter mechanism), born when a real convention is learned — not shipped empty.
