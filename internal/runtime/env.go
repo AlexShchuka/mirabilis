@@ -10,13 +10,15 @@ import (
 )
 
 var blockedFromContainer = map[string]bool{
-	"TELEGRAM_BOT_TOKEN": true,
+	"TELEGRAM_BOT_TOKEN":      true,
+	"CLAUDE_CODE_OAUTH_TOKEN": true,
 }
 
 func ComposeEnv(repo string) []string {
 	managed := map[string]string{
-		"MIRABILIS_VERSION": GitShort(repo),
-		"TELEGRAM_CHAT_ID":  keychainGet("telegram-chat"),
+		"MIRABILIS_VERSION":       GitShort(repo),
+		"TELEGRAM_CHAT_ID":        keychainGet("telegram-chat"),
+		"CLAUDE_CODE_OAUTH_TOKEN": keychainGet("claude-token"),
 	}
 	if stacks, ok := config.ReadStacks(repo); ok {
 		managed["STACKS"] = stacks
@@ -55,6 +57,8 @@ func keychainEnv(name string) string {
 		return "TELEGRAM_BOT_TOKEN"
 	case "telegram-chat":
 		return "TELEGRAM_CHAT_ID"
+	case "claude-token":
+		return "CLAUDE_CODE_OAUTH_TOKEN"
 	}
 	return ""
 }
@@ -72,8 +76,11 @@ func keychainGet(name string) string {
 			return v
 		}
 	}
-	if name == "telegram-token" {
+	switch name {
+	case "telegram-token":
 		return tgtoken.Read()
+	case "claude-token":
+		return tgtoken.ReadFile(tgtoken.FilenameClaude)
 	}
 	return ""
 }

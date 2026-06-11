@@ -44,7 +44,10 @@ curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.
 
 That one line clones mirabilis to `~/.mirabilis`, installs the devcontainer CLI, and puts
 `mirabilis` on your PATH. The first launch builds the container and signs you in to
-GitHub and Claude (native flows, saved in the sandbox). After that, run it from anywhere:
+GitHub (native flow, saved in the sandbox). For Claude, run `claude setup-token` on the
+host once — the resulting OAuth token is stored in your host keychain (macOS) or a
+host-side secret file (Linux/WSL) and injected at container launch. After that, run it
+from anywhere:
 
 ```sh
 mirabilis

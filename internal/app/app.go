@@ -24,6 +24,7 @@ const (
 
 type menuChoiceMsg struct{ action string }
 type backToMenuMsg struct{ notice string }
+type telegramDoneMsg struct{}
 
 func emit(msg tea.Msg) tea.Cmd { return func() tea.Msg { return msg } }
 
@@ -71,8 +72,11 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backToMenuMsg:
 		return a.toMenu(msg.notice)
 	case launchReadyMsg:
-		// Catalog form finished — show the optional Telegram step before launching.
 		f := newTelegramForm(a.w, a.h)
+		a.form, a.phase = f, phaseForm
+		return a, f.Init()
+	case telegramDoneMsg:
+		f := newClaudeTokenForm(a.ctx, a.r, a.w, a.h)
 		a.form, a.phase = f, phaseForm
 		return a, f.Init()
 	case startPipelineMsg:
@@ -153,7 +157,6 @@ func (a appModel) route(action string) (tea.Model, tea.Cmd) {
 	case "launch":
 		f := newLaunchForm(a.r, a.w, a.h)
 		if f == nil {
-			// No catalog — skip directly to the optional Telegram step.
 			tg := newTelegramForm(a.w, a.h)
 			a.form, a.phase = tg, phaseForm
 			return a, tg.Init()
