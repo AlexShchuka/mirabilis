@@ -53,6 +53,9 @@ Operating agreement for working **on this repo** (complements the harness's gene
 4. **Discuss → plan → code only on an explicit go.** Don't write code on unsettled requirements.
 5. **Not green means not done.** Cover changes with tests.
 6. **No churn.** One coherent landing, not a sequence of rewrites.
+7. **Human-readable without AI.** An AI-generated artifact enters shared state only if a human can read and verify it without an AI.
+8. **Human gate before protocol-level shared state.** Protocol artifacts (invariant table, glossary) need the non-producing human's sign-off, paired to Common Code v3 `signed_by` (neuro-matrix#29).
+9. **BLUF.** Lead with the conclusion.
 
 The mechanical toolchain (`go test`, bats — see `.github/workflows/ci.yml`) is the source of
 mechanical rules; don't duplicate them in prose. Go code follows the

@@ -32,6 +32,7 @@ var MemoryCategories = []MemoryCategory{
 	{"domain-knowledge", "semantic", "Durable, reusable facts learned while studying, researching, or reading."},
 	{"research-log", "episodic", "Dated findings tied to a specific investigation, paper, or bug. Append-only, compacted periodically."},
 	{"prep", "episodic", "Interview-prep and learning state: topics drilled, weak spots, study targets."},
+	{"shared-codebook", "semantic", "Bilaterally agreed term mappings: term → definition — example — external anchor. Hard cap ~20 entries; the real boundary is kernel-reducibility (Common Code v3)."},
 }
 
 func ReadStacks(repo string) (string, bool) {

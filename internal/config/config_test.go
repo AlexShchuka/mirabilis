@@ -8,6 +8,27 @@ import (
 	"testing"
 )
 
+func TestMemoryCategories_SharedCodebook(t *testing.T) {
+	var found *MemoryCategory
+	for i := range MemoryCategories {
+		if MemoryCategories[i].Name == "shared-codebook" {
+			found = &MemoryCategories[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("shared-codebook category not found in MemoryCategories")
+	}
+	if found.MemoryType != "semantic" {
+		t.Errorf("shared-codebook MemoryType = %q, want semantic", found.MemoryType)
+	}
+	for _, want := range []string{"term → definition", "external anchor", "~20", "kernel-reducibility"} {
+		if !strings.Contains(found.Summary, want) {
+			t.Errorf("shared-codebook Summary missing %q", want)
+		}
+	}
+}
+
 func TestNew_PathGetters(t *testing.T) {
 	c := New("/base")
 	tests := []struct {
