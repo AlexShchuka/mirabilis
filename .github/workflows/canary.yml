@@ -23,6 +23,15 @@ jobs:
         run: make linux
       - name: docker build (default stacks)
         run: docker build -f .devcontainer/Dockerfile -t mirabilis:canary .
+      - name: nag if newer Go is available
+        run: |
+          pinned="$(grep 'ARG GO_VERSION=' .devcontainer/Dockerfile | head -1 | cut -d= -f2)"
+          latest="$(curl -fsSL https://go.dev/VERSION?m=text | head -1)"
+          if [ "$pinned" != "$latest" ]; then
+            echo "[canary] newer Go available: pinned=$pinned latest=$latest — update ARG GO_VERSION in .devcontainer/Dockerfile"
+          else
+            echo "[canary] Go is up to date: $pinned"
+          fi
 
   devcontainer:
     name: devcontainer up + configured assertions (best-effort)

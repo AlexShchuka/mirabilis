@@ -50,17 +50,20 @@ RUN case ",${STACKS}," in \
         && rm -f /tmp/dotnet-install.sh ;; \
     esac
 
+ARG GO_VERSION=go1.25.8
 ENV GOROOT=/usr/local/go
 ENV GOPATH=/home/node/go
 ENV PATH=$PATH:/usr/local/go/bin:/home/node/go/bin
-RUN ver="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://go.dev/VERSION?m=text | head -n1)" \
-    && arch="$(dpkg --print-architecture)" \
+RUN arch="$(dpkg --print-architecture)" \
     && case "$arch" in \
          arm64) goarch=arm64 ;; \
          amd64) goarch=amd64 ;; \
          *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
        esac \
-    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/go.tar.gz "https://go.dev/dl/${ver}.linux-${goarch}.tar.gz" \
+    && tarball="${GO_VERSION}.linux-${goarch}.tar.gz" \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL -o /tmp/go.tar.gz "https://dl.google.com/go/${tarball}" \
+    && expected="$(curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL "https://dl.google.com/go/${tarball}.sha256")" \
+    && echo "${expected}  /tmp/go.tar.gz" | sha256sum -c - \
     && rm -rf /usr/local/go \
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm -f /tmp/go.tar.gz
