@@ -1,4 +1,4 @@
-package container
+package steps
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestSteps_NamesAndMeta(t *testing.T) {
-	registered := Steps()
+func TestContainerSteps_NamesAndMeta(t *testing.T) {
+	registered := containerSteps()
 	if len(registered) != 2 {
-		t.Fatalf("Steps() returned %d, want 2", len(registered))
+		t.Fatalf("containerSteps() returned %d, want 2", len(registered))
 	}
 	names := map[string]bool{}
 	for _, r := range registered {
@@ -22,7 +22,7 @@ func TestSteps_NamesAndMeta(t *testing.T) {
 	}
 	for _, want := range []string{"update", "prepare"} {
 		if !names[want] {
-			t.Errorf("step %q missing from Steps()", want)
+			t.Errorf("step %q missing from containerSteps()", want)
 		}
 	}
 }

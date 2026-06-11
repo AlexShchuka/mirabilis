@@ -1,8 +1,7 @@
-package skills
+package steps
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"time"
 
@@ -12,16 +11,16 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-type step struct{}
+type skillsStep struct{}
 
-func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
+func (skillsStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 	raw := provision.ReadSkillsContainer(ctx, r)
 	containerSkills := splitLines(raw)
 	hostSkills := splitCSV(func() string { v, _ := config.ReadSkills(r.Repo()); return v }())
 	return setsEqual(containerSkills, hostSkills), nil
 }
 
-func (step) Run(ctx context.Context, r runner.Runner) error {
+func (skillsStep) Run(ctx context.Context, r runner.Runner) error {
 	skills := splitCSV(func() string { v, _ := config.ReadSkills(r.Repo()); return v }())
 	content := strings.Join(skills, "\n")
 	if err := provision.WriteSkillsContainer(ctx, r, content); err != nil {
@@ -31,7 +30,7 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	return err
 }
 
-func Steps() []pipeline.Registered {
+func skillsSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{
@@ -43,49 +42,7 @@ func Steps() []pipeline.Registered {
 				Optional: true,
 				Timeout:  180 * time.Second,
 			},
-			Impl: step{},
+			Impl: skillsStep{},
 		},
 	}
-}
-
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
-func splitCSV(s string) []string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil
-	}
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-func setsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	ca := make([]string, len(a))
-	cb := make([]string, len(b))
-	copy(ca, a)
-	copy(cb, b)
-	slices.Sort(ca)
-	slices.Sort(cb)
-	for i := range ca {
-		if ca[i] != cb[i] {
-			return false
-		}
-	}
-	return true
 }

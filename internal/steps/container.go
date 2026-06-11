@@ -1,4 +1,4 @@
-package container
+package steps
 
 import (
 	"context"
@@ -60,7 +60,7 @@ func (prepareStep) Run(ctx context.Context, r runner.Runner) error {
 	})
 }
 
-func Steps() []pipeline.Registered {
+func containerSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{

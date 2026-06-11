@@ -220,8 +220,20 @@ func TestEnsureSettings_SeedCopiedWhenNoDestination(t *testing.T) {
 
 func writeTestJSON(t *testing.T, path string, m map[string]any) {
 	t.Helper()
-	if err := writeJSON(path, m); err != nil {
-		t.Fatalf("writeJSON(%s): %v", path, err)
+	if err := WriteJSON(path, m); err != nil {
+		t.Fatalf("WriteJSON(%s): %v", path, err)
+	}
+}
+
+func TestWriteJSON_RenameFails_ReturnsError(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "target")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := WriteJSON(path, map[string]any{"k": "v"})
+	if err == nil {
+		t.Error("WriteJSON must return error when target path is a directory (Rename fails)")
 	}
 }
 

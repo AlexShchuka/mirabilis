@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -112,31 +111,6 @@ func TestSessionRemoveBaseURL_MissingFile_Noop(t *testing.T) {
 	sessionRemoveBaseURL(filepath.Join(t.TempDir(), "nonexistent.json"))
 }
 
-func TestWriteSettingsJSON_RoundTrip(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	in := map[string]any{"env": map[string]any{"K": "V"}, "theme": "dark"}
-
-	writeSettingsJSON(sp, in)
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env == nil || env["K"] != "V" {
-		t.Errorf("round-trip failed; m = %v", m)
-	}
-}
-
-func TestWriteSettingsJSON_DirMissing_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "nonexistent", "settings.json")
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{})
-	errOut := getErr()
-	if !strings.Contains(errOut, "WARN") {
-		t.Errorf("expected WARN on missing dir; stderr = %q", errOut)
-	}
-}
-
 func TestProxyAlive_WithFakeServer_ReturnsTrue(t *testing.T) {
 	stop, ok := startFakeProxy8787(t)
 	if !ok {
@@ -203,51 +177,4 @@ func TestSessionRemoveBaseURL_InvalidJSON_Noop(t *testing.T) {
 		t.Fatal(err)
 	}
 	sessionRemoveBaseURL(sp)
-}
-
-func TestWriteSettingsJSON_MarshalError_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"bad": make(chan int)})
-	errOut := getErr()
-	if !strings.Contains(errOut, "marshal settings") {
-		t.Errorf("stderr = %q, want marshal settings WARN", errOut)
-	}
-}
-
-func TestWriteSettingsJSON_CreateTempFails_Warns(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("permission checks not effective as root")
-	}
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.WriteFile(sp, []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(tmp, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(tmp, 0o755) })
-
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"k": "v"})
-	errOut := getErr()
-	if !strings.Contains(errOut, "create temp settings") {
-		t.Errorf("stderr = %q, want 'create temp settings' WARN when dir unwritable", errOut)
-	}
-}
-
-func TestWriteSettingsJSON_RenameFails_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.MkdirAll(sp, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"k": "v"})
-	errOut := getErr()
-	if !strings.Contains(errOut, "WARN") {
-		t.Errorf("stderr = %q, want a WARN when rename fails (target is a directory)", errOut)
-	}
 }

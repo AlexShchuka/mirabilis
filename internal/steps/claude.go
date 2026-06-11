@@ -1,4 +1,4 @@
-package claude
+package steps
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (themeStep) Run(ctx context.Context, r runner.Runner) error {
 	return err
 }
 
-func Steps() []pipeline.Registered {
+func claudeSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{

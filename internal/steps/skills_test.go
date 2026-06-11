@@ -1,4 +1,4 @@
-package skills
+package steps
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestCheckSkipsWhenSetsEqual(t *testing.T) {
+func TestSkillsCheckSkipsWhenSetsEqual(t *testing.T) {
 	tests := []struct {
 		name          string
 		containerOut  string
@@ -74,7 +74,7 @@ func TestCheckSkipsWhenSetsEqual(t *testing.T) {
 				},
 			}
 
-			s := step{}
+			s := skillsStep{}
 			got, err := s.Check(context.Background(), r)
 			if err != nil {
 				t.Fatalf("Check returned error: %v", err)
@@ -86,7 +86,7 @@ func TestCheckSkipsWhenSetsEqual(t *testing.T) {
 	}
 }
 
-func TestRun_Success(t *testing.T) {
+func TestSkillsRun_Success(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, ".env"),
 		[]byte("SKILLS=owner/skill-a\n"), 0o644); err != nil {
@@ -100,7 +100,7 @@ func TestRun_Success(t *testing.T) {
 			return "", nil
 		},
 	}
-	impl := step{}
+	impl := skillsStep{}
 	if err := impl.Run(context.Background(), r); err != nil {
 		t.Errorf("Run success = %v, want nil", err)
 	}
@@ -125,7 +125,7 @@ func TestRun_Success(t *testing.T) {
 	}
 }
 
-func TestRun_CallErrors(t *testing.T) {
+func TestSkillsRun_CallErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		failOnCall int
@@ -147,7 +147,7 @@ func TestRun_CallErrors(t *testing.T) {
 					return "", nil
 				},
 			}
-			err := step{}.Run(context.Background(), r)
+			err := skillsStep{}.Run(context.Background(), r)
 			if err == nil {
 				t.Errorf("Run %s: expected non-nil error, got nil", tt.name)
 			}
@@ -155,20 +155,20 @@ func TestRun_CallErrors(t *testing.T) {
 	}
 }
 
-func TestSteps_NameAndDeps(t *testing.T) {
-	registered := Steps()
+func TestSkillsSteps_NameAndDeps(t *testing.T) {
+	registered := skillsSteps()
 	if len(registered) != 1 {
-		t.Fatalf("Steps() len = %d, want 1", len(registered))
+		t.Fatalf("skillsSteps() len = %d, want 1", len(registered))
 	}
 	meta := registered[0].Meta
 	if meta.Name != "skills" {
-		t.Errorf("Steps()[0].Name = %q, want skills", meta.Name)
+		t.Errorf("skillsSteps()[0].Name = %q, want skills", meta.Name)
 	}
 	if len(meta.Deps) != 1 || meta.Deps[0] != "prepare" {
-		t.Errorf("Steps()[0].Deps = %v, want [prepare]", meta.Deps)
+		t.Errorf("skillsSteps()[0].Deps = %v, want [prepare]", meta.Deps)
 	}
 	if !meta.Optional {
-		t.Error("Steps()[0].Optional should be true")
+		t.Error("skillsSteps()[0].Optional should be true")
 	}
 }
 

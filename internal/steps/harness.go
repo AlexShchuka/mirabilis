@@ -1,4 +1,4 @@
-package harness
+package steps
 
 import (
 	"context"
@@ -9,17 +9,17 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-type step struct{}
+type harnessStep struct{}
 
-func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
+func (harnessStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 	return provision.HarnessInstalled(ctx, r)
 }
 
-func (step) Run(ctx context.Context, r runner.Runner) error {
+func (harnessStep) Run(ctx context.Context, r runner.Runner) error {
 	return provision.EnsureHarness(ctx, r)
 }
 
-func Steps() []pipeline.Registered {
+func harnessSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{
@@ -31,7 +31,7 @@ func Steps() []pipeline.Registered {
 				Optional: true,
 				Timeout:  180 * time.Second,
 			},
-			Impl: step{},
+			Impl: harnessStep{},
 		},
 	}
 }

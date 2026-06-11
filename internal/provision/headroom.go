@@ -84,7 +84,7 @@ func setBaseURL() {
 	}
 	env[headroomBaseURLKey] = headroomProxyURL
 	m["env"] = env
-	warn("headroom proxy write settings", writeJSON(dest, m))
+	warn("headroom proxy write settings", WriteJSON(dest, m))
 }
 
 func removeBaseURL() {
@@ -99,5 +99,5 @@ func removeBaseURL() {
 	}
 	delete(env, headroomBaseURLKey)
 	m["env"] = env
-	warn("headroom proxy remove base url", writeJSON(dest, m))
+	warn("headroom proxy remove base url", WriteJSON(dest, m))
 }

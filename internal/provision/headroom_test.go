@@ -207,7 +207,7 @@ func setupProxySettingsHome(t *testing.T) string {
 	if err := os.MkdirAll(cd, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeJSON(filepath.Join(cd, "settings.json"), map[string]any{"theme": "dark"}); err != nil {
+	if err := WriteJSON(filepath.Join(cd, "settings.json"), map[string]any{"theme": "dark"}); err != nil {
 		t.Fatal(err)
 	}
 	return tmp
@@ -287,7 +287,7 @@ func TestEnsureHeadroomProxy_Down_StartsAndPollSucceeds_SetsBaseURL(t *testing.T
 func TestEnsureHeadroomProxy_Down_PollFails_RemovesBaseURL(t *testing.T) {
 	tmp := setupProxySettingsHome(t)
 	cd := filepath.Join(tmp, ".claude")
-	if err := writeJSON(filepath.Join(cd, "settings.json"), map[string]any{
+	if err := WriteJSON(filepath.Join(cd, "settings.json"), map[string]any{
 		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
 	}); err != nil {
 		t.Fatal(err)
@@ -319,7 +319,7 @@ func TestEnsureHeadroomProxy_SetBaseURL_Idempotent(t *testing.T) {
 	tmp := setupProxySettingsHome(t)
 	cd := filepath.Join(tmp, ".claude")
 	sp := filepath.Join(cd, "settings.json")
-	if err := writeJSON(sp, map[string]any{
+	if err := WriteJSON(sp, map[string]any{
 		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
 	}); err != nil {
 		t.Fatal(err)
@@ -346,7 +346,7 @@ func TestEnsureHeadroomProxy_RemoveBaseURL_AbsentIsNoop(t *testing.T) {
 	tmp := setupProxySettingsHome(t)
 	cd := filepath.Join(tmp, ".claude")
 	sp := filepath.Join(cd, "settings.json")
-	if err := writeJSON(sp, map[string]any{"theme": "dark"}); err != nil {
+	if err := WriteJSON(sp, map[string]any{"theme": "dark"}); err != nil {
 		t.Fatal(err)
 	}
 	callIdx := 0

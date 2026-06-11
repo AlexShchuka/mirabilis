@@ -1,4 +1,4 @@
-package auth
+package steps
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestSteps_NameAndDeps(t *testing.T) {
-	registered := Steps()
+func TestAuthSteps_NameAndDeps(t *testing.T) {
+	registered := authSteps()
 	if len(registered) != 1 {
-		t.Fatalf("Steps() returned %d steps, want 1", len(registered))
+		t.Fatalf("authSteps() returned %d steps, want 1", len(registered))
 	}
 	s := registered[0]
 	if s.Meta.Name != "gh" {
@@ -28,13 +28,13 @@ func TestSteps_NameAndDeps(t *testing.T) {
 	}
 }
 
-func TestCheck_ContainerOK(t *testing.T) {
+func TestAuthCheck_ContainerOK(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "ok", nil
 		},
 	}
-	got, err := step{}.Check(context.Background(), r)
+	got, err := authStep{}.Check(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -43,13 +43,13 @@ func TestCheck_ContainerOK(t *testing.T) {
 	}
 }
 
-func TestCheck_ContainerErrors(t *testing.T) {
+func TestAuthCheck_ContainerErrors(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "", fmt.Errorf("not signed in")
 		},
 	}
-	got, err := step{}.Check(context.Background(), r)
+	got, err := authStep{}.Check(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}

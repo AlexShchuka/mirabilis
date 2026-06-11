@@ -1,4 +1,4 @@
-package preflight
+package steps
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestSteps_NameAndDeps(t *testing.T) {
-	registered := Steps()
+func TestPreflightSteps_NameAndDeps(t *testing.T) {
+	registered := preflightSteps()
 	if len(registered) != 1 {
-		t.Fatalf("Steps() returned %d, want 1", len(registered))
+		t.Fatalf("preflightSteps() returned %d, want 1", len(registered))
 	}
 	s := registered[0]
 	if s.Meta.Name != "preflight" {
@@ -30,9 +30,9 @@ func TestSteps_NameAndDeps(t *testing.T) {
 	}
 }
 
-func TestCheck_AlwaysFalse(t *testing.T) {
+func TestPreflightCheck_AlwaysFalse(t *testing.T) {
 	r := &runner.FakeRunner{}
-	impl := step{}
+	impl := preflightStep{}
 	got, err := impl.Check(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Check: %v", err)
@@ -42,65 +42,65 @@ func TestCheck_AlwaysFalse(t *testing.T) {
 	}
 }
 
-func TestRun_Code200_Nil(t *testing.T) {
+func TestPreflightRun_Code200_Nil(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "200", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err != nil {
 		t.Errorf("Run = %v, want nil for HTTP 200", err)
 	}
 }
 
-func TestRun_Code401_Nil(t *testing.T) {
+func TestPreflightRun_Code401_Nil(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "401", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err != nil {
 		t.Errorf("Run = %v, want nil for HTTP 401", err)
 	}
 }
 
-func TestRun_Code403_Nil(t *testing.T) {
+func TestPreflightRun_Code403_Nil(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "403", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err != nil {
 		t.Errorf("Run = %v, want nil for HTTP 403", err)
 	}
 }
 
-func TestRun_EmptyCode_Unreachable(t *testing.T) {
+func TestPreflightRun_EmptyCode_Unreachable(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err == nil {
 		t.Fatal("Run must error when HTTP code is empty")
 	}
 }
 
-func TestRun_Code000_Unreachable(t *testing.T) {
+func TestPreflightRun_Code000_Unreachable(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "000", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err == nil {
 		t.Fatal("Run must error when HTTP code is 000")
@@ -110,13 +110,13 @@ func TestRun_Code000_Unreachable(t *testing.T) {
 	}
 }
 
-func TestRun_Code500_HTTPError(t *testing.T) {
+func TestPreflightRun_Code500_HTTPError(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "500", nil
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err == nil {
 		t.Fatal("Run must error for HTTP 500")
@@ -126,13 +126,13 @@ func TestRun_Code500_HTTPError(t *testing.T) {
 	}
 }
 
-func TestRun_ContainerError_Unreachable(t *testing.T) {
+func TestPreflightRun_ContainerError_Unreachable(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "", fmt.Errorf("network error")
 		},
 	}
-	impl := step{}
+	impl := preflightStep{}
 	err := impl.Run(context.Background(), r)
 	if err == nil {
 		t.Error("Run must error when container call fails with empty code")

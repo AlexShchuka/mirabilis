@@ -664,9 +664,9 @@ func TestEnsureSettings_MkdirXDGDataFails(t *testing.T) {
 
 func TestWriteJSON_MarshalError(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "out.json")
-	err := writeJSON(dest, map[string]any{"bad": make(chan int)})
+	err := WriteJSON(dest, map[string]any{"bad": make(chan int)})
 	if err == nil {
-		t.Error("writeJSON = nil, want error for an unmarshalable value")
+		t.Error("WriteJSON = nil, want error for an unmarshalable value")
 	}
 }
 

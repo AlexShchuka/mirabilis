@@ -1,4 +1,4 @@
-package harness
+package steps
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestSteps_NameAndDeps(t *testing.T) {
-	registered := Steps()
+func TestHarnessSteps_NameAndDeps(t *testing.T) {
+	registered := harnessSteps()
 	if len(registered) != 1 {
-		t.Fatalf("Steps() returned %d, want 1", len(registered))
+		t.Fatalf("harnessSteps() returned %d, want 1", len(registered))
 	}
 	s := registered[0]
 	if s.Meta.Name != "harness" {
@@ -28,13 +28,13 @@ func TestSteps_NameAndDeps(t *testing.T) {
 	}
 }
 
-func TestRun_WhenClaudeAbsent_ReturnsNil(t *testing.T) {
+func TestHarnessRun_WhenClaudeAbsent_ReturnsNil(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
 			return "", fmt.Errorf("command not found")
 		},
 	}
-	err := step{}.Run(context.Background(), r)
+	err := harnessStep{}.Run(context.Background(), r)
 	if err != nil {
 		t.Errorf("Run = %v, want nil when claude absent", err)
 	}

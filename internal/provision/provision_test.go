@@ -53,17 +53,17 @@ func TestWarn_ErrorWritesToStderr(t *testing.T) {
 func TestHome_EnvSet(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	got := home()
+	got := Home()
 	if got != tmp {
-		t.Errorf("home() = %q, want %q", got, tmp)
+		t.Errorf("Home() = %q, want %q", got, tmp)
 	}
 }
 
 func TestHome_EnvUnset(t *testing.T) {
 	t.Setenv("HOME", "")
 	want, _ := os.UserHomeDir()
-	if got := home(); got != want {
-		t.Errorf("home() = %q, want %q (os.UserHomeDir fallback)", got, want)
+	if got := Home(); got != want {
+		t.Errorf("Home() = %q, want %q (os.UserHomeDir fallback)", got, want)
 	}
 }
 

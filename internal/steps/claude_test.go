@@ -1,4 +1,4 @@
-package claude
+package steps
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestSteps_NamesAndDeps(t *testing.T) {
-	registered := Steps()
+func TestClaudeSteps_NamesAndDeps(t *testing.T) {
+	registered := claudeSteps()
 	if len(registered) != 2 {
-		t.Fatalf("Steps() returned %d steps, want 2", len(registered))
+		t.Fatalf("claudeSteps() returned %d steps, want 2", len(registered))
 	}
 	names := map[string]bool{}
 	for _, r := range registered {
@@ -19,7 +19,7 @@ func TestSteps_NamesAndDeps(t *testing.T) {
 	}
 	for _, want := range []string{"claude", "theme"} {
 		if !names[want] {
-			t.Errorf("step %q not found in Steps()", want)
+			t.Errorf("step %q not found in claudeSteps()", want)
 		}
 	}
 	for _, r := range registered {

@@ -1,8 +1,7 @@
-package plugins
+package steps
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"time"
 
@@ -12,16 +11,16 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-type step struct{}
+type pluginsStep struct{}
 
-func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
+func (pluginsStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 	raw := provision.ReadDisabledPluginsContainer(ctx, r)
 	containerDisabled := splitLines(raw)
 	hostDisabled := config.ReadPluginsDisabled(r.Repo())
 	return setsEqual(containerDisabled, hostDisabled), nil
 }
 
-func (step) Run(ctx context.Context, r runner.Runner) error {
+func (pluginsStep) Run(ctx context.Context, r runner.Runner) error {
 	disabled := config.ReadPluginsDisabled(r.Repo())
 	content := strings.Join(disabled, "\n")
 	if err := provision.WriteDisabledPluginsContainer(ctx, r, content); err != nil {
@@ -31,7 +30,7 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	return err
 }
 
-func Steps() []pipeline.Registered {
+func pluginsSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{
@@ -43,35 +42,7 @@ func Steps() []pipeline.Registered {
 				Optional: true,
 				Timeout:  180 * time.Second,
 			},
-			Impl: step{},
+			Impl: pluginsStep{},
 		},
 	}
-}
-
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
-func setsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	ca := make([]string, len(a))
-	cb := make([]string, len(b))
-	copy(ca, a)
-	copy(cb, b)
-	slices.Sort(ca)
-	slices.Sort(cb)
-	for i := range ca {
-		if ca[i] != cb[i] {
-			return false
-		}
-	}
-	return true
 }
