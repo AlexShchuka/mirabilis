@@ -554,9 +554,8 @@ func TestNewTelegramForm_NotNil(t *testing.T) {
 func TestNewTelegramForm_View_NonEmpty(t *testing.T) {
 	// Calling View exercises the form rendering path including WithHideFunc.
 	f := newTelegramForm(80, 24)
-	if f.Init() == nil {
-		// Init is required before rendering.
-	}
+	// Init is required before rendering; result is the initial Cmd (may be nil).
+	_ = f.Init()
 	v := f.View()
 	if v == "" {
 		t.Error("newTelegramForm.View() should return non-empty string")

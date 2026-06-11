@@ -65,6 +65,13 @@ func keychainEnv(name string) string {
 	return ""
 }
 
+// KeychainGetTelegramChat returns the cached Telegram chat ID from the host
+// keychain / env fallback. Returns empty string if not configured.
+// This is not a secret (just a chat ID), so it is safe to log or use in URLs.
+func KeychainGetTelegramChat() string {
+	return keychainGet("telegram-chat")
+}
+
 func keychainGet(name string) string {
 	if val, ok := keychainLookup(name); ok {
 		return val

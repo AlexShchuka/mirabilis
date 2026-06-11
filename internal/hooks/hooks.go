@@ -460,7 +460,10 @@ func SessionStart() error {
 		}
 	}
 
-	if additionalContext != "" {
+	// Write MEMORY.md only when the memory index is non-empty.
+	// Gate on idx (not additionalContext) so that a Telegram-only context
+	// never truncates MEMORY.md to an empty string.
+	if idx != "" {
 		if err := os.WriteFile(filepath.Join(memDir, "MEMORY.md"), []byte(idx), 0o644); err != nil {
 			fmt.Fprintf(os.Stderr, "[hook] WARN: write MEMORY.md: %v\n", err)
 		}

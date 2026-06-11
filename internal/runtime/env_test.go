@@ -161,6 +161,22 @@ func TestKeychainGet_TelegramTokenFileFallback(t *testing.T) {
 	}
 }
 
+func TestKeychainGetTelegramChat_EnvFallback(t *testing.T) {
+	t.Setenv("TELEGRAM_CHAT_ID", "-100555001")
+	got := KeychainGetTelegramChat()
+	if got != "-100555001" {
+		t.Errorf("KeychainGetTelegramChat() = %q, want -100555001", got)
+	}
+}
+
+func TestKeychainGetTelegramChat_Empty(t *testing.T) {
+	t.Setenv("TELEGRAM_CHAT_ID", "")
+	// No keychain on test platform; env is empty, result should be empty.
+	got := KeychainGetTelegramChat()
+	// Just verifying it doesn't panic; value depends on system keychain.
+	_ = got
+}
+
 func TestComposeEnv_ManagedKeys(t *testing.T) {
 	repo := makeGitRepo(t)
 	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("STACKS=go,rust\n"), 0o644); err != nil {

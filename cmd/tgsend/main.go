@@ -1,161 +1,143 @@
-// tgsend sends a single message to a Telegram channel via the configured bot.
+// tgsend queues a Telegram message for the host-side watcher to deliver.
 //
-// Token: read from the secret file (default /run/secrets/telegram_bot_token).
-// A -token-path flag overrides the path. The token NEVER appears in argv,
-// env, stdout, or error messages.
+// tgsend runs INSIDE the devcontainer. It holds NO token and makes NO HTTP
+// calls to Telegram. Instead it writes a job file into the shared queue
+// directory (<repo>/.mirabilis/outbox/) that is bind-mounted into the
+// container. The host-side `mirabilis tg-outbox` watcher picks up the job
+// and delivers it through internal/telegram.NewOutbox (which enforces the
+// channel pin and rate limit).
 //
-// Channel: supplied via -channel flag; defaults to the cached channel-ID file
-// written by the SessionStart autodetect hook
-// (~/.claude/.mirabilis-telegram-channel). An error is reported with a clear
-// hint if neither source provides the channel.
+// Channel: supplied via -channel flag; defaults to TELEGRAM_CHAT_ID env var
+// injected by ComposeEnv (not a secret — set from host keychain at container
+// start).
 //
-// Dry-run (default): prints what would be sent and exits 0, sends nothing.
-// With --confirm: sends the message via the outbox rate-limiter.
+// Queue directory: derived from MIRABILIS_REPO env var (set by ComposeEnv)
+// via internal/telegram.OutboxDir. Falls back to /workspace if not set.
+//
+// Dry-run (default): prints what would be queued, writes nothing.
+// With --confirm: writes the job file atomically.
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/google/uuid"
 )
 
-// defaultTokenPath is the container secret-mount path that outbox.go expects.
-const defaultTokenPath = "/run/secrets/telegram_bot_token"
-
-// defaultChannelCachePath is the state file written by the SessionStart
-// autodetect hook, relative to HOME.
-const defaultChannelCachePath = ".claude/.mirabilis-telegram-channel"
+// defaultRepoPath is the fallback workspace path when MIRABILIS_REPO is not set.
+const defaultRepoPath = "/workspace"
 
 func main() {
-	tokenPath := flag.String("token-path", defaultTokenPath, "path to bot token file (never use -token=<value>; always file)")
-	channelFlag := flag.String("channel", "", "channel id (e.g. @mychannel or -100…); defaults to cached value")
-	apiBase := flag.String("api", "https://api.telegram.org", "Telegram API base URL (for testing)")
-	confirm := flag.Bool("confirm", false, "actually send the message (default: dry-run only)")
-	flag.Parse()
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
 
-	text := flag.Arg(0)
+// run is the testable entry-point for tgsend. It parses args, reads text from
+// stdin if needed, resolves the channel and queue dir, and delegates to
+// runSend. Returns an exit code (0 = success, 1 = error, 2 = usage error).
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("tgsend", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	channelFlag := fs.String("channel", "", "channel id (e.g. @mychannel or -100…); defaults to TELEGRAM_CHAT_ID")
+	confirm := fs.Bool("confirm", false, "write the job file into the queue (default: dry-run only)")
+	wait := fs.Duration("wait", 0, "block up to this long for delivery status (0 = don't wait; job is delivered by `mirabilis tg-outbox`)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	text := fs.Arg(0)
 	if text == "" {
-		// Try stdin if no positional arg.
-		raw, err := io.ReadAll(os.Stdin)
+		raw, err := io.ReadAll(stdin)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "tgsend: read stdin: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "tgsend: read stdin: %v\n", err)
+			return 1
 		}
 		text = strings.TrimRight(string(raw), "\r\n")
 	}
 	if text == "" {
-		fmt.Fprintln(os.Stderr, "tgsend: message text is required (positional arg or stdin)")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "tgsend: message text is required (positional arg or stdin)")
+		return 2
 	}
 
-	// Resolve channel.
+	// Resolve channel (not a secret; injected by ComposeEnv from host keychain).
 	channel := *channelFlag
 	if channel == "" {
-		channel = readCachedChannel()
+		channel = os.Getenv("TELEGRAM_CHAT_ID")
 	}
 	if channel == "" {
-		fmt.Fprintln(os.Stderr, "tgsend: no channel available — supply -channel <id> or run the provision step to auto-detect via SessionStart")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "tgsend: no channel available — supply -channel <id> or run the provision step")
+		return 2
 	}
 
-	// Read token from secret file (never from argv or env).
-	token, err := readTokenFile(*tokenPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "tgsend: cannot read token: %v (check that the secret file exists at %s)\n", err, *tokenPath)
-		os.Exit(1)
+	// Resolve queue directory from repo root (bind-mounted workspace).
+	repo := os.Getenv("MIRABILIS_REPO")
+	if repo == "" {
+		repo = defaultRepoPath
 	}
+	queueDir := telegram.OutboxDir(repo)
 
-	if !*confirm {
-		// Dry-run: print what would be sent, send nothing.
-		fmt.Printf("dry-run: would send to channel %s\nmessage: %s\n", channel, text)
-		fmt.Fprintln(os.Stderr, "(pass --confirm to actually send)")
-		return
-	}
-
-	// Send via the Telegram API with a rate-limited HTTP client.
-	client := &http.Client{Timeout: 15 * time.Second}
-	if err := sendMessage(client, *apiBase, token, channel, text); err != nil {
-		// Never include the token in the error message.
-		fmt.Fprintf(os.Stderr, "tgsend: send failed: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("sent to channel %s\n", channel)
+	return runSend(queueDir, channel, text, *confirm, *wait, stdout, stderr)
 }
 
-// readTokenFile is the single token-source seam for tgsend.
-// TODO: token source: pending isolation design (issue #115) — replace this
-// file-read with a broker/keychain call once the isolation model is decided.
-func readTokenFile(path string) (string, error) {
-	raw, err := os.ReadFile(path)
+// runSend is the testable core of tgsend. It writes a job file (if confirm is
+// true) or prints a dry-run summary (if false). It returns 0 on success, 1 on
+// fatal error. stdout and stderr are separated so tests can silence output.
+func runSend(queueDir, channel, text string, confirm bool, statusWait time.Duration, stdout, stderr io.Writer) int {
+	if !confirm {
+		// Dry-run: print what would be queued, write nothing.
+		fmt.Fprintf(stdout, "dry-run: would queue to channel %s\nmessage: %s\nqueue:   %s\n", channel, text, queueDir)
+		fmt.Fprintln(stderr, "(pass --confirm to write the job file)")
+		return 0
+	}
+
+	job := telegram.Job{
+		ID:        uuid.NewString(),
+		ChatID:    channel,
+		Text:      text,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := telegram.WriteJob(queueDir, job); err != nil {
+		fmt.Fprintf(stderr, "tgsend: queue write failed: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "queued job %s to channel %s\n", job.ID, channel)
+
+	// By default do not block: the job is on disk and the host watcher delivers it.
+	if statusWait <= 0 {
+		fmt.Fprintln(stderr, "tgsend: job queued (run `mirabilis tg-outbox` on the host to deliver; pass -wait to block for status)")
+		return 0
+	}
+
+	// -wait given: poll for the status file for up to statusWait.
+	status, err := waitForStatus(queueDir, job.ID, statusWait)
 	if err != nil {
-		return "", err
+		// Watcher not running or timed out — not fatal, job is on disk.
+		fmt.Fprintln(stderr, "tgsend: job queued but no status yet (is mirabilis tg-outbox running?)")
+		return 0
 	}
-	tok := strings.TrimSpace(string(raw))
-	if tok == "" {
-		return "", fmt.Errorf("token file is empty")
+	if status.OK {
+		fmt.Fprintf(stdout, "delivered: job %s ok\n", job.ID)
+	} else {
+		fmt.Fprintf(stderr, "tgsend: delivery failed: %s\n", status.Error)
+		return 1
 	}
-	return tok, nil
+	return 0
 }
 
-func readCachedChannel() string {
-	home := os.Getenv("HOME")
-	if home == "" {
-		h, err := os.UserHomeDir()
-		if err != nil {
-			return ""
+// waitForStatus polls for a status file for up to timeout.
+func waitForStatus(dir, jobID string, timeout time.Duration) (telegram.JobStatus, error) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		s, err := telegram.ReadStatus(dir, jobID)
+		if err == nil {
+			return s, nil
 		}
-		home = h
+		time.Sleep(500 * time.Millisecond)
 	}
-	data, err := os.ReadFile(home + "/" + defaultChannelCachePath)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimRight(string(data), "\r\n")
-}
-
-func sendMessage(client *http.Client, apiBase, token, chatID, text string) error {
-	// Rate-limit: honour the existing 1-per-second constraint used by outbox.
-	// tgsend is a manual one-shot tool, so no additional limiter is needed here.
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	// Build URL without embedding token in any variable we log.
-	apiURL := apiBase + "/bot" + token + "/sendMessage"
-	params := url.Values{}
-	params.Set("chat_id", chatID)
-	params.Set("text", text)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(params.Encode()))
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("http: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-
-	var result struct {
-		OK          bool   `json:"ok"`
-		Description string `json:"description"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-	if !result.OK {
-		// Never include the token; only include the API-provided description.
-		return fmt.Errorf("api error: %s", result.Description)
-	}
-	return nil
+	return telegram.JobStatus{}, fmt.Errorf("timeout waiting for status")
 }

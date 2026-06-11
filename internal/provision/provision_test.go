@@ -804,9 +804,13 @@ func TestEnsureSkills_CatalogEntryWithoutSlash_Skipped(t *testing.T) {
 	t.Setenv("HOME", tmp)
 	writeSkillsStatefile(t, tmp, "malformed-entry\n")
 	var hostCalls []string
+	var gitSubCmds []string
 	r := &runner.FakeRunner{
 		HostFunc: func(name string, args []string) (string, error) {
 			hostCalls = append(hostCalls, name)
+			if name == "git" && len(args) > 0 {
+				gitSubCmds = append(gitSubCmds, args[0])
+			}
 			return "", nil
 		},
 	}
@@ -815,9 +819,11 @@ func TestEnsureSkills_CatalogEntryWithoutSlash_Skipped(t *testing.T) {
 	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
 		t.Errorf("EnsureSkills = %v, want nil for malformed catalog entry", err)
 	}
-	for _, c := range hostCalls {
-		if c == "git" {
-			// git version check is ok; clone/pull is not.
+	// A malformed catalog entry (no slash) must never trigger a git clone/pull.
+	_ = hostCalls // recorded for debugging; the assertion is on gitSubCmds
+	for _, sub := range gitSubCmds {
+		if sub == "clone" || sub == "pull" {
+			t.Errorf("git %q was called for a malformed catalog entry; want no clone/pull", sub)
 		}
 	}
 }
