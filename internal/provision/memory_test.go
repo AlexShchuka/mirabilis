@@ -45,6 +45,33 @@ func TestRestoreMemory_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestRestoreMemory_PartialCopyFailure_SnapshotSurvives(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission-based copy failure is not reproducible as root")
+	}
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	root := t.TempDir()
+
+	savePath := filepath.Join(root, ".mirabilis", "saved-memory")
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savePath, "ok.md"), []byte("good"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savePath, "bad.md"), []byte("unreadable"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(savePath, "bad.md"), 0o644) })
+
+	RestoreMemory(root)
+
+	if _, err := os.Stat(savePath); err != nil {
+		t.Error("snapshot dir must survive when at least one copy failed")
+	}
+}
+
 func TestRestoreMemory_NoSnapshot_Noop(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)

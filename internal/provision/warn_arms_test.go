@@ -204,7 +204,7 @@ func TestWriteEnabledPlugins_ReadJSONWarns(t *testing.T) {
 
 func TestWriteEnabledPlugins_WriteWarns(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("permission-based write failure is not reproducible as root")
+		t.Skip("permission-based failure is not reproducible as root")
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
@@ -213,15 +213,17 @@ func TestWriteEnabledPlugins_WriteWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	dest := filepath.Join(cd, "settings.json")
-	if err := os.WriteFile(dest, []byte("{}\n"), 0o444); err != nil {
+	if err := os.WriteFile(dest, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
 	getErr := captureStderr(t)
 	err := writeEnabledPlugins(context.Background(), &runner.FakeRunner{}, config.New(t.TempDir()))
 	out := getErr()
-	if err := os.Chmod(dest, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	_ = os.Chmod(cd, 0o755)
 	if err != nil {
 		t.Fatalf("writeEnabledPlugins = %v, want nil even when write blocked", err)
 	}
@@ -256,7 +258,7 @@ func TestEnsureTheme_ReadJSONWarns(t *testing.T) {
 
 func TestEnsureTheme_WriteWarns(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("permission-based write failure is not reproducible as root")
+		t.Skip("permission-based failure is not reproducible as root")
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
@@ -268,15 +270,17 @@ func TestEnsureTheme_WriteWarns(t *testing.T) {
 		t.Fatal(err)
 	}
 	dest := filepath.Join(cd, "settings.json")
-	if err := os.WriteFile(dest, []byte("{}\n"), 0o444); err != nil {
+	if err := os.WriteFile(dest, []byte("{}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
 	getErr := captureStderr(t)
 	err := EnsureTheme(config.New(t.TempDir()))
 	out := getErr()
-	if err := os.Chmod(dest, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	_ = os.Chmod(cd, 0o755)
 	if err != nil {
 		t.Fatalf("EnsureTheme = %v, want nil even when write blocked", err)
 	}

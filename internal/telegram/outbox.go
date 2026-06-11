@@ -74,8 +74,11 @@ func (o *Outbox) Send(ctx context.Context, chatID, text string) error {
 	}
 
 	o.mu.Lock()
-	elapsed := time.Since(o.lastSent)
-	if elapsed < maxRate {
+	for {
+		elapsed := time.Since(o.lastSent)
+		if elapsed >= maxRate {
+			break
+		}
 		o.mu.Unlock()
 		select {
 		case <-ctx.Done():

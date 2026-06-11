@@ -1246,14 +1246,56 @@ func TestEnsureSettings_DestInvalidJSON_CopiesSeed(t *testing.T) {
 	}
 }
 
-func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
+func TestEnsureSettings_WriteJSONFails_FallbackToSeedCopy(t *testing.T) {
 	if os.Getuid() == 0 {
-		t.Skip("permission-based write failure is not reproducible as root")
+		t.Skip("permission-based failure is not reproducible as root")
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	cfgDir := t.TempDir()
-	seedContent := `{"key":"fallback-seed"}` + "\n"
+	seedContent := `{"key":"from-seed"}` + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "settings.json"), []byte(seedContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(cfgDir)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(filepath.Join(cd, "xdg-data"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destPath := filepath.Join(cd, "settings.json")
+	if err := os.WriteFile(destPath, []byte(`{"key":"orig"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cd, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cd, 0o755) })
+
+	getErr := captureStderr(t)
+	err := EnsureSettings(cfg)
+	out := getErr()
+
+	_ = os.Chmod(cd, 0o755)
+	if err != nil {
+		t.Errorf("EnsureSettings = %v, want nil (copyFile fallback succeeds)", err)
+	}
+	if !strings.Contains(out, "write settings; falling back to seed copy") {
+		t.Errorf("stderr = %q, want WARN naming write settings; falling back to seed copy", out)
+	}
+	got, rerr := os.ReadFile(destPath)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	if !strings.Contains(string(got), "from-seed") {
+		t.Errorf("dest content = %q, want to contain from-seed (seed copy landed)", string(got))
+	}
+}
+
+func TestEnsureSettings_WriteJSON_RenameSucceedsOnReadOnlyFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cfgDir := t.TempDir()
+	seedContent := `{"seed-only":"added"}` + "\n"
 	if err := os.WriteFile(filepath.Join(cfgDir, "settings.json"), []byte(seedContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1263,21 +1305,23 @@ func TestEnsureSettings_WriteJSONFails_CopyFileFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	destPath := filepath.Join(cd, "settings.json")
-	if err := os.WriteFile(destPath, []byte(`{"key":"orig"}`+"\n"), 0o444); err != nil {
+	if err := os.WriteFile(destPath, []byte(`{"orig-key":"orig-val"}`+"\n"), 0o444); err != nil {
 		t.Fatal(err)
 	}
-	if err := EnsureSettings(cfg); err == nil {
-		t.Error("EnsureSettings = nil, want error when dest is read-only and copyFile fallback is also blocked")
+	t.Cleanup(func() { _ = os.Chmod(destPath, 0o644) })
+	if err := EnsureSettings(cfg); err != nil {
+		t.Errorf("EnsureSettings = %v, want nil (rename path succeeds even on read-only file mode)", err)
 	}
-	if err := os.Chmod(destPath, 0o644); err != nil {
-		t.Fatal(err)
-	}
+	_ = os.Chmod(destPath, 0o644)
 	got, err := os.ReadFile(destPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(got), "orig") {
-		t.Errorf("dest content = %q, want unchanged orig content", string(got))
+	if !strings.Contains(string(got), "orig-val") {
+		t.Errorf("dest content = %q, want to contain orig-val (dest key preserved)", string(got))
+	}
+	if !strings.Contains(string(got), "seed-only") {
+		t.Errorf("dest content = %q, want to contain seed-only (new seed key added)", string(got))
 	}
 }
 

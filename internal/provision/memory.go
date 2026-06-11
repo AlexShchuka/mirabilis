@@ -2,7 +2,6 @@ package provision
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,32 +24,21 @@ func RestoreMemory(root string) {
 		warn("restore memory: readdir", err)
 		return
 	}
+	allOK := true
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
 		srcPath := filepath.Join(src, e.Name())
 		dstPath := filepath.Join(dst, e.Name())
-		if err := copyMemFile(srcPath, dstPath); err != nil {
+		if err := copyFile(srcPath, dstPath); err != nil {
 			warn("restore memory: copy "+e.Name(), err)
+			allOK = false
 		}
 	}
-	warn("restore memory: remove snapshot", os.RemoveAll(src))
-}
-
-func copyMemFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
+	if allOK {
+		warn("restore memory: remove snapshot", os.RemoveAll(src))
 	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }
 
 func titleCase(s string) string {

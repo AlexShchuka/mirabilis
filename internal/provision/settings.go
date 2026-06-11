@@ -42,13 +42,6 @@ func writeJSON(path string, m map[string]any) error {
 		return err
 	}
 	data = append(data, '\n')
-	if _, serr := os.Stat(path); serr == nil {
-		f, werr := os.OpenFile(path, os.O_WRONLY, 0)
-		if werr != nil {
-			return werr
-		}
-		f.Close()
-	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
 	if err != nil {
 		return err
