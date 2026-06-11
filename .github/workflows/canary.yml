@@ -58,6 +58,50 @@ jobs:
             grep -q "CLAUDE_PLUGIN_ROOT" "$HOME/.bashrc" || { echo "[canary] CLAUDE_PLUGIN_ROOT missing from .bashrc — harness not installed"; exit 1; }
           ' || echo "[canary] harness presence check skipped — neuro-matrix not installed in this CI run"
 
+  devcontainer-upgrade:
+    name: devcontainer upgrade — open PR if lock is stale (best-effort)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: install devcontainer CLI
+        run: npm install -g @devcontainers/cli
+      - name: devcontainer upgrade --dry-run
+        id: dry_run
+        run: |
+          devcontainer upgrade --workspace-folder . --dry-run 2>&1 | tee /tmp/upgrade-dry-run.txt
+          echo "output=$(cat /tmp/upgrade-dry-run.txt | wc -l)" >> "$GITHUB_OUTPUT"
+      - name: apply upgrade
+        run: devcontainer upgrade --workspace-folder .
+      - name: check for changes
+        id: diff
+        run: |
+          if git diff --quiet .devcontainer/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: open PR if lock is stale
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          branch="canary/devcontainer-upgrade-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add .devcontainer/
+          git commit -m "chore(deps): devcontainer feature upgrade (canary $(date +%Y-%m-%d))"
+          git push origin "$branch"
+          gh pr create \
+            --title "chore(deps): devcontainer feature upgrade ($(date +%Y-%m-%d))" \
+            --body "Automated canary upgrade of devcontainer feature pins. Validate via \`workflow_dispatch\` post-merge." \
+            --base main \
+            --head "$branch"
+
   tests:
     name: re-run go + install.sh smoke (best-effort)
     runs-on: ubuntu-latest
