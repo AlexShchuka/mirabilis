@@ -46,7 +46,7 @@ func run(args []string) error {
 		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  tg-outbox   run the host-side Telegram outbox watcher\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
 		return nil
 	case "provision":
-		return runProvision(ctx, args[1:])
+		return runProvision(ctx, runtime.NewLocalRunner(), args[1:])
 	case "hook":
 		if len(args) < 2 {
 			return fmt.Errorf("hook: missing name argument")
@@ -59,13 +59,6 @@ func run(args []string) error {
 	}
 }
 
-// runTgOutbox starts the host-side Telegram outbox watcher.
-// It watches <repo>/.mirabilis/outbox/ for job files written by tgsend inside
-// the container and delivers each via internal/telegram.NewOutbox (which
-// enforces the channel pin and the 1-per-second rate limit).
-//
-// The bot token is read from the host keychain / token file — never from the
-// container and never passed via argv.
 func runTgOutbox(ctx context.Context, _ []string) error {
 	r := runtime.NewExecRunner()
 	repo := r.Repo()
@@ -91,12 +84,7 @@ func runTgOutbox(ctx context.Context, _ []string) error {
 	return telegram.RunWatcher(ctx, cfg)
 }
 
-// provisionRunnerOverride is nil in production. Tests may set it to a
-// FakeRunner to exercise runProvision without requiring Docker or a real
-// devcontainer. Never set in production code.
-var provisionRunnerOverride runner.Runner
-
-func runProvision(ctx context.Context, args []string) error {
+func runProvision(ctx context.Context, r runner.Runner, args []string) error {
 	phase := ""
 	for i := 0; i < len(args)-1; i++ {
 		if args[i] == "--phase" {
@@ -104,10 +92,6 @@ func runProvision(ctx context.Context, args []string) error {
 		}
 	}
 	cfg := config.New("/opt/mirabilis/config")
-	r := runtime.NewLocalRunner()
-	if provisionRunnerOverride != nil {
-		r = provisionRunnerOverride
-	}
 	switch phase {
 	case "create":
 		return provision.Create(ctx, r, cfg)
