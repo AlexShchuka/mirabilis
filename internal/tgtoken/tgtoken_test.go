@@ -34,3 +34,32 @@ func TestRead_HomeFromUserHomeDir(t *testing.T) {
 	got := Read()
 	_ = got
 }
+
+func TestReadFile_ClaudeToken_WrittenFile_ReturnsToken(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, FilenameClaude), []byte("oauth-abc-xyz\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadFile(FilenameClaude); got != "oauth-abc-xyz" {
+		t.Errorf("ReadFile(FilenameClaude) = %q, want oauth-abc-xyz", got)
+	}
+}
+
+func TestReadFile_NoFile_Empty(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	if got := ReadFile(FilenameClaude); got != "" {
+		t.Errorf("ReadFile(FilenameClaude) with no file = %q, want empty", got)
+	}
+}
+
+func TestReadFile_HomeEmpty_Empty(t *testing.T) {
+	t.Setenv("HOME", "")
+	got := ReadFile(FilenameClaude)
+	_ = got
+}

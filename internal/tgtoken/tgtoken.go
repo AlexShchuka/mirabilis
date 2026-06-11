@@ -6,21 +6,29 @@ import (
 	"strings"
 )
 
-const Filename = ".mirabilis-telegram-token"
+const (
+	Filename       = ".mirabilis-telegram-token"
+	FilenameClaude = ".mirabilis-claude-token"
+)
 
-func Read() string {
-	home := os.Getenv("HOME")
-	if home == "" {
-		h, err := os.UserHomeDir()
-		if err != nil {
-			return ""
-		}
-		home = h
+func homeDir() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
 	}
-	path := filepath.Join(home, ".claude", Filename)
-	data, err := os.ReadFile(path)
+	h, _ := os.UserHomeDir()
+	return h
+}
+
+func ReadFile(filename string) string {
+	home := homeDir()
+	if home == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".claude", filename))
 	if err != nil {
 		return ""
 	}
 	return strings.TrimRight(string(data), "\r\n")
 }
+
+func Read() string { return ReadFile(Filename) }
