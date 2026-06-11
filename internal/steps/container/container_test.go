@@ -174,38 +174,46 @@ func TestUpdateRun_CleanPath_Nil(t *testing.T) {
 	}
 }
 
+func runGitCmd(dir string, args ...string) error {
+	out, err := os.StartProcess("/usr/bin/git", append([]string{"git"}, args...), &os.ProcAttr{
+		Dir:   dir,
+		Files: []*os.File{nil, nil, nil},
+	})
+	if err != nil {
+		return err
+	}
+	state, err := out.Wait()
+	if err != nil {
+		return err
+	}
+	if !state.Success() {
+		return fmt.Errorf("git %v: exit %d", args, state.ExitCode())
+	}
+	return nil
+}
+
 func makeGitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	for _, cmd := range [][]string{
+	for _, parts := range [][]string{
 		{"git", "init"},
-		{"git", "config", "user.email", "t@example.com"},
-		{"git", "config", "user.name", "T"},
+		{"git", "config", "user.email", "test@example.com"},
+		{"git", "config", "user.name", "Test"},
 	} {
-		proc, err := os.StartProcess("/usr/bin/git", append([]string{"git"}, cmd[1:]...), &os.ProcAttr{
-			Dir:   dir,
-			Files: []*os.File{nil, nil, nil},
-		})
-		if err != nil {
-			t.Fatalf("StartProcess %v: %v", cmd, err)
-		}
-		if st, err := proc.Wait(); err != nil || !st.Success() {
-			t.Fatalf("git %v: %v", cmd[1:], err)
+		if err := runGitCmd(dir, parts[1:]...); err != nil {
+			t.Fatalf("git %v: %v", parts[1:], err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".gitkeep"), nil, 0o644); err != nil {
+	empty := filepath.Join(dir, ".gitkeep")
+	if err := os.WriteFile(empty, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"add", ".gitkeep"}, {"commit", "-m", "init"}} {
-		proc, err := os.StartProcess("/usr/bin/git", append([]string{"git"}, args...), &os.ProcAttr{
-			Dir:   dir,
-			Files: []*os.File{nil, nil, nil},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if st, err := proc.Wait(); err != nil || !st.Success() {
-			t.Fatalf("git %v failed", args)
+	for _, parts := range [][]string{
+		{"add", ".gitkeep"},
+		{"commit", "-m", "init"},
+	} {
+		if err := runGitCmd(dir, parts...); err != nil {
+			t.Fatalf("git %v: %v", parts, err)
 		}
 	}
 	return dir

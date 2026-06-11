@@ -152,6 +152,75 @@ func TestSendMessage_TokenNotInError(t *testing.T) {
 	}
 }
 
+func TestSendMessage_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		conn, _, _ := hj.Hijack()
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	err := sendMessage(client, srv.URL, "tok", "-100123", "hello")
+	if err == nil {
+		t.Fatal("sendMessage must return error on HTTP failure")
+	}
+}
+
+func TestGetUpdates_APIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"ok": false})
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, _, err := getUpdates(client, srv.URL, "tok", 0)
+	if err == nil {
+		t.Fatal("getUpdates must return error when ok=false")
+	}
+}
+
+func TestGetUpdates_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		conn, _, _ := hj.Hijack()
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, _, err := getUpdates(client, srv.URL, "tok", 0)
+	if err == nil {
+		t.Fatal("getUpdates must return error on HTTP failure")
+	}
+}
+
+func TestPollForCanary_GetUpdatesError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"ok": false})
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	_, err := pollForCanary(ctx, client, srv.URL, "tok", "canary")
+	if err == nil {
+		t.Fatal("pollForCanary must propagate getUpdates error")
+	}
+}
+
 func TestGetUpdates_SkipsNonChannelPost(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

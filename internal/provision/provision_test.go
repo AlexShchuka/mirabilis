@@ -145,25 +145,30 @@ func TestReadDisabledPlugins_WithEntries(t *testing.T) {
 	}
 }
 
-func TestToSlice_Nil(t *testing.T) {
-	got := toSlice(nil)
-	if got != nil {
-		t.Errorf("toSlice(nil) = %v, want nil", got)
+func TestToSlice(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      any
+		wantLen int
+		wantNil bool
+	}{
+		{"nil", nil, 0, true},
+		{"slice", []any{"a", "b"}, 2, false},
+		{"non-slice", "not a slice", 0, true},
 	}
-}
-
-func TestToSlice_Slice(t *testing.T) {
-	in := []any{"a", "b"}
-	got := toSlice(in)
-	if len(got) != 2 {
-		t.Fatalf("toSlice() = %v, want length 2", got)
-	}
-}
-
-func TestToSlice_NonSlice(t *testing.T) {
-	got := toSlice("not a slice")
-	if got != nil {
-		t.Errorf("toSlice(string) = %v, want nil", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toSlice(tt.in)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("toSlice(%v) = %v, want nil", tt.in, got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("toSlice(%v) = %v, want length %d", tt.in, got, tt.wantLen)
+			}
+		})
 	}
 }
 
@@ -230,44 +235,47 @@ func TestRtkHookPresent_DifferentCommand(t *testing.T) {
 	}
 }
 
-func TestEnsureTheme_NoFile_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	cfg := config.New(tmp)
-	if err := EnsureTheme(cfg); err != nil {
-		t.Errorf("EnsureTheme with no theme file = %v, want nil", err)
+func TestEnsureTheme_NoopPreconditions(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, tmp, cd string)
+	}{
+		{
+			name:  "no theme file",
+			setup: func(t *testing.T, tmp, cd string) {},
+		},
+		{
+			name: "empty theme file",
+			setup: func(t *testing.T, tmp, cd string) {
+				if err := os.MkdirAll(cd, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(cd, ".mirabilis-theme"), []byte(""), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "no settings file",
+			setup: func(t *testing.T, tmp, cd string) {
+				if err := os.MkdirAll(cd, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(cd, ".mirabilis-theme"), []byte("dark\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
 	}
-}
-
-func TestEnsureTheme_EmptyFile_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	cd := filepath.Join(tmp, ".claude")
-	if err := os.MkdirAll(cd, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(cd, ".mirabilis-theme"), []byte(""), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg := config.New(tmp)
-	if err := EnsureTheme(cfg); err != nil {
-		t.Errorf("EnsureTheme with empty theme file = %v, want nil", err)
-	}
-}
-
-func TestEnsureTheme_NoSettingsFile_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	cd := filepath.Join(tmp, ".claude")
-	if err := os.MkdirAll(cd, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(cd, ".mirabilis-theme"), []byte("dark\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg := config.New(tmp)
-	if err := EnsureTheme(cfg); err != nil {
-		t.Errorf("EnsureTheme with no settings.json = %v, want nil", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			t.Setenv("HOME", tmp)
+			tt.setup(t, tmp, filepath.Join(tmp, ".claude"))
+			if err := EnsureTheme(config.New(tmp)); err != nil {
+				t.Errorf("EnsureTheme = %v, want nil", err)
+			}
+		})
 	}
 }
 
@@ -687,64 +695,58 @@ func TestHarnessStatus_HarnessOn(t *testing.T) {
 	}
 }
 
-func TestEnsureGitIdentity_GhAuthFails(t *testing.T) {
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "gh" && len(args) > 0 && args[0] == "auth" {
-				return "", fmt.Errorf("not signed in")
-			}
-			return "", nil
+func TestEnsureGitIdentity(t *testing.T) {
+	tests := []struct {
+		name   string
+		hostFn func(name string, args []string) (string, error)
+	}{
+		{
+			name: "gh auth fails",
+			hostFn: func(name string, args []string) (string, error) {
+				if name == "gh" && len(args) > 0 && args[0] == "auth" {
+					return "", fmt.Errorf("not signed in")
+				}
+				return "", nil
+			},
+		},
+		{
+			name: "git missing",
+			hostFn: func(name string, args []string) (string, error) {
+				if name == "gh" {
+					return "ok", nil
+				}
+				if name == "git" {
+					return "", fmt.Errorf("not found")
+				}
+				return "", nil
+			},
+		},
+		{
+			name: "valid user",
+			hostFn: func(name string, args []string) (string, error) {
+				if name == "gh" && len(args) > 0 && args[0] == "api" {
+					return `{"login":"testuser","name":"Test User","email":"test@example.com","id":"12345"}`, nil
+				}
+				return "", nil
+			},
+		},
+		{
+			name: "user no email",
+			hostFn: func(name string, args []string) (string, error) {
+				if name == "gh" && len(args) > 0 && args[0] == "api" {
+					return `{"login":"testuser","name":"","email":"","id":"12345"}`, nil
+				}
+				return "", nil
+			},
 		},
 	}
-	if err := EnsureGitIdentity(context.Background(), r); err != nil {
-		t.Errorf("EnsureGitIdentity = %v, want nil", err)
-	}
-}
-
-func TestEnsureGitIdentity_GitMissing(t *testing.T) {
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "gh" {
-				return "ok", nil
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &runner.FakeRunner{HostFunc: tt.hostFn}
+			if err := EnsureGitIdentity(context.Background(), r); err != nil {
+				t.Errorf("EnsureGitIdentity = %v, want nil", err)
 			}
-			if name == "git" {
-				return "", fmt.Errorf("not found")
-			}
-			return "", nil
-		},
-	}
-	if err := EnsureGitIdentity(context.Background(), r); err != nil {
-		t.Errorf("EnsureGitIdentity = %v, want nil", err)
-	}
-}
-
-func TestEnsureGitIdentity_ValidUser(t *testing.T) {
-	userJSON := `{"login":"testuser","name":"Test User","email":"test@example.com","id":"12345"}`
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "gh" && len(args) > 0 && args[0] == "api" {
-				return userJSON, nil
-			}
-			return "", nil
-		},
-	}
-	if err := EnsureGitIdentity(context.Background(), r); err != nil {
-		t.Errorf("EnsureGitIdentity = %v, want nil", err)
-	}
-}
-
-func TestEnsureGitIdentity_UserWithNoEmail(t *testing.T) {
-	userJSON := `{"login":"testuser","name":"","email":"","id":"12345"}`
-	r := &runner.FakeRunner{
-		HostFunc: func(name string, args []string) (string, error) {
-			if name == "gh" && len(args) > 0 && args[0] == "api" {
-				return userJSON, nil
-			}
-			return "", nil
-		},
-	}
-	if err := EnsureGitIdentity(context.Background(), r); err != nil {
-		t.Errorf("EnsureGitIdentity = %v, want nil", err)
+		})
 	}
 }
 
@@ -1325,29 +1327,29 @@ func TestEnsureSettings_WriteJSON_RenameSucceedsOnReadOnlyFile(t *testing.T) {
 	}
 }
 
-func TestWriteProvisionStatus_Ok(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	writeProvisionStatus(0, 10)
-	data, err := os.ReadFile(filepath.Join(tmp, ".claude", ".mirabilis-provision-status"))
-	if err != nil {
-		t.Fatalf("status file not written: %v", err)
+func TestWriteProvisionStatus(t *testing.T) {
+	tests := []struct {
+		name    string
+		warned  int
+		total   int
+		wantOut string
+	}{
+		{"ok", 0, 10, "ok"},
+		{"warned", 3, 12, "3/12 warned"},
 	}
-	if string(data) != "ok" {
-		t.Errorf("status = %q, want ok", string(data))
-	}
-}
-
-func TestWriteProvisionStatus_Warned(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	writeProvisionStatus(3, 12)
-	data, err := os.ReadFile(filepath.Join(tmp, ".claude", ".mirabilis-provision-status"))
-	if err != nil {
-		t.Fatalf("status file not written: %v", err)
-	}
-	if string(data) != "3/12 warned" {
-		t.Errorf("status = %q, want 3/12 warned", string(data))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			t.Setenv("HOME", tmp)
+			writeProvisionStatus(tt.warned, tt.total)
+			data, err := os.ReadFile(filepath.Join(tmp, ".claude", ".mirabilis-provision-status"))
+			if err != nil {
+				t.Fatalf("status file not written: %v", err)
+			}
+			if string(data) != tt.wantOut {
+				t.Errorf("status = %q, want %q", string(data), tt.wantOut)
+			}
+		})
 	}
 }
 

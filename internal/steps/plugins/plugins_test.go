@@ -130,46 +130,33 @@ func TestRun_Success(t *testing.T) {
 	}
 }
 
-func TestRun_FirstCallError(t *testing.T) {
-	dir := t.TempDir()
-	callCount := 0
-	r := &runner.FakeRunner{
-		RepoVal: dir,
-		ContFunc: func(args []string) (string, error) {
-			callCount++
-			if callCount == 1 {
-				return "", fmt.Errorf("env write failed")
+func TestRun_CallErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		failOnCall int
+	}{
+		{"first call error", 1},
+		{"second call error", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			callCount := 0
+			r := &runner.FakeRunner{
+				RepoVal: dir,
+				ContFunc: func(args []string) (string, error) {
+					callCount++
+					if callCount == tt.failOnCall {
+						return "", fmt.Errorf("call %d failed", tt.failOnCall)
+					}
+					return "", nil
+				},
 			}
-			return "", nil
-		},
-	}
-	impl := step{}
-	err := impl.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run first-call error: expected non-nil error, got nil")
-	}
-	if callCount != 1 {
-		t.Errorf("Run first-call error: expected exactly 1 call before return, got %d", callCount)
-	}
-}
-
-func TestRun_SecondCallError(t *testing.T) {
-	dir := t.TempDir()
-	callCount := 0
-	r := &runner.FakeRunner{
-		RepoVal: dir,
-		ContFunc: func(args []string) (string, error) {
-			callCount++
-			if callCount == 2 {
-				return "", fmt.Errorf("provision failed")
+			err := step{}.Run(context.Background(), r)
+			if err == nil {
+				t.Errorf("Run %s: expected non-nil error, got nil", tt.name)
 			}
-			return "", nil
-		},
-	}
-	impl := step{}
-	err := impl.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run second-call error: expected non-nil error, got nil")
+		})
 	}
 }
 

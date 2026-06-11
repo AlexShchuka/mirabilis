@@ -306,6 +306,18 @@ func TestRunSend_StatusFailed_ReturnsOne(t *testing.T) {
 	}
 }
 
+// TestRunSend_WaitTimeout_ReturnsZero verifies that when waitForStatus times
+// out (no status file written), runSend still returns exit code 0: the job is
+// on disk and the watcher not running is non-fatal.
+func TestRunSend_WaitTimeout_ReturnsZero(t *testing.T) {
+	dir := t.TempDir()
+	queueDir := filepath.Join(dir, "outbox")
+	code := runSend(queueDir, "-100test", "timeout test", true, time.Millisecond, io.Discard, io.Discard)
+	if code != 0 {
+		t.Errorf("runSend with timed-out wait = %d, want 0 (non-fatal)", code)
+	}
+}
+
 // TestQueueWriter_PendingJobs_WithStatusFile verifies that a job with a
 // matching status file is NOT returned by PendingJobs (already processed).
 func TestQueueWriter_PendingJobs_WithStatusFile(t *testing.T) {

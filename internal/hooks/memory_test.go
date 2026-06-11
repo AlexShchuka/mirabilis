@@ -249,46 +249,6 @@ max_lines: 80
 	}
 }
 
-func captureStdout(t *testing.T) (restore func() string) {
-	t.Helper()
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := os.Stdout
-	os.Stdout = pw
-	t.Cleanup(func() {
-		pw.Close()
-		os.Stdout = old
-	})
-	return func() string {
-		pw.Close()
-		os.Stdout = old
-		var buf [65536]byte
-		n, _ := pr.Read(buf[:])
-		pr.Close()
-		return string(buf[:n])
-	}
-}
-
-func replaceStdin(t *testing.T, data string) {
-	t.Helper()
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	old := os.Stdin
-	os.Stdin = pr
-	t.Cleanup(func() {
-		os.Stdin = old
-		pr.Close()
-	})
-	if _, err := pw.WriteString(data); err != nil {
-		t.Fatal(err)
-	}
-	pw.Close()
-}
-
 func TestSessionStart_WithMemoryFiles(t *testing.T) {
 	tmp := t.TempDir()
 	memDir := filepath.Join(tmp, ".claude", "memory")

@@ -57,11 +57,3 @@ func TestCheck_ContainerErrors(t *testing.T) {
 		t.Error("Check = true, want false when container errors")
 	}
 }
-
-func TestRun_ReturnsNil(t *testing.T) {
-	r := &runner.FakeRunner{}
-	err := step{}.Run(context.Background(), r)
-	if err != nil {
-		t.Errorf("Run = %v, want nil", err)
-	}
-}

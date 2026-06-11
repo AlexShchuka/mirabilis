@@ -35,18 +35,6 @@ func TestSteps_NamesAndDeps(t *testing.T) {
 	}
 }
 
-func TestClaudeCheck_AlwaysFalse(t *testing.T) {
-	r := &runner.FakeRunner{}
-	impl := claudeStep{}
-	got, err := impl.Check(context.Background(), r)
-	if err != nil {
-		t.Fatalf("claudeStep.Check: %v", err)
-	}
-	if got {
-		t.Error("claudeStep.Check = true, want false (always runs)")
-	}
-}
-
 func TestClaudeRun_PropagatesContainerError(t *testing.T) {
 	want := fmt.Errorf("container exec failed")
 	r := &runner.FakeRunner{

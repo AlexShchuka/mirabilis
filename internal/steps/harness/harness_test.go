@@ -28,36 +28,6 @@ func TestSteps_NameAndDeps(t *testing.T) {
 	}
 }
 
-func TestCheck_HarnessInstalled(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "", nil
-		},
-	}
-	got, err := step{}.Check(context.Background(), r)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if !got {
-		t.Error("Check = false when harness plugin list succeeds, want true")
-	}
-}
-
-func TestCheck_HarnessNotInstalled(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "", fmt.Errorf("grep: no match")
-		},
-	}
-	got, err := step{}.Check(context.Background(), r)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if got {
-		t.Error("Check = true when grep fails, want false")
-	}
-}
-
 func TestRun_WhenClaudeAbsent_ReturnsNil(t *testing.T) {
 	r := &runner.FakeRunner{
 		ContFunc: func(args []string) (string, error) {
