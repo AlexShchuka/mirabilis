@@ -2,10 +2,15 @@ package provision
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
+
+const headroomProxyURL = "http://127.0.0.1:8787"
+const headroomBaseURLKey = "ANTHROPIC_BASE_URL"
 
 func EnsureHeadroom(ctx context.Context, r runner.Runner) error {
 	if _, err := r.Container(ctx, "bash", "-lc", `test -x "$HOME/.headroom-venv/bin/headroom"`); err != nil {
@@ -32,4 +37,67 @@ func EnsureHeadroom(ctx context.Context, r runner.Runner) error {
 		warn("headroom mcp register", err)
 	}
 	return nil
+}
+
+func EnsureHeadroomProxy(ctx context.Context, r runner.Runner) error {
+	if !proxyReachable(ctx, r) {
+		startProxy(ctx, r)
+		if !pollProxy(ctx, r, 60) {
+			warn("headroom proxy start", os.ErrProcessDone)
+			removeBaseURL()
+			return nil
+		}
+	}
+	setBaseURL()
+	return nil
+}
+
+func proxyReachable(ctx context.Context, r runner.Runner) bool {
+	_, err := r.Container(ctx, "bash", "-lc", "curl -fsS http://127.0.0.1:8787/stats >/dev/null 2>&1")
+	return err == nil
+}
+
+func startProxy(ctx context.Context, r runner.Runner) {
+	_, _ = r.Container(ctx, "bash", "-lc",
+		`setsid nohup "$HOME/.headroom-venv/bin/headroom" proxy >"$HOME/.headroom-proxy.log" 2>&1 &`)
+}
+
+func pollProxy(ctx context.Context, r runner.Runner, maxAttempts int) bool {
+	script := fmt.Sprintf(`for i in $(seq 1 %d); do curl -fsS http://127.0.0.1:8787/stats >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1`, maxAttempts)
+	_, err := r.Container(ctx, "bash", "-lc", script)
+	return err == nil
+}
+
+func setBaseURL() {
+	dest := settingsPath()
+	m, err := readJSON(dest)
+	if err != nil {
+		warn("headroom proxy read settings", err)
+		return
+	}
+	env, _ := m["env"].(map[string]any)
+	if env == nil {
+		env = make(map[string]any)
+	}
+	if env[headroomBaseURLKey] == headroomProxyURL {
+		return
+	}
+	env[headroomBaseURLKey] = headroomProxyURL
+	m["env"] = env
+	warn("headroom proxy write settings", writeJSON(dest, m))
+}
+
+func removeBaseURL() {
+	dest := settingsPath()
+	m, err := readJSON(dest)
+	if err != nil {
+		return
+	}
+	env, _ := m["env"].(map[string]any)
+	if env == nil || env[headroomBaseURLKey] == nil {
+		return
+	}
+	delete(env, headroomBaseURLKey)
+	m["env"] = env
+	warn("headroom proxy remove base url", writeJSON(dest, m))
 }

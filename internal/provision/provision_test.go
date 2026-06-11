@@ -1410,6 +1410,36 @@ func TestEnsureMCP_AddIfAbsent_SkipsRegistered(t *testing.T) {
 	}
 }
 
+func TestWriteProvisionStatus_MkdirFails_Noop(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks not effective as root")
+	}
+	tmp := t.TempDir()
+	ro := filepath.Join(tmp, "ro")
+	if err := os.MkdirAll(ro, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ro, 0o755) })
+	t.Setenv("HOME", filepath.Join(ro, "home"))
+	writeProvisionStatus(0, 10)
+}
+
+func TestReadSkillCatalog_SkipsBlankAndCommentLines(t *testing.T) {
+	dir := t.TempDir()
+	content := "# header\n\nowner/repo-a\n# another comment\nowner/repo-b\n"
+	if err := os.WriteFile(filepath.Join(dir, "skills.txt"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.New(dir)
+	got := readSkillCatalog(cfg)
+	if len(got) != 2 {
+		t.Fatalf("readSkillCatalog = %v, want 2 entries (blank/comment lines skipped)", got)
+	}
+	if got[0] != "owner/repo-a" || got[1] != "owner/repo-b" {
+		t.Errorf("readSkillCatalog = %v, want [owner/repo-a owner/repo-b]", got)
+	}
+}
+
 func writeSettingsJSON(t *testing.T, homeDir string, m map[string]any) error {
 	t.Helper()
 	cd := filepath.Join(homeDir, ".claude")

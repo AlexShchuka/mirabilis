@@ -63,6 +63,7 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 	step("rtk", EnsureRTK(ctx, r, cfg))
 	step("rtk config", EnsureRTKConfig(cfg))
 	step("headroom", EnsureHeadroom(ctx, r))
+	step("headroom proxy", EnsureHeadroomProxy(ctx, r))
 
 	if warned > 0 {
 		fmt.Fprintf(os.Stderr, "[provision] %d of %d steps warned\n", warned, total)
