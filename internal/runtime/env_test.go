@@ -219,3 +219,82 @@ func TestComposeEnv_ManagedKeys(t *testing.T) {
 		t.Errorf("STACKS = %q, want go,rust", v)
 	}
 }
+
+func TestComposeEnv_ClaudeTokenNotDoubleInjected(t *testing.T) {
+	repo := makeGitRepo(t)
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-host-secret")
+
+	env := ComposeEnv(repo)
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "CLAUDE_CODE_OAUTH_TOKEN=") {
+			count++
+		}
+	}
+	if count > 1 {
+		t.Errorf("CLAUDE_CODE_OAUTH_TOKEN appears %d times in container env, want at most 1", count)
+	}
+}
+
+func TestComposeEnv_ClaudeTokenInjectedFromFile(t *testing.T) {
+	repo := makeGitRepo(t)
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
+
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, ".mirabilis-claude-token"), []byte("file-oauth-token\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env := ComposeEnv(repo)
+	found := false
+	for _, kv := range env {
+		if kv == "CLAUDE_CODE_OAUTH_TOKEN=file-oauth-token" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("CLAUDE_CODE_OAUTH_TOKEN from token file not injected into container env")
+	}
+}
+
+func TestKeychainEnv_ClaudeToken(t *testing.T) {
+	got := keychainEnv("claude-token")
+	if got != "CLAUDE_CODE_OAUTH_TOKEN" {
+		t.Errorf("keychainEnv(claude-token) = %q, want CLAUDE_CODE_OAUTH_TOKEN", got)
+	}
+}
+
+func TestKeychainGet_ClaudeTokenEnvFallback(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "env-oauth-token")
+
+	got := keychainGet("claude-token")
+	if got != "env-oauth-token" {
+		t.Errorf("keychainGet(claude-token) via env = %q, want env-oauth-token", got)
+	}
+}
+
+func TestKeychainGet_ClaudeTokenFileFallback(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
+
+	cd := filepath.Join(tmp, ".claude")
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, ".mirabilis-claude-token"), []byte("file-oauth-fallback\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := keychainGet("claude-token")
+	if got != "file-oauth-fallback" {
+		t.Errorf("keychainGet(claude-token) via file = %q, want file-oauth-fallback", got)
+	}
+}
