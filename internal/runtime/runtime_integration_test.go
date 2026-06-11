@@ -23,30 +23,21 @@ func TestSecretReachesContainerNotArgv(t *testing.T) {
 	}
 	ctrID := ctr.GetContainerID()
 
-	t.Run("ComposeEnv-managed key", func(t *testing.T) {
-		ctx := t.Context()
+	t.Run("ComposeEnv blocks the bot token from the container", func(t *testing.T) {
+		// Host-outbox model (#115): the bot token is held only on the host and
+		// must NEVER reach the container. Even with TELEGRAM_BOT_TOKEN set in the
+		// host environment, ComposeEnv must strip it — verified here at the
+		// integration level (the unit-level guarantee is TestComposeEnv_TokenNeverInjected).
 		const sentinel1 = "mirabilis-it-telegram-x"
 		t.Setenv("TELEGRAM_BOT_TOKEN", sentinel1)
 
 		repo := makeGitRepo(t)
-		cmd := exec.CommandContext(ctx, "docker", "exec",
-			"-e", "TELEGRAM_BOT_TOKEN",
-			ctrID,
-			"printenv", "TELEGRAM_BOT_TOKEN",
-		)
-		cmd.Env = ComposeEnv(repo)
-
-		out, err := cmd.Output()
-		if err != nil {
-			t.Fatalf("docker exec printenv: %v", err)
-		}
-		got := strings.TrimSpace(string(out))
-		if got != sentinel1 {
-			t.Errorf("TELEGRAM_BOT_TOKEN in container = %q, want %q", got, sentinel1)
-		}
-		for _, arg := range cmd.Args {
-			if strings.Contains(arg, sentinel1) {
-				t.Errorf("sentinel1 found in argv: %q", arg)
+		for _, kv := range ComposeEnv(repo) {
+			if strings.HasPrefix(kv, "TELEGRAM_BOT_TOKEN=") {
+				t.Errorf("TELEGRAM_BOT_TOKEN must not be passed to the container, got %q", kv)
+			}
+			if strings.Contains(kv, sentinel1) {
+				t.Errorf("token sentinel leaked into ComposeEnv: %q", kv)
 			}
 		}
 	})
