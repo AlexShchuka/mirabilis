@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
+	"github.com/AlexShchuka/mirabilis/internal/runtime"
 )
 
 func TestEnsureMemory_SeedsAllCategories(t *testing.T) {
@@ -102,5 +103,69 @@ func TestEnsureMemory_DirsExist(t *testing.T) {
 		if !fi.IsDir() {
 			t.Errorf("%s is not a directory", d)
 		}
+	}
+}
+
+func TestRestoreMemory_RoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	repoRoot := t.TempDir()
+	savePath := runtime.MemorySavePath(repoRoot)
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const content = "---\ncategory: sandbox-ops\nmemory_type: procedural\nsummary: s\n---\n\n- bullet one\n"
+	if err := os.WriteFile(filepath.Join(savePath, "sandbox-ops.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	RestoreMemory(repoRoot)
+
+	dst := filepath.Join(tmp, ".claude", "memory", "sandbox-ops.md")
+	data, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("memory file not restored: %v", err)
+	}
+	if string(data) != content {
+		t.Errorf("restored content = %q, want %q", string(data), content)
+	}
+	if _, err := os.Stat(savePath); err == nil {
+		t.Error("saved-memory staging dir should be removed after restore")
+	}
+}
+
+func TestRestoreMemory_NoSnapshot_Noop(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	repoRoot := t.TempDir()
+
+	RestoreMemory(repoRoot)
+
+	memDir := filepath.Join(tmp, ".claude", "memory")
+	entries, _ := os.ReadDir(memDir)
+	if len(entries) != 0 {
+		t.Errorf("RestoreMemory with no snapshot should not create any files, got %v", entries)
+	}
+}
+
+func TestRestoreMemory_DestroysSnapshotAfterRestore(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	repoRoot := t.TempDir()
+	savePath := runtime.MemorySavePath(repoRoot)
+	if err := os.MkdirAll(savePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(savePath, "about-me.md"), []byte("---\ncategory: about-me\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	RestoreMemory(repoRoot)
+
+	if _, err := os.Stat(savePath); err == nil {
+		t.Error("staging dir must be removed after successful restore")
 	}
 }

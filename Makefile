@@ -62,5 +62,12 @@ down:
 clean:
 	docker compose -p mirabilis -f docker-compose.yml down --rmi local || true
 
+PRESERVE ?= 1
+
 reset:
+ifeq ($(PRESERVE),0)
 	docker compose -p mirabilis -f docker-compose.yml down --rmi local -v || true
+else
+	@docker cp mirabilis:/home/node/.claude/memory .mirabilis/saved-memory 2>/dev/null || true
+	docker compose -p mirabilis -f docker-compose.yml down --rmi local -v || true
+endif

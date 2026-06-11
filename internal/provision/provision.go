@@ -49,6 +49,7 @@ func ensureAll(ctx context.Context, r runner.Runner, cfg config.Config) {
 
 	step("settings", EnsureSettings(cfg))
 	step("theme", EnsureTheme(cfg))
+	RestoreMemory(r.Repo())
 	step("memory", EnsureMemory())
 	step("git identity", EnsureGitIdentity(ctx, r))
 	step("plugins", EnsurePlugins(ctx, r, cfg))

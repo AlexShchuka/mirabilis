@@ -196,7 +196,7 @@ func TestResetAllCmd_Success(t *testing.T) {
 	prependTestPath(t, dockerDir)
 
 	r := &runner.FakeRunner{RepoVal: t.TempDir()}
-	cmd := resetAllCmd(context.Background(), r)
+	cmd := resetAllCmd(context.Background(), r, false)
 	if cmd == nil {
 		t.Fatal("resetAllCmd returned nil")
 	}
@@ -218,7 +218,7 @@ func TestResetAllCmd_Failure(t *testing.T) {
 	prependTestPath(t, dockerDir)
 
 	r := &runner.FakeRunner{RepoVal: t.TempDir()}
-	cmd := resetAllCmd(context.Background(), r)
+	cmd := resetAllCmd(context.Background(), r, false)
 	msg := cmd()
 	btm, ok := msg.(backToMenuMsg)
 	if !ok {
@@ -226,6 +226,32 @@ func TestResetAllCmd_Failure(t *testing.T) {
 	}
 	if !strings.HasPrefix(btm.notice, ui.NoticeResetErr) {
 		t.Errorf("notice = %q, want prefix %q", btm.notice, ui.NoticeResetErr)
+	}
+}
+
+func TestResetAllCmd_Preserve_RoundTrip(t *testing.T) {
+	dockerDir := t.TempDir()
+	if err := os.WriteFile(dockerDir+"/docker", []byte("#!/bin/sh\nexit 0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prependTestPath(t, dockerDir)
+
+	repoDir := t.TempDir()
+	if err := os.MkdirAll(repoDir+"/.mirabilis/saved-memory", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := &runner.FakeRunner{RepoVal: repoDir}
+	cmd := resetAllCmd(context.Background(), r, true)
+	if cmd == nil {
+		t.Fatal("resetAllCmd returned nil")
+	}
+	msg := cmd()
+	btm, ok := msg.(backToMenuMsg)
+	if !ok {
+		t.Fatalf("resetAllCmd preserve emits %T, want backToMenuMsg", msg)
+	}
+	if btm.notice != ui.NoticeResetDone {
+		t.Errorf("notice = %q, want %q", btm.notice, ui.NoticeResetDone)
 	}
 }
 

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -79,7 +80,31 @@ func LastLines(s string, n int) string {
 	return strings.Join(lines, "\n")
 }
 
-func ResetAll(ctx context.Context, r runner.Runner) error {
+const memorySaveSubdir = ".mirabilis/saved-memory"
+
+func MemorySavePath(repoRoot string) string {
+	return filepath.Join(repoRoot, memorySaveSubdir)
+}
+
+func SaveMemory(repoRoot string) error {
+	dst := MemorySavePath(repoRoot)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("save memory: mkdir: %w", err)
+	}
+	_ = os.RemoveAll(dst)
+	cmd := exec.Command("docker", "cp", "mirabilis:/home/node/.claude/memory", dst)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("save memory: docker cp: %s", LastLines(string(out), 6))
+	}
+	return nil
+}
+
+func ResetAll(ctx context.Context, r runner.Runner, preserve bool) error {
+	if preserve {
+		if err := SaveMemory(r.Repo()); err != nil {
+			fmt.Fprintf(os.Stderr, "[runtime] WARN: save memory before reset: %v\n", err)
+		}
+	}
 	cmd := exec.CommandContext(ctx, "docker", "compose", "-p", "mirabilis",
 		"-f", filepath.Join(r.Repo(), "docker-compose.yml"),
 		"down", "--rmi", "local", "-v")

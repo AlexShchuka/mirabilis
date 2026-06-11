@@ -150,7 +150,7 @@ func TestResetAll_Success(t *testing.T) {
 	t.Setenv("MIRABILIS_REPO", repo)
 
 	r := &runner.FakeRunner{RepoVal: repo}
-	err := ResetAll(context.Background(), r)
+	err := ResetAll(context.Background(), r, false)
 	if err != nil {
 		t.Errorf("ResetAll = %v, want nil on docker success", err)
 	}
@@ -163,9 +163,22 @@ func TestResetAll_Failure(t *testing.T) {
 	t.Setenv("MIRABILIS_REPO", repo)
 
 	r := &runner.FakeRunner{RepoVal: repo}
-	err := ResetAll(context.Background(), r)
+	err := ResetAll(context.Background(), r, false)
 	if err == nil {
 		t.Error("ResetAll must return error when docker compose down fails")
+	}
+}
+
+func TestResetAll_Preserve_SavesMemoryBeforeDown(t *testing.T) {
+	repo := t.TempDir()
+	dockerDir := makeShim(t, "docker", `exit 0`)
+	prependPath(t, dockerDir)
+	t.Setenv("MIRABILIS_REPO", repo)
+
+	r := &runner.FakeRunner{RepoVal: repo}
+	err := ResetAll(context.Background(), r, true)
+	if err != nil {
+		t.Errorf("ResetAll preserve = %v, want nil", err)
 	}
 }
 
