@@ -133,3 +133,88 @@ func TestOutbox_MissingTokenFile(t *testing.T) {
 		t.Fatal("expected error for missing token file")
 	}
 }
+
+func TestNewOutbox_EmptyTokenPathDefaultsToConstant(t *testing.T) {
+	ob, err := NewOutbox("", alwaysConfirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ob.tokenPath != DefaultTokenPath {
+		t.Errorf("tokenPath = %q, want %q", ob.tokenPath, DefaultTokenPath)
+	}
+}
+
+func TestOutbox_ReadToken_EmptyFile(t *testing.T) {
+	tok := writeTokenFile(t, "   \n")
+	ob, err := NewOutbox(tok, alwaysConfirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = ob.Send(context.Background(), "-100123", "hello")
+	if err == nil {
+		t.Fatal("expected error for empty token file")
+	}
+}
+
+func TestOutbox_DoSend_HTTPError(t *testing.T) {
+	tok := writeTokenFile(t, "tok-hterr")
+	ob, err := NewOutbox(tok, alwaysConfirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srv.Close()
+	ob.withBaseURL(srv.URL)
+
+	err = ob.Send(context.Background(), "-100123", "hello")
+	if err == nil {
+		t.Fatal("expected error when server is closed")
+	}
+}
+
+func TestOutbox_DoSend_BadJSON(t *testing.T) {
+	tok := writeTokenFile(t, "tok-badjson")
+	ob, err := NewOutbox(tok, alwaysConfirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not-json{{{"))
+	}))
+	defer srv.Close()
+	ob.withBaseURL(srv.URL)
+
+	err = ob.Send(context.Background(), "-100123", "hello")
+	if err == nil {
+		t.Fatal("expected error for malformed JSON response")
+	}
+}
+
+func TestOutbox_Send_CtxCanceledDuringRateLimit(t *testing.T) {
+	tok := writeTokenFile(t, "tok-ctx")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	}))
+	defer srv.Close()
+
+	ob, err := NewOutbox(tok, alwaysConfirm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ob.withBaseURL(srv.URL)
+
+	if err := ob.Send(context.Background(), "-100123", "first"); err != nil {
+		t.Fatalf("first Send: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = ob.Send(ctx, "-100123", "second")
+	if err == nil {
+		t.Fatal("expected error when context is already canceled during rate-limit wait")
+	}
+}

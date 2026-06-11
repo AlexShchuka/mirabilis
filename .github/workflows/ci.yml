@@ -39,7 +39,7 @@ jobs:
       - id: cover
         name: coverage summary
         run: |
-          grep -v 'cmd/mirabilis' cover.out > cover_filtered.out
+          grep -vE 'cmd/(mirabilis|tgsmoke)' cover.out > cover_filtered.out
           pct=$(go tool cover -func=cover_filtered.out | tail -1 | awk '{print $3}')
           echo "**Coverage:** $pct" >> "$GITHUB_STEP_SUMMARY"
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
