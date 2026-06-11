@@ -19,34 +19,40 @@ func TestMergeSettings(t *testing.T) {
 		name string
 	}{
 		{
-			name: "seed wins on leaf conflict",
-			dest: map[string]any{"key": "dest-val"},
-			seed: map[string]any{"key": "seed-val"},
-			want: map[string]any{"key": "seed-val"},
+			name: "user key preserved when seed has same key",
+			dest: map[string]any{"theme": "light"},
+			seed: map[string]any{"theme": "dark"},
+			want: map[string]any{"theme": "light"},
 		},
 		{
-			name: "nested object recursive merge",
-			dest: map[string]any{
-				"outer": map[string]any{"a": "1", "b": "dest-b"},
-			},
-			seed: map[string]any{
-				"outer": map[string]any{"b": "seed-b", "c": "3"},
-			},
-			want: map[string]any{
-				"outer": map[string]any{"a": "1", "b": "seed-b", "c": "3"},
-			},
+			name: "seed-managed key (hooks) always wins",
+			dest: map[string]any{"hooks": map[string]any{"old": "v"}},
+			seed: map[string]any{"hooks": map[string]any{"new": "v"}},
+			want: map[string]any{"hooks": map[string]any{"new": "v"}},
 		},
 		{
-			name: "arrays replaced not concatenated",
-			dest: map[string]any{"arr": []any{"x", "y"}},
-			seed: map[string]any{"arr": []any{"z"}},
-			want: map[string]any{"arr": []any{"z"}},
+			name: "seed-managed key (statusLine) always wins",
+			dest: map[string]any{"statusLine": "old"},
+			seed: map[string]any{"statusLine": "new"},
+			want: map[string]any{"statusLine": "new"},
+		},
+		{
+			name: "seed-managed key (env) always wins",
+			dest: map[string]any{"env": map[string]any{"K": "old"}},
+			seed: map[string]any{"env": map[string]any{"K": "new"}},
+			want: map[string]any{"env": map[string]any{"K": "new"}},
+		},
+		{
+			name: "seed adds new user-owned key not present in dest",
+			dest: map[string]any{"existing": "kept"},
+			seed: map[string]any{"newkey": "added"},
+			want: map[string]any{"existing": "kept", "newkey": "added"},
 		},
 		{
 			name: "dest-only keys preserved",
 			dest: map[string]any{"user-only": "kept", "shared": "dest"},
 			seed: map[string]any{"shared": "seed"},
-			want: map[string]any{"user-only": "kept", "shared": "seed"},
+			want: map[string]any{"user-only": "kept", "shared": "dest"},
 		},
 		{
 			name: "empty seed",
@@ -55,22 +61,22 @@ func TestMergeSettings(t *testing.T) {
 			want: map[string]any{"a": "1"},
 		},
 		{
-			name: "empty dest",
+			name: "empty dest — seed-owned keys come from seed",
 			dest: map[string]any{},
-			seed: map[string]any{"a": "1"},
-			want: map[string]any{"a": "1"},
+			seed: map[string]any{"hooks": map[string]any{"x": "v"}},
+			want: map[string]any{"hooks": map[string]any{"x": "v"}},
 		},
 		{
-			name: "object in seed replaces non-object in dest",
-			dest: map[string]any{"k": "string"},
-			seed: map[string]any{"k": map[string]any{"nested": "v"}},
-			want: map[string]any{"k": map[string]any{"nested": "v"}},
+			name: "empty dest — user-owned key added from seed",
+			dest: map[string]any{},
+			seed: map[string]any{"theme": "dark"},
+			want: map[string]any{"theme": "dark"},
 		},
 		{
-			name: "non-object in seed replaces object in dest",
-			dest: map[string]any{"k": map[string]any{"nested": "v"}},
-			seed: map[string]any{"k": "flat"},
-			want: map[string]any{"k": "flat"},
+			name: "nested merge only for non-managed keys that both have as maps",
+			dest: map[string]any{"outer": map[string]any{"a": "1", "b": "dest-b"}},
+			seed: map[string]any{"outer": map[string]any{"b": "seed-b", "c": "3"}},
+			want: map[string]any{"outer": map[string]any{"a": "1", "b": "dest-b", "c": "3"}},
 		},
 	}
 
@@ -81,6 +87,33 @@ func TestMergeSettings(t *testing.T) {
 				t.Errorf("mergeSettings() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestMergeSettings_ManagedKeys_UserEditsScalarSurvivesRestart(t *testing.T) {
+	dest := map[string]any{
+		"theme":               "dark",
+		"includeCoAuthoredBy": true,
+		"hooks":               map[string]any{"old": "hook"},
+	}
+	seed := map[string]any{
+		"theme":               "auto",
+		"includeCoAuthoredBy": false,
+		"hooks":               map[string]any{"new": "hook"},
+	}
+	got := mergeSettings(dest, seed)
+	if got["theme"] != "dark" {
+		t.Errorf("theme should be user value 'dark', got %v", got["theme"])
+	}
+	if got["includeCoAuthoredBy"] != true {
+		t.Errorf("includeCoAuthoredBy should be user value true, got %v", got["includeCoAuthoredBy"])
+	}
+	hooks, _ := got["hooks"].(map[string]any)
+	if hooks == nil || hooks["new"] != "hook" {
+		t.Errorf("hooks should be seed value (managed key), got %v", got["hooks"])
+	}
+	if _, hasOld := hooks["old"]; hasOld {
+		t.Error("hooks must be fully replaced from seed (not merged); old key must not remain")
 	}
 }
 
@@ -152,8 +185,8 @@ func TestEnsureSettings_SandboxDropped(t *testing.T) {
 	if v, ok := result["user-only"]; !ok || v != "kept" {
 		t.Errorf("user-only key should be preserved, got %v", v)
 	}
-	if v, ok := result["theme"]; !ok || v != "dark" {
-		t.Errorf("theme should be seed value 'dark', got %v", v)
+	if v, ok := result["theme"]; !ok || v != "light" {
+		t.Errorf("theme should be user value 'light' (user-owned key), got %v", v)
 	}
 }
 
