@@ -6,13 +6,17 @@ import (
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
+	"github.com/AlexShchuka/mirabilis/internal/tgtoken"
 )
+
+var blockedFromContainer = map[string]bool{
+	"TELEGRAM_BOT_TOKEN": true,
+}
 
 func ComposeEnv(repo string) []string {
 	managed := map[string]string{
-		"MIRABILIS_VERSION":  GitShort(repo),
-		"TELEGRAM_BOT_TOKEN": keychainGet("telegram-token"),
-		"TELEGRAM_CHAT_ID":   keychainGet("telegram-chat"),
+		"MIRABILIS_VERSION": GitShort(repo),
+		"TELEGRAM_CHAT_ID":  keychainGet("telegram-chat"),
 	}
 	if stacks, ok := config.ReadStacks(repo); ok {
 		managed["STACKS"] = stacks
@@ -21,6 +25,9 @@ func ComposeEnv(repo string) []string {
 	for _, kv := range os.Environ() {
 		if k, _, ok := strings.Cut(kv, "="); ok {
 			if _, owned := managed[k]; owned {
+				continue
+			}
+			if blockedFromContainer[k] {
 				continue
 			}
 		}
@@ -52,9 +59,21 @@ func keychainEnv(name string) string {
 	return ""
 }
 
+func KeychainGetTelegramChat() string {
+	return keychainGet("telegram-chat")
+}
+
 func keychainGet(name string) string {
 	if val, ok := keychainLookup(name); ok {
 		return val
 	}
-	return os.Getenv(keychainEnv(name))
+	if env := keychainEnv(name); env != "" {
+		if v := os.Getenv(env); v != "" {
+			return v
+		}
+	}
+	if name == "telegram-token" {
+		return tgtoken.Read()
+	}
+	return ""
 }

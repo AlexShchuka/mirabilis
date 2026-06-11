@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +16,10 @@ import (
 )
 
 type launchReadyMsg struct{}
+
+// startPipelineMsg is emitted when the pre-launch form sequence is complete
+// (all catalog + telegram forms accepted or skipped) and the pipeline can start.
+type startPipelineMsg struct{}
 
 func splitCSV(s string) []string {
 	s = strings.TrimSpace(s)
@@ -202,6 +207,81 @@ func newHarnessForm(ctx context.Context, r runner.Runner, w, h int) *formScreen 
 		}
 	}
 	return &formScreen{form: form, apply: apply}
+}
+
+// newTelegramForm builds the optional Telegram-setup step.
+//
+// The form shows a Select "Настроить / Пропустить" (default: Пропустить).
+// If the user chooses "Настроить", a second group asks for the bot token with
+// echo-hidden input so the token is never shown in the TUI.
+//
+// On apply:
+//   - Skip  → emits startPipelineMsg{} immediately; nothing is written.
+//   - Configure → writes the token to the host-side secret file via
+//     provision.WriteTelegramToken and emits startPipelineMsg{}.
+//
+// Channel-ID auto-detection is intentionally NOT implemented here. The bot
+// token is sufficient: after the first message is sent via the running bot,
+// cmd/tgsmoke / internal/telegram/inbox can discover the chat ID via
+// getUpdates. This form only provisions the credential.
+func newTelegramForm(w, h int) *formScreen {
+	configure := false
+	var token string
+
+	selectGroup := huh.NewGroup(
+		huh.NewSelect[bool]().
+			Title(ui.FormTitleTelegram).
+			Options(
+				huh.NewOption(ui.FormOptTelegramSkip, false),
+				huh.NewOption(ui.FormOptTelegramConfigure, true),
+			).
+			Value(&configure),
+	)
+
+	tokenGroup := huh.NewGroup(
+		huh.NewInput().
+			Title(ui.FormTitleTelegramToken).
+			Description(ui.FormDescTelegramToken).
+			EchoMode(huh.EchoModePassword).
+			Value(&token).
+			Validate(validateTelegramToken),
+	).WithHideFunc(func() bool { return !configure })
+
+	form := huh.NewForm(selectGroup, tokenGroup).WithWidth(w).WithHeight(h)
+
+	apply := func() tea.Cmd {
+		return applyTelegramToken(configure, token)
+	}
+	return &formScreen{form: form, apply: apply}
+}
+
+// validateTelegramToken is the huh Validate callback for the token input field.
+// Exposed as a package-level function so it can be tested directly.
+func validateTelegramToken(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return fmt.Errorf("токен не может быть пустым")
+	}
+	return nil
+}
+
+// applyTelegramToken is the apply-logic for the Telegram form extracted into a
+// testable function. configure=false → skip (startPipelineMsg), true → write
+// the token and emit startPipelineMsg, or backToMenuMsg on error.
+func applyTelegramToken(configure bool, token string) tea.Cmd {
+	return func() tea.Msg {
+		if !configure {
+			return startPipelineMsg{}
+		}
+		trimmed := strings.TrimSpace(token)
+		if trimmed == "" {
+			// validateTelegramToken should have blocked this; guard defensively.
+			return backToMenuMsg{notice: ui.NoticeTelegramErr + "токен пустой"}
+		}
+		if err := provision.WriteTelegramToken(trimmed); err != nil {
+			return backToMenuMsg{notice: ui.NoticeTelegramErr + err.Error()}
+		}
+		return startPipelineMsg{}
+	}
 }
 
 func newResetForm(ctx context.Context, r runner.Runner, w, h int) *formScreen {

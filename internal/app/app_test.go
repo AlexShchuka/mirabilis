@@ -19,6 +19,14 @@ func newTestApp() appModel {
 	return newApp(context.Background(), &runner.FakeRunner{}, provision.Status{})
 }
 
+// newLaunchedApp returns an appModel in phasePipeline by routing through
+// the Telegram form skip step (startPipelineMsg). Tests that need a live
+// pipeline context should use this helper.
+func newLaunchedApp(t *testing.T) appModel {
+	t.Helper()
+	return asApp(t, mustUpdate(newTestApp(), startPipelineMsg{}))
+}
+
 func asApp(t *testing.T, m tea.Model) appModel {
 	t.Helper()
 	a, ok := m.(appModel)
@@ -28,13 +36,24 @@ func asApp(t *testing.T, m tea.Model) appModel {
 	return a
 }
 
-func TestAppRouteLaunchNoCatalogStartsPipeline(t *testing.T) {
+func TestAppRouteLaunchNoCatalogOpensTelegramForm(t *testing.T) {
 	a := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	if a.phase != phaseForm {
+		t.Errorf("phase = %v, want form (telegram step) when catalogs are empty", a.phase)
+	}
+	if a.form == nil {
+		t.Error("telegram form should be set when launch has no catalog")
+	}
+}
+
+func TestAppRouteLaunchNoCatalog_StartPipelineMsg_StartsPipeline(t *testing.T) {
+	// After the telegram form is skipped/configured, startPipelineMsg triggers the pipeline.
+	a := asApp(t, mustUpdate(newTestApp(), startPipelineMsg{}))
 	if a.phase != phasePipeline {
-		t.Errorf("phase = %v, want pipeline", a.phase)
+		t.Errorf("phase = %v, want pipeline after startPipelineMsg", a.phase)
 	}
 	if a.pipe == nil {
-		t.Error("pipeline not created on launch when catalogs are empty")
+		t.Error("pipeline not created after startPipelineMsg")
 	}
 }
 
@@ -57,22 +76,35 @@ func TestAppRouteLaunchWithCatalogOpensForm(t *testing.T) {
 	}
 }
 
-func TestAppLaunchReadyMsgStartsPipeline(t *testing.T) {
+func TestAppLaunchReadyMsgShowsTelegramForm(t *testing.T) {
+	// launchReadyMsg (catalog form done) must show the optional Telegram step,
+	// NOT start the pipeline directly.
 	a := newApp(context.Background(), &runner.FakeRunner{}, provision.Status{})
 	a2 := asApp(t, mustUpdate(a, launchReadyMsg{}))
+	if a2.phase != phaseForm {
+		t.Errorf("phase = %v, want form (telegram step) after launchReadyMsg", a2.phase)
+	}
+	if a2.form == nil {
+		t.Error("telegram form should be set after launchReadyMsg")
+	}
+}
+
+func TestAppStartPipelineMsgStartsPipeline(t *testing.T) {
+	a := newApp(context.Background(), &runner.FakeRunner{}, provision.Status{})
+	a2 := asApp(t, mustUpdate(a, startPipelineMsg{}))
 	if a2.phase != phasePipeline {
-		t.Errorf("phase = %v, want pipeline after launchReadyMsg", a2.phase)
+		t.Errorf("phase = %v, want pipeline after startPipelineMsg", a2.phase)
 	}
 	if a2.pipe == nil {
-		t.Error("pipeline not created after launchReadyMsg")
+		t.Error("pipeline not created after startPipelineMsg")
 	}
 	if a2.form != nil {
-		t.Error("form should be cleared after launchReadyMsg")
+		t.Error("form should be cleared after startPipelineMsg")
 	}
 }
 
 func TestAppPipelineDoneSuccessHandsOff(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	a := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: false}))
 	if !a.handoff {
 		t.Error("successful pipeline should set handoff")
@@ -80,7 +112,7 @@ func TestAppPipelineDoneSuccessHandsOff(t *testing.T) {
 }
 
 func TestAppPipelineDoneFailureStays(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	a := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: true}))
 	if a.handoff {
 		t.Error("failed pipeline must not hand off")
@@ -91,7 +123,7 @@ func TestAppPipelineDoneFailureStays(t *testing.T) {
 }
 
 func TestAppNeedGHSwitchesToGHAuth(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	a := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	if a.phase != phaseGHAuth {
 		t.Errorf("phase = %v, want ghauth", a.phase)
@@ -102,7 +134,7 @@ func TestAppNeedGHSwitchesToGHAuth(t *testing.T) {
 }
 
 func TestAppGHDoneResumesPipeline(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	a := asApp(t, mustUpdate(waiting, ghauth.DoneMsg{Err: nil}))
 	if a.phase != phasePipeline {
@@ -111,7 +143,7 @@ func TestAppGHDoneResumesPipeline(t *testing.T) {
 }
 
 func TestAppEscCancelsPipeline(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	if launched.pipeCancel == nil {
 		t.Fatal("launch should install a cancel func for the pipeline context")
 	}
@@ -128,7 +160,7 @@ func TestAppEscCancelsPipeline(t *testing.T) {
 }
 
 func TestAppForwardsPipelineMsgsDuringGHAuth(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	if waiting.phase != phaseGHAuth {
 		t.Fatalf("phase = %v, want ghauth", waiting.phase)
@@ -268,7 +300,7 @@ func TestAppView_PhasePipelineNilPipe(t *testing.T) {
 }
 
 func TestAppView_PhasePipelineWithPipe(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	v := launched.View()
 	content := string(v.Content)
 	if !strings.Contains(content, ui.PipelineTitle) {
@@ -299,7 +331,7 @@ func TestAppView_PhaseGHAuthNilGH(t *testing.T) {
 }
 
 func TestAppView_PhaseGHAuthWithGH(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	v := waiting.View()
 	content := string(v.Content)
@@ -309,7 +341,7 @@ func TestAppView_PhaseGHAuthWithGH(t *testing.T) {
 }
 
 func TestAppToMenu_ResetsChildren(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	if launched.phase != phasePipeline {
 		t.Fatalf("precondition: phase should be pipeline, got %v", launched.phase)
 	}
@@ -375,6 +407,21 @@ func TestAppForwardSize_PerPhase(t *testing.T) {
 		result, _ := a.forwardSize(sizeMsg)
 		if result == nil {
 			t.Fatal("forwardSize returned nil")
+		}
+	})
+
+	t.Run("phaseGHAuth_withGH", func(t *testing.T) {
+		a := newTestApp()
+		a.phase = phaseGHAuth
+		a.gh = ghauth.New(context.Background(), &runner.FakeRunner{}, 80, 24)
+		result, _ := a.forwardSize(sizeMsg)
+		if result == nil {
+			t.Fatal("forwardSize returned nil")
+		}
+		// Verify the size was forwarded into the gh model.
+		got := asApp(t, result)
+		if got.gh == nil {
+			t.Fatal("gh must remain non-nil after forwardSize")
 		}
 	})
 }
@@ -444,7 +491,7 @@ func TestAppForwardSize_PhaseForm(t *testing.T) {
 }
 
 func TestAppPipelineEndAnyKeyReturnsMenu(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	failed := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: true}))
 	if !failed.pipeEnd {
 		t.Fatal("precondition: pipeEnd should be true")

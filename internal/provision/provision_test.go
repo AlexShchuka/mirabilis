@@ -768,6 +768,37 @@ func writeSkillsStatefile(t *testing.T, homeDir, content string) {
 	}
 }
 
+func TestEnsureSkills_CatalogEntryWithoutSlash_Skipped(t *testing.T) {
+	// Covers the "len(parts) != 2 → continue" branch (line 74-75):
+	// a catalog line that is not in owner/repo format is silently skipped.
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	writeSkillsStatefile(t, tmp, "malformed-entry\n")
+	var hostCalls []string
+	var gitSubCmds []string
+	r := &runner.FakeRunner{
+		HostFunc: func(name string, args []string) (string, error) {
+			hostCalls = append(hostCalls, name)
+			if name == "git" && len(args) > 0 {
+				gitSubCmds = append(gitSubCmds, args[0])
+			}
+			return "", nil
+		},
+	}
+	// Catalog has a malformed entry (no slash) and the selection matches it.
+	cfg := makeSkillsConfig(t, "malformed-entry\n")
+	if err := EnsureSkills(context.Background(), r, cfg); err != nil {
+		t.Errorf("EnsureSkills = %v, want nil for malformed catalog entry", err)
+	}
+	// A malformed catalog entry (no slash) must never trigger a git clone/pull.
+	_ = hostCalls // recorded for debugging; the assertion is on gitSubCmds
+	for _, sub := range gitSubCmds {
+		if sub == "clone" || sub == "pull" {
+			t.Errorf("git %q was called for a malformed catalog entry; want no clone/pull", sub)
+		}
+	}
+}
+
 func TestEnsureSkills_NoCatalog_Noop(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)

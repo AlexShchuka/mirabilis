@@ -9,7 +9,9 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 	"github.com/AlexShchuka/mirabilis/internal/hooks"
 	"github.com/AlexShchuka/mirabilis/internal/provision"
+	"github.com/AlexShchuka/mirabilis/internal/runner"
 	"github.com/AlexShchuka/mirabilis/internal/runtime"
+	"github.com/AlexShchuka/mirabilis/internal/telegram"
 )
 
 var version = "unknown"
@@ -41,21 +43,48 @@ func run(args []string) error {
 		fmt.Println(effectiveVersion())
 		return nil
 	case "-h", "-help", "--help", "help":
-		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
+		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  tg-outbox   run the host-side Telegram outbox watcher\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
 		return nil
 	case "provision":
-		return runProvision(ctx, args[1:])
+		return runProvision(ctx, runtime.NewLocalRunner(), args[1:])
 	case "hook":
 		if len(args) < 2 {
 			return fmt.Errorf("hook: missing name argument")
 		}
 		return hooks.Dispatch(args[1])
+	case "tg-outbox":
+		return runTgOutbox(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown argument %q — run 'mirabilis --help' for usage", args[0])
 	}
 }
 
-func runProvision(ctx context.Context, args []string) error {
+func runTgOutbox(ctx context.Context, _ []string) error {
+	r := runtime.NewExecRunner()
+	repo := r.Repo()
+
+	tokenPath := provision.TelegramTokenPath()
+	if _, err := os.Stat(tokenPath); err != nil {
+		return fmt.Errorf("tg-outbox: bot token not found at %s — run the provision step first", tokenPath)
+	}
+
+	allowedChatID := runtime.KeychainGetTelegramChat()
+	if allowedChatID == "" {
+		return fmt.Errorf("tg-outbox: telegram-chat not configured — run provisioning")
+	}
+
+	queueDir := telegram.OutboxDir(repo)
+	fmt.Fprintf(os.Stderr, "mirabilis tg-outbox: watching %s (chat %s)\n", queueDir, allowedChatID)
+
+	cfg := telegram.WatcherConfig{
+		QueueDir:      queueDir,
+		TokenPath:     tokenPath,
+		AllowedChatID: allowedChatID,
+	}
+	return telegram.RunWatcher(ctx, cfg)
+}
+
+func runProvision(ctx context.Context, r runner.Runner, args []string) error {
 	phase := ""
 	for i := 0; i < len(args)-1; i++ {
 		if args[i] == "--phase" {
@@ -63,7 +92,6 @@ func runProvision(ctx context.Context, args []string) error {
 		}
 	}
 	cfg := config.New("/opt/mirabilis/config")
-	r := runtime.NewLocalRunner()
 	switch phase {
 	case "create":
 		return provision.Create(ctx, r, cfg)

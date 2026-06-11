@@ -20,15 +20,25 @@ const maxRate = time.Second
 type ConfirmFunc func(chatID, text string) bool
 
 type Outbox struct {
-	tokenPath string
-	baseURL   string
-	confirm   ConfirmFunc
-	mu        sync.Mutex
-	lastSent  time.Time
-	client    *http.Client
+	tokenPath     string
+	allowedChatID string // pinned channel: the ONLY chat_id we will ever post to
+	baseURL       string
+	confirm       ConfirmFunc
+	mu            sync.Mutex
+	lastSent      time.Time
+	client        *http.Client
 }
 
-func NewOutbox(tokenPath string, confirm ConfirmFunc) (*Outbox, error) {
+// NewOutbox creates an Outbox pinned to allowedChatID.
+// allowedChatID is the ONLY chat_id that Send() will ever post to; if it is
+// empty, ALL sends are refused (fail closed). This is the single source of
+// truth for the least-privilege channel constraint.
+//
+// honesty note: this pin binds our code path only — a raw token used directly
+// (e.g., curl) still reaches any chat the bot is in. The pin is defense-in-
+// depth combined with: the bot being a member of exactly one channel
+// (Telegram-enforced) and the pending token-isolation work (issue #115).
+func NewOutbox(tokenPath, allowedChatID string, confirm ConfirmFunc) (*Outbox, error) {
 	if confirm == nil {
 		return nil, fmt.Errorf("telegram outbox: confirm callback is required")
 	}
@@ -36,14 +46,24 @@ func NewOutbox(tokenPath string, confirm ConfirmFunc) (*Outbox, error) {
 		tokenPath = DefaultTokenPath
 	}
 	return &Outbox{
-		tokenPath: tokenPath,
-		baseURL:   "https://api.telegram.org",
-		confirm:   confirm,
-		client:    &http.Client{Timeout: 15 * time.Second},
+		tokenPath:     tokenPath,
+		allowedChatID: allowedChatID,
+		baseURL:       "https://api.telegram.org",
+		confirm:       confirm,
+		client:        &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
 func (o *Outbox) Send(ctx context.Context, chatID, text string) error {
+	// Channel-pin check: fail closed BEFORE confirm or any network call.
+	// An empty allowedChatID means no channel has been configured — refuse all.
+	if o.allowedChatID == "" {
+		return fmt.Errorf("telegram outbox: no pinned channel configured — call NewOutbox with a non-empty allowedChatID")
+	}
+	if chatID != o.allowedChatID {
+		return fmt.Errorf("telegram outbox: refused chat_id %q — only the pinned channel %q is allowed", chatID, o.allowedChatID)
+	}
+
 	if !o.confirm(chatID, text) {
 		return fmt.Errorf("telegram outbox: send not confirmed")
 	}

@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+func TestKeychainStore_NonDarwin_Noop(t *testing.T) {
+	// On non-darwin platforms KeychainStore is a no-op that always returns nil.
+	if err := KeychainStore("telegram-token", "test-value"); err != nil {
+		t.Errorf("KeychainStore on non-darwin = %v, want nil", err)
+	}
+}
+
 func TestEnsureDocker_NotReachableNonDarwin(t *testing.T) {
 	dockerShim := makeShim(t, "docker", `
 case "$1" in

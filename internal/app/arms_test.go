@@ -16,7 +16,7 @@ import (
 )
 
 func TestAppCtrlC_CancelsLiveGHAuth(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	if waiting.ghCancel == nil {
 		t.Fatal("precondition: ghCancel must be set in phaseGHAuth")
@@ -40,7 +40,7 @@ func TestAppCtrlC_CancelsLiveGHAuth(t *testing.T) {
 }
 
 func TestAppBackToMenuMsg_ReturnsToMenu(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	a := asApp(t, mustUpdate(launched, backToMenuMsg{notice: "done"}))
 	if a.phase != phaseMenu {
 		t.Errorf("phase = %v, want menu after backToMenuMsg", a.phase)
@@ -51,7 +51,7 @@ func TestAppBackToMenuMsg_ReturnsToMenu(t *testing.T) {
 }
 
 func TestAppGHDone_NoPipe_ReturnsToMenu(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	waiting.pipe = nil
 
@@ -62,7 +62,7 @@ func TestAppGHDone_NoPipe_ReturnsToMenu(t *testing.T) {
 }
 
 func TestAppCheckedMsg_ForwardsToPipe(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	if launched.pipe == nil {
 		t.Fatal("precondition: pipe must be live")
 	}
@@ -73,7 +73,7 @@ func TestAppCheckedMsg_ForwardsToPipe(t *testing.T) {
 }
 
 func TestAppPipelineEnd_NonKeyMsg_Ignored(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	failed := asApp(t, mustUpdate(launched, pipeline.DoneMsg{Failed: true}))
 	if !failed.pipeEnd {
 		t.Fatal("precondition: pipeEnd must be true")
@@ -90,7 +90,7 @@ func TestAppPipelineEnd_NonKeyMsg_Ignored(t *testing.T) {
 type unhandledMsg struct{}
 
 func TestAppPhasePipeline_ForwardsOrdinaryMsg(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	a := asApp(t, mustUpdate(launched, tea.KeyPressMsg{Code: 'j', Text: "j"}))
 	if a.phase != phasePipeline {
 		t.Errorf("phase = %v, want pipeline — an ordinary key must be forwarded, not exit", a.phase)
@@ -98,7 +98,7 @@ func TestAppPhasePipeline_ForwardsOrdinaryMsg(t *testing.T) {
 }
 
 func TestAppPhaseGHAuth_ForwardsOrdinaryMsg(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	if waiting.gh == nil {
 		t.Fatal("precondition: gh child must be set")
@@ -174,7 +174,7 @@ func TestAppToMenu_CancelsLiveGHContext(t *testing.T) {
 }
 
 func TestAppForwardSize_PhaseGHAuth(t *testing.T) {
-	launched := asApp(t, mustUpdate(newTestApp(), menuChoiceMsg{"launch"}))
+	launched := newLaunchedApp(t)
 	waiting := asApp(t, mustUpdate(launched, pipeline.NeedGHMsg{Name: "gh"}))
 	if waiting.gh == nil {
 		t.Fatal("precondition: gh child must be set")
