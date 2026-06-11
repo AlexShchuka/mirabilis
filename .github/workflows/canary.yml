@@ -70,10 +70,7 @@ jobs:
       - name: install devcontainer CLI
         run: npm install -g @devcontainers/cli
       - name: devcontainer upgrade --dry-run
-        id: dry_run
-        run: |
-          devcontainer upgrade --workspace-folder . --dry-run 2>&1 | tee /tmp/upgrade-dry-run.txt
-          echo "output=$(cat /tmp/upgrade-dry-run.txt | wc -l)" >> "$GITHUB_OUTPUT"
+        run: devcontainer upgrade --workspace-folder . --dry-run
       - name: apply upgrade
         run: devcontainer upgrade --workspace-folder .
       - name: check for changes
