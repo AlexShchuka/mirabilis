@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AlexShchuka/mirabilis/internal/tgtoken"
 )
 
 func TestKeychainEnv(t *testing.T) {
@@ -116,18 +118,18 @@ func TestReadTelegramTokenFile_WrittenByProvision(t *testing.T) {
 	if err := os.WriteFile(tokenPath, []byte("bot777:testtoken\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got := readTelegramTokenFile()
+	got := tgtoken.Read()
 	if got != "bot777:testtoken" {
-		t.Errorf("readTelegramTokenFile() = %q, want bot777:testtoken", got)
+		t.Errorf("tgtoken.Read() = %q, want bot777:testtoken", got)
 	}
 }
 
 func TestReadTelegramTokenFile_NoFile_Empty(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	got := readTelegramTokenFile()
+	got := tgtoken.Read()
 	if got != "" {
-		t.Errorf("readTelegramTokenFile() with no file = %q, want empty", got)
+		t.Errorf("tgtoken.Read() with no file = %q, want empty", got)
 	}
 }
 
@@ -136,7 +138,7 @@ func TestReadTelegramTokenFile_HomeFromUserHomeDir(t *testing.T) {
 	// We can only verify it doesn't crash; the actual value depends on the
 	// environment, so just ensure empty string (no file exists in the test env).
 	t.Setenv("HOME", "")
-	got := readTelegramTokenFile()
+	got := tgtoken.Read()
 	// We just confirm no panic and that empty string is returned (no stray file).
 	_ = got
 }
