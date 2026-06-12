@@ -10,6 +10,46 @@ linters:
     - govet
     - staticcheck
     - unused
+    - forbidigo
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: "^exec\\.Command(Context)?$"
+          pkg: "^os/exec$"
+          msg: "use engine/exec Runner port; raw os/exec is forbidden outside internal/engine/exec"
+        - pattern: "^os\\.(ReadFile|WriteFile)$"
+          msg: "fs I/O forbidden in the tui layer; use engine ports"
+        - pattern: "^http\\.(Get|Post|Head|Do|NewRequest|NewRequestWithContext|DefaultClient|DefaultTransport)$"
+          pkg: "^net/http$"
+          msg: "net/http forbidden in the tui layer; use engine ports"
+        - pattern: "fmt\\.Fprint(f|ln)?\\(os\\.Stderr"
+          msg: "write via the obs logger; stray stderr forbidden outside internal/obs and cmd/mirabilis"
+        - pattern: "^log\\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln|Default|New)$"
+          pkg: "^log$"
+          msg: "use internal/obs logger; stray log calls forbidden outside internal/obs"
+  exclusions:
+    rules:
+      - path: "internal/engine/exec/"
+        linters:
+          - forbidigo
+        text: "os/exec|exec\\.Command"
+      - path-except: "internal/tui/"
+        linters:
+          - forbidigo
+        text: "os\\.(ReadFile|WriteFile)|net/http|http\\."
+      - path: "internal/tui/app/"
+        linters:
+          - forbidigo
+        text: "os\\.(ReadFile|WriteFile)|net/http|http\\."
+      - path: "internal/obs/"
+        linters:
+          - forbidigo
+        text: "log\\."
+      - path: "cmd/mirabilis/"
+        linters:
+          - forbidigo
+        text: "log\\.|fmt\\.Fprint"
 
 formatters:
   enable:

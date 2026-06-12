@@ -29,8 +29,8 @@ recommend deny-all egress as the default; [the lethal-trifecta analysis](https:/
 treats the combination as the highest-risk prompt-injection scenario. mirabilis
 deviates from both deliberately — open egress is a first-class feature. The
 accepted blast radius is the container contents (workspace, memory volume, any
-credentials visible inside). Mitigations are the behavioural harness, the
-container boundary, and the host-side Telegram token never entering the container.
+credentials visible inside). Mitigations are the behavioural harness, the container
+boundary, and the Claude and Telegram tokens never entering the container.
 
 ## Secrets
 
@@ -39,40 +39,65 @@ container boundary, and the host-side Telegram token never entering the containe
   survives updates and rebuilds.
 - **Claude** authentication uses a 1-year OAuth token produced by running
   `claude setup-token` on the host. On macOS the token is stored in the Keychain
-  under the service name `mirabilis-claude-token-token`; on Linux and WSL it is
-  stored in `~/.claude/.mirabilis-claude-token` (mode `0600`). The Go launcher
-  injects it as `CLAUDE_CODE_OAUTH_TOKEN` at container launch and `blockedFromContainer`
-  prevents the host environment variable from being passed through by accident.
-  `claude setup-token` on the host replaces in-container `/login` as the setup path.
-  Note: `~/.claude/.credentials.json` produced by in-container `/login` has higher
-  precedence than the env token — if that file exists in the `claude-home` volume,
-  it silently wins. The provision-phase TUI warns the owner if both are present.
-  `CLAUDE_CODE_OAUTH_TOKEN` is visible inside the container via `/proc/1/environ` — it
-  is injected into the container environment by design, so the "never enters the
-  container" property belongs only to `TELEGRAM_BOT_TOKEN`, not to the OAuth token.
+  under the service name `mirabilis-claude`; on Linux and WSL it is stored in
+  `~/.claude/.mirabilis-claude` (mode `0600`). **The OAuth token never enters the
+  container** — not as an environment variable, not on the filesystem, not in
+  `settings.json`, not in the image. The container receives only a per-session key
+  that is useless without the live host auth proxy. The chain is: in-container claude →
+  headroom (`:8787`, observability + MCP) → host auth proxy (injects the real Bearer
+  from the host-side `TokenSource`) → `api.anthropic.com`. The session key is
+  random per host-process start; anyone with host root can read it from the container,
+  but it grants no access once the host proxy exits. `claude setup-token` on the host
+  is the only setup path; in-container `/login` and `CLAUDE_CODE_OAUTH_TOKEN` injection
+  are both replaced by this chain.
+  Note: `~/.claude/.credentials.json` in the `claude-home` volume has higher precedence
+  than `ANTHROPIC_AUTH_TOKEN` — if that file exists it silently wins. The provision-phase
+  TUI warns the owner if both are present.
 - **Keychain write invariant (macOS):** `KeychainStore` feeds the secret via stdin
   (`cmd.Stdin = ...`), not as a `-w <value>` argument, so the token never appears in
-  argv and is not visible in `ps`. An earlier form of this call passed `-w /dev/stdin`,
-  which `security` stores as the literal string `"/dev/stdin"` — wrong; do not
-  reintroduce it. This is the single keychain-write seam; callers must not scatter
-  keychain writes elsewhere.
+  argv and is not visible in `ps`. This is the single keychain-write seam; callers must
+  not scatter keychain writes elsewhere.
 - The optional **Telegram** token's source depends on the host: on macOS it lives in the
-  Keychain; on Linux and WSL it lives in `~/.claude/.mirabilis-telegram-token`
-  (mode `0600`). The Go launcher injects it as `TELEGRAM_BOT_TOKEN` at container
-  launch; Context7's MCP server runs anonymously, with no key.
-  The outbox queue is **at-most-once on failure**: `processOneJob` makes one send
-  attempt; on success or failure it writes a `.status` file and `PendingJobs` never
-  re-queues that job. The only duplicate path is a watcher crash after send but before
-  `WriteStatus` completes — the job stays pending and is re-sent on the next start.
+  Keychain; on Linux and WSL it lives in `~/.claude/.mirabilis-telegram` (mode `0600`).
+  The host-side notify adapter injects it into outbound requests; it never enters the
+  container. Telegram **chat-id** is written to `.mirabilis/chat-id` (a bind-mounted file)
+  and read per-event by the notify adapter; it is not an environment variable.
+  The outbox queue is **at-most-once on failure**: `processOneJob` makes one send attempt;
+  on success or failure it writes a `.status` file and `PendingJobs` never re-queues that
+  job. The only duplicate path is a watcher crash after send but before `WriteStatus`
+  completes — the job stays pending and is re-sent on the next start.
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
-  GitHub MCP server receives it as a request header, so it also
-  lands in the container's per-user config on the `claude-home` volume — inside
-  the container, never in the repo. Anyone with access to the Docker socket (or
-  host root) can read container secrets via `docker inspect mirabilis` or
-  `/proc/1/environ` — including `CLAUDE_CODE_OAUTH_TOKEN`; the Docker socket is
-  part of the secret trust boundary.
+  GitHub MCP server receives it as a request header, so it also lands in the container's
+  per-user config on the `claude-home` volume — inside the container, never in the repo.
+  Anyone with access to the Docker socket (or host root) can read container secrets via
+  `docker inspect mirabilis` or `/proc/1/environ` — the Docker socket is part of the
+  secret trust boundary.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately.
+
+## VS Code attach
+
+VS Code attaches to the running container via the `attached-container` URI scheme. The
+in-container claude instance reached via VS Code attach uses the same session-keyed auth
+chain (headroom → host auth proxy → Anthropic), so the OAuth token remains on the host
+in that context as well.
+
+## Docker socket (opt-in)
+
+The docker socket is **absent by default** — `docker-compose.yml` does not bind-mount it.
+Enabling it requires explicitly passing the compose override:
+
+```
+docker compose -f docker-compose.yml -f compose.sock.yml up -d --build
+```
+
+`compose.sock.yml` adds `/var/run/docker.sock` to the container. When the socket is
+present the in-container agent has full access to the host Docker daemon — it can start
+privileged containers, mount host paths, and perform any operation that a root-equivalent
+user could perform on the Docker Desktop VM. The sandbox fingerprint changes when the
+socket override is applied, so re-creating the container is required. The TUI and
+`SECURITY.md` surface this consequence. The socket is also required for the Ryuk reaper
+container used by testcontainers-go in integration tests.
 
 ## Persistent-memory poisoning
 
@@ -82,9 +107,8 @@ responses, fetched documents — can trigger a memory write. If that content is 
 insert adversarial bullets, those bullets survive across sessions and are replayed by the
 same hooks.
 
-**Accepted risk:** The container's open-egress design (see **Egress is open** in the Threat model section above)
-means there is no in-container network gate. Poisoned content reaches the agent;
-the memory layer has no source attribution.
+**Accepted risk:** The container's open-egress design means there is no in-container network
+gate. Poisoned content reaches the agent; the memory layer has no source attribution.
 
 **Mitigations in place:**
 - The `PostToolUseFailure` hook caps injected context at 10 bullets / 2 KB per event —
@@ -96,18 +120,6 @@ the memory layer has no source attribution.
   issue). It is not implemented in this repo.
 
 Do not point mirabilis at untrusted content sources without the harness-side gate in place.
-
-## Docker socket (DooD)
-
-The devcontainer uses docker-outside-of-docker: the host Docker socket is bind-mounted
-into the container at `/var/run/docker-host.sock` and proxied to `/var/run/docker.sock`
-by the feature's init script. This gives the in-container agent full access to the host
-Docker daemon — it can start privileged containers, mount host paths, and perform any
-operation that a root-equivalent user could perform on the Docker Desktop VM. This is
-consistent with the declared threat model: the container is the boundary, and behavioural
-limits are the harness's job. The socket mount is also what the Ryuk reaper container
-(used by testcontainers-go for test-container cleanup) requires to terminate containers
-after integration tests.
 
 ## Reporting
 

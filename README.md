@@ -19,19 +19,25 @@ mass–energy equivalence, E=mc²) reshaped physics in a single year.
 - **Isolated by design** — the Docker container is the security boundary; inside, the agent
   has full freedom (root, `sudo`, any file), so it never needs approval prompts.
 - **Autonomous Claude Code** — launches in bypass mode.
-- **Open egress** — the container reaches the network directly; no host proxy, no in-container
-  allowlist. Stopping credential exfiltration is the harness's job; `WebFetch`/`WebSearch` always work.
-- **Persistent memory** — `~/.claude` live in volumes that survive rebuilds; path-scoped memory rules load per file type.
+- **Open egress** — the container reaches the network directly; `WebFetch`/`WebSearch` always
+  work.
+- **Persistent memory** — `~/.claude` lives in a volume that survives rebuilds; path-scoped
+  memory rules load per file type.
 - **One TUI menu** — launch, plugins, harness, stack, open in VS Code — all from a single Go
-  terminal UI. Each step retried under policy, then drops you into Claude.
+  terminal UI. Each step is idempotent: a repeat launch on a healthy system goes straight to
+  Claude with zero questions and zero changes.
+- **Secure auth chain** — the real Claude OAuth token never enters the container. The chain
+  is: in-container claude → headroom (observability + MCP, port 8787) → host auth proxy
+  (injects the real Bearer) → api.anthropic.com. The container holds only a per-session key
+  that is useless without the live host process.
 
 ## Requirements
 
 - **macOS** — Homebrew; `install.sh` runs `make bootstrap` to install Docker Desktop, the
-  devcontainer CLI, and Go.
-- **Linux** — git, make, Go, Node + npm, and Docker Engine with the Compose v2 plugin.
-  `install.sh` checks for these and prints exact install hints for whatever is missing; it
-  never installs system packages for you.
+  host claude CLI, and Go.
+- **Linux** — git, make, Go, and Docker Engine with the Compose v2 plugin. `install.sh`
+  checks for these and prints exact install hints for whatever is missing; it never installs
+  system packages for you.
 - **Windows** — run everything inside **WSL2**: install WSL2
   (`wsl --install -d Ubuntu-24.04`), then follow the Linux steps inside the distro. Either
   enable Docker Desktop's WSL integration for the distro, or install docker-ce inside WSL.
@@ -42,16 +48,25 @@ mass–energy equivalence, E=mc²) reshaped physics in a single year.
 curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.sh | bash
 ```
 
-That one line clones mirabilis to `~/.mirabilis`, installs the devcontainer CLI, and puts
-`mirabilis` on your PATH. The first launch builds the container and signs you in to
-GitHub (native flow, saved in the sandbox). For Claude, run `claude setup-token` on the
-host once — the resulting OAuth token is stored in your host keychain (macOS) or a
-host-side secret file (Linux/WSL) and injected at container launch. After that, run it
-from anywhere:
+That one line clones mirabilis to `~/.mirabilis`, installs the host claude CLI, and puts
+`mirabilis` on your PATH. Then store your Claude token on the host:
+
+```sh
+claude setup-token
+```
+
+The resulting OAuth token is stored in your host keychain (macOS) or a host-side secret
+file (Linux/WSL). It never enters the container — the auth chain injects it transparently
+at the host proxy layer. After that, run it from anywhere:
 
 ```sh
 mirabilis
 ```
+
+The first launch builds the container image (claude-code, gh, and docker-ce-cli baked in),
+starts the container, provisions it, signs you in to GitHub (native device flow, saved in
+the sandbox), and drops you into Claude. Repeat launches are instant — all steps are
+idempotent and skip when already satisfied.
 
 ## Documentation
 
