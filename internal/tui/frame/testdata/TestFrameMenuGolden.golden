@@ -1,24 +1,24 @@
  mirabilis                        v1.3.0 · container up · harness on · proxy on 
-> Launch          │ mirabilis                                                   
-  Harness         │                                                             
-  Telegram        │ Launch      setup pipeline + Claude in container            
-  VS Code         │ Harness     neuro-matrix: on / off / reinstall              
-  Reset           │ Telegram    bot notifications: token, optional              
-  Quit            │ VS Code     attach /workspace in VS Code                    
-                  │ Reset       container, image and volumes — permanent        
-                  │                                                             
-                  │ select an action on the left                                
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
-                  │                                                             
+> Launch         │ mirabilis                                                    
+  Harness        │                                                              
+  Telegram       │ pick an action ←                                             
+  VS Code        │                                                              
+  Reset          │                                                              
+  Quit           │                                                              
+                 │                                                              
+setup pipeline + │                                                              
+Claude in        │                                                              
+container        │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
+                 │                                                              
  enter select · esc back · tab log · q quit                                     

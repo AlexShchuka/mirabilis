@@ -22,6 +22,11 @@ import (
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
+const (
+	altScreenEnter = "\x1b[?1049h"
+	altScreenLeave = "\x1b[?1049l"
+)
+
 func setRealExec(t *testing.T) {
 	t.Helper()
 	resetCaptured()
@@ -151,6 +156,9 @@ func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
 	}()
 
 	launchOffset := waitContainsAfter(t, out, 0, uistr.WelcomeHint)
+	if out.IndexAfter(0, altScreenEnter) < 0 {
+		t.Errorf("alt-screen enter sequence %q not written at startup", altScreenEnter)
+	}
 	p.Send(bus.MenuChosen{Action: "launch"})
 
 	waitContainsAfter(t, out, launchOffset, "in-child-tty")
@@ -185,6 +193,10 @@ func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
 	}
 	if before.Lflag&unix.ICANON != after.Lflag&unix.ICANON {
 		t.Errorf("ICANON not restored: before=%x after=%x", before.Lflag&unix.ICANON, after.Lflag&unix.ICANON)
+	}
+
+	if out.IndexAfter(0, altScreenLeave) < 0 {
+		t.Errorf("alt-screen leave sequence %q not written on quit", altScreenLeave)
 	}
 
 	_ = slave.Close()

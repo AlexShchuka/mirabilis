@@ -23,7 +23,7 @@ func TestMenuNoticeEmpty(t *testing.T) {
 }
 
 func TestHarnessInit(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	cmd := h.Init()
 	if cmd == nil {
 		t.Error("Harness.Init() = nil, want non-nil (form init)")
@@ -31,7 +31,7 @@ func TestHarnessInit(t *testing.T) {
 }
 
 func TestHarnessDoneUpdateIgnored(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	h.done = true
 	scr, cmd := h.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
@@ -43,7 +43,7 @@ func TestHarnessDoneUpdateIgnored(t *testing.T) {
 }
 
 func TestHarnessDoneViewEmpty(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	h.done = true
 	if h.View() != "" {
 		t.Errorf("View() on done harness = %q, want empty", h.View())
@@ -51,7 +51,7 @@ func TestHarnessDoneViewEmpty(t *testing.T) {
 }
 
 func TestHarnessFormUpdatePassthrough(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOn)
+	h := NewHarness("app/harness", HarnessOn, "")
 	scr, _ := h.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if _, ok := scr.(Harness); !ok {
 		t.Errorf("Update returned %T, want Harness", scr)
@@ -59,7 +59,7 @@ func TestHarnessFormUpdatePassthrough(t *testing.T) {
 }
 
 func TestHarnessSubmitEmitsScreenResult(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	result := h.form.SubmitCmd()
 	if result == nil {
 		t.Fatal("SubmitCmd() = nil")
@@ -67,7 +67,7 @@ func TestHarnessSubmitEmitsScreenResult(t *testing.T) {
 }
 
 func TestHarnessCancelEmitsScreenPop(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	msg := h.form.CancelCmd()
 	if _, ok := msg.(bus.ScreenPop); !ok {
 		t.Errorf("CancelCmd() = %T, want bus.ScreenPop", msg)
@@ -144,7 +144,7 @@ func TestResetFormCancelEmitsScreenPop(t *testing.T) {
 }
 
 func TestTelegramInit(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	cmd := s.Init()
 	if cmd == nil {
 		t.Error("Telegram.Init() = nil, want non-nil (form init)")
@@ -152,7 +152,7 @@ func TestTelegramInit(t *testing.T) {
 }
 
 func TestTelegramDoneUpdateIgnored(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	s.done = true
 	scr, cmd := s.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
@@ -164,7 +164,7 @@ func TestTelegramDoneUpdateIgnored(t *testing.T) {
 }
 
 func TestTelegramDoneViewEmpty(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	s.done = true
 	if s.View() != "" {
 		t.Errorf("View() on done telegram = %q, want empty", s.View())
@@ -172,7 +172,7 @@ func TestTelegramDoneViewEmpty(t *testing.T) {
 }
 
 func TestTelegramFormUpdatePassthrough(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	scr, _ := s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if _, ok := scr.(Telegram); !ok {
 		t.Errorf("Update returned %T, want Telegram", scr)
@@ -180,7 +180,7 @@ func TestTelegramFormUpdatePassthrough(t *testing.T) {
 }
 
 func TestTelegramSubmitTokenEmitsScreenResult(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	*s.tok = "my-token"
 	*s.sel = "Configure"
 	msg := s.form.SubmitCmd()
@@ -192,7 +192,7 @@ func TestTelegramSubmitTokenEmitsScreenResult(t *testing.T) {
 }
 
 func TestTelegramSubmitSkipEmitsScreenResultWithSkip(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	*s.sel = TelegramSkip
 	msg := s.form.SubmitCmd()
 	if result, ok := msg.(bus.ScreenResult); !ok {
@@ -203,7 +203,7 @@ func TestTelegramSubmitSkipEmitsScreenResultWithSkip(t *testing.T) {
 }
 
 func TestTelegramSubmitEmptyTokenEmitsSkip(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	*s.tok = ""
 	*s.sel = "Configure"
 	msg := s.form.SubmitCmd()
@@ -215,7 +215,7 @@ func TestTelegramSubmitEmptyTokenEmitsSkip(t *testing.T) {
 }
 
 func TestTelegramFormCancelEmitsScreenPop(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	msg := s.form.CancelCmd()
 	if _, ok := msg.(bus.ScreenPop); !ok {
 		t.Errorf("CancelCmd = %T, want bus.ScreenPop", msg)

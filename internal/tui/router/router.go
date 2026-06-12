@@ -89,6 +89,13 @@ func (m Model) Top() Screen {
 	return m.stack[len(m.stack)-1]
 }
 
+func (m Model) Below() Screen {
+	if len(m.stack) < 2 {
+		return m.stack[0]
+	}
+	return m.stack[len(m.stack)-2]
+}
+
 func (m Model) Depth() int {
 	return len(m.stack)
 }

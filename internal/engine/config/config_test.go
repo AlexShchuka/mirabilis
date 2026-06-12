@@ -173,6 +173,81 @@ func TestEnvStringKeys(t *testing.T) {
 	}
 }
 
+func TestLastHarness(t *testing.T) {
+	t.Run("no .env returns not ok", func(t *testing.T) {
+		v, ok := ReadLastHarness(t.TempDir())
+		if ok || v != "" {
+			t.Errorf("ReadLastHarness with no .env = (%q, %v), want (\"\", false)", v, ok)
+		}
+	})
+
+	t.Run("roundtrip and overwrite once", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteLastHarness(dir, "reinstall"); err != nil {
+			t.Fatal(err)
+		}
+		v, ok := ReadLastHarness(dir)
+		if !ok || v != "reinstall" {
+			t.Errorf("ReadLastHarness = (%q, %v), want (reinstall, true)", v, ok)
+		}
+		if err := WriteLastHarness(dir, "on"); err != nil {
+			t.Fatal(err)
+		}
+		if v, _ := ReadLastHarness(dir); v != "on" {
+			t.Errorf("ReadLastHarness after overwrite = %q, want on", v)
+		}
+		if count := strings.Count(readEnv(t, dir), "LAST_HARNESS="); count != 1 {
+			t.Errorf("LAST_HARNESS appears %d times, want 1", count)
+		}
+	})
+
+	t.Run("preserves unrelated lines", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, ".env"), "STACKS=go\n")
+		if err := WriteLastHarness(dir, "off"); err != nil {
+			t.Fatal(err)
+		}
+		if s, _ := ReadStacks(dir); s != "go" {
+			t.Errorf("STACKS clobbered: %q", s)
+		}
+	})
+}
+
+func TestTelegramConfigured(t *testing.T) {
+	t.Run("absent defaults to false", func(t *testing.T) {
+		if TelegramConfigured(t.TempDir()) {
+			t.Error("TelegramConfigured with no .env = true, want false")
+		}
+	})
+
+	t.Run("non-1 value is false", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, ".env"), "TELEGRAM_CONFIGURED=yes\n")
+		if TelegramConfigured(dir) {
+			t.Error("TelegramConfigured(=yes) = true, want false")
+		}
+	})
+
+	t.Run("roundtrip", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := WriteTelegramConfigured(dir, true); err != nil {
+			t.Fatal(err)
+		}
+		if !TelegramConfigured(dir) {
+			t.Error("TelegramConfigured after write(true) = false, want true")
+		}
+		if err := WriteTelegramConfigured(dir, false); err != nil {
+			t.Fatal(err)
+		}
+		if TelegramConfigured(dir) {
+			t.Error("TelegramConfigured after write(false) = true, want false")
+		}
+		if count := strings.Count(readEnv(t, dir), "TELEGRAM_CONFIGURED="); count != 1 {
+			t.Errorf("TELEGRAM_CONFIGURED appears %d times, want 1", count)
+		}
+	})
+}
+
 func TestEnvWrite_PreservesUnrelatedLines(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, ".env"), "FOO=bar\n\nBAZ=qux\n")

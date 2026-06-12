@@ -142,6 +142,23 @@ func (f *facade) OpenVSCode(ctx context.Context) error {
 	return f.sb.OpenVSCode(ctx)
 }
 
+func (f *facade) LastHarnessChoice() string {
+	v, _ := config.ReadLastHarness(f.repo)
+	return v
+}
+
+func (f *facade) RememberHarnessChoice(choice string) error {
+	return config.WriteLastHarness(f.repo, choice)
+}
+
+func (f *facade) TelegramConfigured() bool {
+	return config.TelegramConfigured(f.repo)
+}
+
+func (f *facade) MarkTelegramConfigured() error {
+	return config.WriteTelegramConfigured(f.repo, true)
+}
+
 func drain(events <-chan exec.Event) error {
 	var err error
 	for ev := range events {

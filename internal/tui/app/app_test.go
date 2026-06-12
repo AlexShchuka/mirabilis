@@ -74,6 +74,10 @@ type fakeFacade struct {
 	harnessApplyErr    error
 	vscodeCalls        int
 	vscodeErr          error
+	lastHarness        string
+	rememberedChoice   string
+	telegramCfg        bool
+	telegramMarked     bool
 }
 
 func newFakeFacade(steps []pipeline.Command) *fakeFacade {
@@ -176,6 +180,34 @@ func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	f.vscodeCalls++
 	f.callLog = append(f.callLog, "OpenVSCode")
 	return f.vscodeErr
+}
+
+func (f *fakeFacade) LastHarnessChoice() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastHarness
+}
+
+func (f *fakeFacade) RememberHarnessChoice(choice string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rememberedChoice = choice
+	f.callLog = append(f.callLog, "RememberHarnessChoice")
+	return nil
+}
+
+func (f *fakeFacade) TelegramConfigured() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.telegramCfg
+}
+
+func (f *fakeFacade) MarkTelegramConfigured() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.telegramMarked = true
+	f.callLog = append(f.callLog, "MarkTelegramConfigured")
+	return nil
 }
 
 func (f *fakeFacade) getCallLog() []string {
@@ -650,7 +682,7 @@ func TestReset_ConfirmCallsAndReturnsToMenu(t *testing.T) {
 	tm.Send(bus.ScreenResult{Value: true})
 
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("mirabilis"))
+		return bytes.Contains(bts, []byte(uistr.NoticeResetDone))
 	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -685,6 +717,7 @@ func TestReset_PopReturnsToMenuWithoutCalls(t *testing.T) {
 	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
 
 	tm.Send(bus.ScreenPop{})
+	tm.Send(tea.WindowSizeMsg{Width: 100, Height: 36})
 
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
 		return bytes.Contains(bts, []byte("mirabilis"))

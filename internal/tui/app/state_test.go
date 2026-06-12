@@ -5,16 +5,19 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
+	"github.com/AlexShchuka/mirabilis/internal/engine/steps"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
@@ -34,6 +37,12 @@ type stubFacade struct {
 	vscodeErr        error
 	saveCalls        int
 	resetCalls       int
+	lastHarness      string
+	rememberedChoice string
+	rememberErr      error
+	telegramCfg      bool
+	telegramMarked   bool
+	markErr          error
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -96,6 +105,44 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	return f.vscodeErr
 }
 
+func (f *stubFacade) LastHarnessChoice() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastHarness
+}
+
+func (f *stubFacade) RememberHarnessChoice(choice string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rememberedChoice = choice
+	return f.rememberErr
+}
+
+func (f *stubFacade) TelegramConfigured() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.telegramCfg
+}
+
+func (f *stubFacade) MarkTelegramConfigured() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.telegramMarked = true
+	return f.markErr
+}
+
+func (f *stubFacade) remembered() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.rememberedChoice
+}
+
+func (f *stubFacade) marked() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.telegramMarked
+}
+
 func (f *stubFacade) launches() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -139,6 +186,38 @@ func runMsg(t *testing.T, cmd tea.Cmd) tea.Msg {
 		t.Fatal("expected a command, got nil")
 	}
 	return cmd()
+}
+
+func drainBatch(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("expected a command, got nil")
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return []tea.Msg{msg}
+	}
+	var out []tea.Msg
+	for _, c := range batch {
+		if c == nil {
+			continue
+		}
+		out = append(out, c())
+	}
+	return out
+}
+
+func runWorkMsg(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	for _, m := range drainBatch(t, cmd) {
+		if _, ok := m.(busyTickMsg); ok {
+			continue
+		}
+		return m
+	}
+	t.Fatal("no work message produced (only busy ticks)")
+	return nil
 }
 
 func nextEvent(t *testing.T, p *pipeline.Pipeline) (pipeline.Event, bool) {
@@ -211,6 +290,130 @@ func waitingStep(name string, payload any, resumed chan pipeline.Result) *stateS
 	}
 }
 
+func catalogStep(title string, payload steps.Catalog, resumed chan pipeline.Result) *stateStep {
+	return &stateStep{
+		meta: pipeline.Meta{Name: title, Title: title, Kind: pipeline.Interactive},
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+			out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: title, Payload: payload}
+			r := <-in
+			if resumed != nil {
+				resumed <- r
+			}
+			if r.Cancelled {
+				return pipeline.ErrCancelled
+			}
+			return nil
+		},
+	}
+}
+
+func collectFast(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		return nil
+	}
+	leaves := []tea.Cmd{cmd}
+	if batch, ok := cmd().(tea.BatchMsg); ok {
+		leaves = batch
+	}
+	var out []tea.Msg
+	for _, c := range leaves {
+		if c == nil {
+			continue
+		}
+		ch := make(chan tea.Msg, 1)
+		go func(fn tea.Cmd) { ch <- fn() }(c)
+		select {
+		case msg := <-ch:
+			if msg != nil {
+				out = append(out, msg)
+			}
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	return out
+}
+
+func driveUntilFormUp(t *testing.T, a App) App {
+	t.Helper()
+	p := a.pipe
+	if p == nil {
+		t.Fatal("no pipeline running")
+	}
+	for {
+		ev, ok := nextEvent(t, p)
+		if !ok {
+			t.Fatal("pipeline ended before a waiting form appeared")
+		}
+		var cmd tea.Cmd
+		a, cmd = step(t, a, pipelineEventMsg{ev: ev})
+		if ev.Kind != pipeline.EvWaiting {
+			continue
+		}
+		for _, msg := range collectFast(t, cmd) {
+			if _, ok := msg.(bus.ScreenPush); ok {
+				a, _ = step(t, a, msg)
+			}
+		}
+		return a
+	}
+}
+
+func TestLaunchFormCompositesOverSteplist(t *testing.T) {
+	resumed := make(chan pipeline.Result, 1)
+	payload := steps.Catalog{Title: "choose-stacks", Options: []string{"alpha", "beta"}}
+	f := &stubFacade{steps: []pipeline.Command{catalogStep("Stacks", payload, resumed)}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
+
+	if a.router.Depth() != 3 {
+		t.Fatalf("router depth = %d, want 3 (menu, launch, form)", a.router.Depth())
+	}
+
+	view := plainState(a.View().Content)
+	if !strings.Contains(view, "Stacks") {
+		t.Errorf("composited view missing the launch steplist token (background):\n%s", view)
+	}
+	if !strings.Contains(view, "choose-stacks") {
+		t.Errorf("composited view missing the catalog form token (overlay):\n%s", view)
+	}
+	if strings.Contains(view, uistr.WelcomeHint) {
+		t.Errorf("background is the root menu, not the immediate parent launch screen:\n%s", view)
+	}
+}
+
+func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
+	resumed := make(chan pipeline.Result, 1)
+	payload := steps.Catalog{Title: "choose-stacks", Options: []string{"alpha", "beta"}}
+	f := &stubFacade{steps: []pipeline.Command{catalogStep("Stacks", payload, resumed)}}
+	a := newStateApp(t, f)
+
+	const w, h = 50, 20
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: w, Height: h})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
+
+	view := a.View().Content
+	plain := plainState(view)
+	if !strings.Contains(plain, "Stacks") {
+		t.Errorf("small composited view missing steplist token (background):\n%s", plain)
+	}
+	if !strings.Contains(plain, "choose-stacks") {
+		t.Errorf("small composited view missing form token (overlay):\n%s", plain)
+	}
+	if got := lipgloss.Height(plain); got > h {
+		t.Errorf("composited height = %d, want <= %d (Canvas must clamp)", got, h)
+	}
+	for i, line := range strings.Split(plain, "\n") {
+		if got := lipgloss.Width(line); got > w {
+			t.Errorf("composited line %d width = %d, want <= %d (Canvas must clamp)", i, got, w)
+		}
+	}
+}
+
 func TestStateTelegramConfigure(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
@@ -224,7 +427,7 @@ func TestStateTelegramConfigure(t *testing.T) {
 	if !a.busy {
 		t.Error("busy = false while telegram configure runs, want true")
 	}
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if a.busy {
 		t.Error("busy = true after telegram done, want false")
 	}
@@ -259,7 +462,7 @@ func TestStateTelegramFailure(t *testing.T) {
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
 	a, cmd := step(t, a, bus.ScreenResult{Value: "123456:bot-token"})
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeTelegramErr+"boom: channel not detected" {
 		t.Errorf("notice = %q", got)
 	}
@@ -273,7 +476,7 @@ func TestStateHarnessFlow(t *testing.T) {
 	if !a.busy {
 		t.Error("busy = false while harness status runs, want true")
 	}
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if a.busy {
 		t.Error("busy = true after status arrived, want false")
 	}
@@ -288,7 +491,7 @@ func TestStateHarnessFlow(t *testing.T) {
 	if !a.busy {
 		t.Error("busy = false while harness apply runs, want true")
 	}
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeHarnessDone {
 		t.Errorf("notice = %q, want %q", got, uistr.NoticeHarnessDone)
 	}
@@ -302,7 +505,7 @@ func TestStateHarnessStatusError(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeHarnessErr+"container claude unavailable" {
 		t.Errorf("notice = %q", got)
 	}
@@ -316,9 +519,9 @@ func TestStateHarnessApplyError(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessOn})
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeHarnessErr+"plugin install failed" {
 		t.Errorf("notice = %q", got)
 	}
@@ -335,7 +538,7 @@ func TestStateVSCode(t *testing.T) {
 	if got := menuNotice(t, a); got != uistr.NoticeVSCodeOpening {
 		t.Errorf("notice = %q, want %q", got, uistr.NoticeVSCodeOpening)
 	}
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeVSCodeDone {
 		t.Errorf("notice = %q, want %q", got, uistr.NoticeVSCodeDone)
 	}
@@ -349,7 +552,7 @@ func TestStateVSCodeFailure(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
-	a, _ = step(t, a, runMsg(t, cmd))
+	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeVSCodeErr+"VS Code not found" {
 		t.Errorf("notice = %q", got)
 	}
@@ -377,7 +580,7 @@ func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 		t.Errorf("harness while busy: notice = %q, want %q", got, uistr.NoticeBusy)
 	}
 
-	a, _ = step(t, a, runMsg(t, vscodeCmd))
+	a, _ = step(t, a, runWorkMsg(t, vscodeCmd))
 	if a.busy {
 		t.Fatal("busy = true after vscode done, want false")
 	}
@@ -389,6 +592,327 @@ func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 	a = driveUntilDone(t, a)
 	if a.pipe != nil {
 		t.Error("pipe not nil after empty launch finished")
+	}
+}
+
+func frameSelected(t *testing.T, a App) string {
+	t.Helper()
+	it, ok := a.frame.Selected()
+	if !ok {
+		t.Fatal("frame has no selected item")
+	}
+	return it.Action
+}
+
+func TestStateNavKeysDriveFrameCursorAtMenu(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	if got := frameSelected(t, a); got != screens.ActionLaunch {
+		t.Fatalf("initial selection = %q, want launch", got)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	if got := frameSelected(t, a); got != screens.ActionHarness {
+		t.Errorf("after down: selection = %q, want harness", got)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if got := frameSelected(t, a); got != screens.ActionTelegram {
+		t.Errorf("after j: selection = %q, want telegram", got)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'k', Text: "k"})
+	if got := frameSelected(t, a); got != screens.ActionLaunch {
+		t.Errorf("after up+k: selection = %q, want launch", got)
+	}
+}
+
+func TestStateEnterAtMenuEmitsMenuChosen(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
+	msg := runMsg(t, cmd)
+	chosen, ok := msg.(bus.MenuChosen)
+	if !ok {
+		t.Fatalf("enter at menu produced %T, want bus.MenuChosen", msg)
+	}
+	if chosen.Action != screens.ActionHarness {
+		t.Errorf("enter emitted action %q, want harness", chosen.Action)
+	}
+}
+
+func TestStateNavKeysIgnoredWhenOverlayUp(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if a.router.Depth() != 2 {
+		t.Fatalf("router depth = %d after reset push, want 2", a.router.Depth())
+	}
+	before := frameSelected(t, a)
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if got := frameSelected(t, a); got != before {
+		t.Errorf("frame cursor moved while overlay up: %q -> %q", before, got)
+	}
+}
+
+func plainState(s string) string {
+	return regexp.MustCompile("\x1b\\[[0-9;<=>?]*[ -/]*[@-~]").ReplaceAllString(s, "")
+}
+
+func TestOverlayCompositesOverBackground(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if a.router.Depth() != 2 {
+		t.Fatalf("router depth = %d after reset push, want 2", a.router.Depth())
+	}
+
+	view := plainState(a.View().Content)
+	if !strings.Contains(view, uistr.WelcomeHint) {
+		t.Errorf("composited view lost the background welcome hint:\n%s", view)
+	}
+	if !strings.Contains(view, uistr.AppName) {
+		t.Errorf("composited view lost the background frame header:\n%s", view)
+	}
+	if !strings.Contains(view, uistr.FormConfirmReset) {
+		t.Errorf("composited view missing the overlay content:\n%s", view)
+	}
+}
+
+func TestViewIsAltScreen(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+	if !a.View().AltScreen {
+		t.Error("View().AltScreen = false at menu depth, want true")
+	}
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if !a.View().AltScreen {
+		t.Error("View().AltScreen = false with overlay up, want true")
+	}
+}
+
+func busyGlyphPresent(header string) bool {
+	for _, g := range busyFrames {
+		if strings.Contains(header, g) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBusyNoticeTicksElapsed(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	a, tickCmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
+	if !a.busy {
+		t.Fatal("busy = false after vscode dispatch, want true")
+	}
+	if tickCmd == nil {
+		t.Fatal("vscode dispatch returned nil cmd, want batch with busy tick")
+	}
+
+	header := plainState(a.frame.View(""))
+	if !busyGlyphPresent(strings.Split(header, "\n")[0]) {
+		t.Errorf("frame header missing spinner glyph while busy:\n%s", strings.Split(header, "\n")[0])
+	}
+
+	a.busyStarted = a.busyStarted.Add(-3 * time.Second)
+	a, c1 := step(t, a, busyTickMsg{at: time.Now(), gen: a.busyGen})
+	if c1 == nil {
+		t.Error("busy tick returned nil cmd while busy, want re-arm")
+	}
+	h1 := strings.Split(plainState(a.frame.View("")), "\n")[0]
+	if !strings.Contains(h1, "3s") {
+		t.Errorf("frame header missing elapsed seconds while busy:\n%s", h1)
+	}
+	if !busyGlyphPresent(h1) {
+		t.Errorf("frame header missing spinner glyph after tick:\n%s", h1)
+	}
+
+	a, _ = step(t, a, runWorkMsg(t, tickCmd))
+	if a.busy {
+		t.Fatal("busy = true after vscode done, want false")
+	}
+
+	a, c2 := step(t, a, busyTickMsg{at: time.Now(), gen: a.busyGen})
+	if c2 != nil {
+		t.Error("busy tick re-armed after busy cleared, want self-terminating (nil cmd)")
+	}
+	hfinal := strings.Split(plainState(a.frame.View("")), "\n")[0]
+	if busyGlyphPresent(hfinal) {
+		t.Errorf("frame header still shows spinner after busy cleared:\n%s", hfinal)
+	}
+}
+
+func TestBusyTickStaleGenIgnored(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	gen1 := a.busyGen
+	a.busy = true
+	cmd1 := a.startBusy()
+	if cmd1 == nil {
+		t.Fatal("first startBusy returned nil cmd, want a tick")
+	}
+	if a.busyGen != gen1+1 {
+		t.Fatalf("busyGen = %d after first startBusy, want %d", a.busyGen, gen1+1)
+	}
+
+	cmd2 := a.startBusy()
+	if cmd2 == nil {
+		t.Fatal("second startBusy returned nil cmd, want a tick")
+	}
+	if a.busyGen != gen1+2 {
+		t.Fatalf("busyGen = %d after second startBusy, want %d", a.busyGen, gen1+2)
+	}
+
+	frameBefore := a.busyFrame
+	a, staleCmd := step(t, a, busyTickMsg{at: time.Now(), gen: gen1 + 1})
+	if staleCmd != nil {
+		t.Errorf("stale-gen tick re-armed: cmd = %v, want nil", staleCmd())
+	}
+	if a.busyFrame != frameBefore {
+		t.Errorf("stale-gen tick advanced the frame: %d -> %d", frameBefore, a.busyFrame)
+	}
+
+	a, liveCmd := step(t, a, busyTickMsg{at: time.Now(), gen: a.busyGen})
+	if liveCmd == nil {
+		t.Error("live-gen tick returned nil cmd, want re-arm")
+	}
+	if a.busyFrame != frameBefore+1 {
+		t.Errorf("live-gen tick did not advance the frame: %d -> %d", frameBefore, a.busyFrame)
+	}
+}
+
+func TestHarnessRemembersChoiceOnSuccess(t *testing.T) {
+	f := &stubFacade{harnessCurrent: screens.HarnessOff}
+	a := newStateApp(t, f)
+
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessReinstall})
+	a, doneCmd := step(t, a, runWorkMsg(t, cmd))
+	if got := menuNotice(t, a); got != uistr.NoticeHarnessDone {
+		t.Fatalf("notice = %q, want harness done", got)
+	}
+	runMsg(t, doneCmd)
+	if got := f.remembered(); got != screens.HarnessReinstall {
+		t.Errorf("RememberHarnessChoice = %q, want reinstall", got)
+	}
+}
+
+func TestHarnessDoesNotRememberOnFailure(t *testing.T) {
+	f := &stubFacade{harnessCurrent: "missing", harnessApplyErr: errors.New("apply boom")}
+	a := newStateApp(t, f)
+
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessOn})
+	_, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := f.remembered(); got != "" {
+		t.Errorf("RememberHarnessChoice = %q after failure, want empty", got)
+	}
+}
+
+func TestTelegramMarksConfiguredOnSuccess(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
+	a, cmd := step(t, a, bus.ScreenResult{Value: "123:token"})
+	_, doneCmd := step(t, a, runWorkMsg(t, cmd))
+	runMsg(t, doneCmd)
+	if !f.marked() {
+		t.Error("MarkTelegramConfigured not called after successful configure")
+	}
+}
+
+func TestTelegramDoesNotMarkOnFailure(t *testing.T) {
+	f := &stubFacade{telegramErr: errors.New("configure boom")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
+	a, cmd := step(t, a, bus.ScreenResult{Value: "123:token"})
+	_, _ = step(t, a, runWorkMsg(t, cmd))
+	if f.marked() {
+		t.Error("MarkTelegramConfigured called after failed configure")
+	}
+}
+
+func TestHarnessStatusConsultsLastChoice(t *testing.T) {
+	f := &stubFacade{harnessCurrent: screens.HarnessOff, lastHarness: screens.HarnessReinstall}
+	a := newStateApp(t, f)
+
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if _, ok := a.router.Top().(screens.Harness); !ok {
+		t.Fatalf("top screen = %T, want screens.Harness", a.router.Top())
+	}
+}
+
+func TestMenuCursorSurvivesOverlay(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	before := frameSelected(t, a)
+	if before != screens.ActionTelegram {
+		t.Fatalf("setup: selection = %q, want telegram", before)
+	}
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if a.router.Depth() != 2 {
+		t.Fatalf("router depth = %d after push, want 2", a.router.Depth())
+	}
+	a, _ = step(t, a, bus.ScreenPop{})
+	if a.router.Depth() != 1 {
+		t.Fatalf("router depth = %d after pop, want 1", a.router.Depth())
+	}
+	if got := frameSelected(t, a); got != before {
+		t.Errorf("frame cursor changed across overlay round-trip: %q -> %q", before, got)
+	}
+}
+
+func TestTypeaheadNotDroppedOnScreenTransition(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
+	if _, ok := a.router.Top().(screens.Telegram); !ok {
+		t.Fatalf("setup: top screen = %T, want screens.Telegram", a.router.Top())
+	}
+	depthBefore := a.router.Depth()
+
+	for _, k := range []tea.KeyPressMsg{
+		{Code: 'a', Text: "a"},
+		{Code: 'b', Text: "b"},
+		{Code: 'c', Text: "c"},
+	} {
+		a, _ = step(t, a, k)
+	}
+
+	if a.router.Depth() != depthBefore {
+		t.Errorf("typed keys dropped the screen: depth %d -> %d", depthBefore, a.router.Depth())
+	}
+	if _, ok := a.router.Top().(screens.Telegram); !ok {
+		t.Errorf("top screen = %T after typed keys, want telegram screen still present (typeahead buffered, not dropped)", a.router.Top())
+	}
+	if a.menuAction != "telegram" {
+		t.Errorf("menuAction = %q after typeahead, want telegram (transition state preserved)", a.menuAction)
 	}
 }
 

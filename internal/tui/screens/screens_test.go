@@ -17,14 +17,14 @@ func emit(cmd tea.Cmd) tea.Msg {
 }
 
 func TestTelegramID(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	if s.ID() != "app/telegram" {
 		t.Fatalf("ID() = %q", s.ID())
 	}
 }
 
 func TestTelegramEscEmitsScreenPop(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	_, cmd := s.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	msg := emit(cmd)
 	if _, ok := msg.(bus.ScreenPop); !ok {
@@ -33,7 +33,7 @@ func TestTelegramEscEmitsScreenPop(t *testing.T) {
 }
 
 func TestTelegramEnvelopeUnwrapEsc(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	_, cmd := s.Update(bus.Envelope{To: "app/telegram", Msg: tea.KeyPressMsg{Code: tea.KeyEscape}})
 	msg := emit(cmd)
 	if _, ok := msg.(bus.ScreenPop); !ok {
@@ -43,7 +43,7 @@ func TestTelegramEnvelopeUnwrapEsc(t *testing.T) {
 
 func TestTelegramTokenNotEchoedInView(t *testing.T) {
 	const secret = "1234567890:secret_token_value"
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	s2, _ := s.Update(tea.KeyPressMsg{Code: 0, Text: secret})
 	view := plain(s2.View())
 	if strings.Contains(view, secret) {
@@ -55,7 +55,7 @@ func TestTelegramTokenNotEchoedInView(t *testing.T) {
 }
 
 func TestTelegramViewNotEmpty(t *testing.T) {
-	s := NewTelegram("app/telegram")
+	s := NewTelegram("app/telegram", false)
 	if plain(s.View()) == "" {
 		t.Error("View() is empty before any interaction")
 	}
@@ -155,14 +155,14 @@ func TestResetViewNotEmpty(t *testing.T) {
 }
 
 func TestHarnessID(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	if h.ID() != "app/harness" {
 		t.Fatalf("ID() = %q", h.ID())
 	}
 }
 
 func TestHarnessEscEmitsScreenPop(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	_, cmd := h.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	msg := emit(cmd)
 	if _, ok := msg.(bus.ScreenPop); !ok {
@@ -171,7 +171,7 @@ func TestHarnessEscEmitsScreenPop(t *testing.T) {
 }
 
 func TestHarnessEnvelopeUnwrap(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	_, cmd := h.Update(bus.Envelope{To: "app/harness", Msg: tea.KeyPressMsg{Code: tea.KeyEscape}})
 	msg := emit(cmd)
 	if _, ok := msg.(bus.ScreenPop); !ok {
@@ -180,9 +180,40 @@ func TestHarnessEnvelopeUnwrap(t *testing.T) {
 }
 
 func TestHarnessViewNotEmpty(t *testing.T) {
-	h := NewHarness("app/harness", HarnessOff)
+	h := NewHarness("app/harness", HarnessOff, "")
 	if plain(h.View()) == "" {
 		t.Error("View() is empty")
+	}
+}
+
+func TestHarnessPrefillsLastChoice(t *testing.T) {
+	tests := []struct {
+		last string
+		want string
+	}{
+		{HarnessReinstall, HarnessReinstall},
+		{HarnessOn, HarnessOn},
+		{HarnessOff, HarnessOff},
+		{"", HarnessOn},
+		{"garbage", HarnessOn},
+	}
+	for _, tt := range tests {
+		h := NewHarness("app/harness", HarnessOff, tt.last)
+		if *h.val != tt.want {
+			t.Errorf("NewHarness(last=%q): default value = %q, want %q", tt.last, *h.val, tt.want)
+		}
+	}
+}
+
+func TestTelegramSmartDefaultSkipWhenConfigured(t *testing.T) {
+	configured := NewTelegram("app/telegram", true)
+	if *configured.sel != TelegramSkip {
+		t.Errorf("configured telegram default sel = %q, want %q", *configured.sel, TelegramSkip)
+	}
+
+	fresh := NewTelegram("app/telegram", false)
+	if *fresh.sel == TelegramSkip {
+		t.Error("fresh telegram pre-selected Skip, want unset so Configure is reachable")
 	}
 }
 

@@ -23,8 +23,12 @@ type Harness struct {
 	done    bool
 }
 
-func NewHarness(id bus.NodeID, current string) Harness {
+func NewHarness(id bus.NodeID, current, last string) Harness {
 	val := new(string)
+	switch last {
+	case HarnessOn, HarnessOff, HarnessReinstall:
+		*val = last
+	}
 	currentLabel := harnessLabel(current)
 	f := huh.NewForm(
 		huh.NewGroup(

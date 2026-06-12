@@ -40,12 +40,17 @@ const (
 	MenuHarnessMissing = "neuro-matrix: missing"
 	MenuHarnessUnknown = "neuro-matrix: unknown"
 
-	WelcomeHint = "select an action on the left"
+	WelcomeHint = "pick an action ←"
+
+	TooSmall = "terminal too small"
+	SizeSep  = " < "
+
+	BusyElapsedSep = " "
 
 	NoticeHarnessErr  = "harness: "
 	NoticeVSCodeErr   = "VS Code: "
 	NoticeTelegramErr = "telegram: "
-	NoticeResetDone   = "everything removed — next launch will rebuild the sandbox"
+	NoticeResetDone   = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
 	FormOptHarnessOn  = "Enable"
@@ -59,7 +64,7 @@ const (
 	FormOptTelegramConfigure = "Configure"
 	FormOptTelegramSkip      = "Skip"
 	FormTitleTelegramToken   = "Bot token"
-	FormDescTelegramToken    = "Token from @BotFather. Stored in the host secret store, not in git, not in the image."
+	FormDescTelegramToken    = "From @BotFather. Stored host-side, never in git/image."
 
 	NoticeLaunchFailed    = "launch failed"
 	NoticeLaunchCanceled  = "launch canceled"
@@ -72,7 +77,7 @@ const (
 	NoticeHarnessApplying     = "applying harness…"
 	NoticeHarnessDone         = "harness: done"
 	NoticeVSCodeOpening       = "opening VS Code…"
-	NoticeBusy                = "an operation is already running — wait for it to finish"
+	NoticeBusy                = "busy — wait"
 	NoticeVSCodeDone          = "VS Code: opened"
 	LogTelegramFailed         = "telegram setup failed"
 	LogHarnessFailed          = "harness apply failed"

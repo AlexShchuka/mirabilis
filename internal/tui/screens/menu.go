@@ -32,16 +32,13 @@ func MenuItems() []frame.Item {
 	}
 }
 
-const menuDescColumn = 12
-
 type Menu struct {
 	id     bus.NodeID
 	notice string
-	items  []frame.Item
 }
 
 func NewMenu(id bus.NodeID) Menu {
-	return Menu{id: id, items: MenuItems()}
+	return Menu{id: id}
 }
 
 func (m Menu) WithNotice(notice string) Menu {
@@ -65,7 +62,7 @@ func (m Menu) Update(msg tea.Msg) (router.Screen, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch msg.String() {
-		case "q", "esc":
+		case "esc":
 			return m, quitCmd
 		}
 	case bus.Envelope:
@@ -82,15 +79,8 @@ func (m Menu) View() string {
 	lines := []string{
 		" " + styles.Title.Render(uistr.AppName),
 		"",
+		" " + styles.Hint.Render(uistr.WelcomeHint),
 	}
-	for _, it := range m.items {
-		if it.Desc == "" {
-			continue
-		}
-		title := it.Title + strings.Repeat(" ", max(menuDescColumn-len(it.Title), 1))
-		lines = append(lines, " "+styles.NormTitle.Render(title)+styles.Hint.Render(it.Desc))
-	}
-	lines = append(lines, "", " "+styles.Hint.Render(uistr.WelcomeHint))
 	if m.notice != "" {
 		lines = append(lines, "", " "+styles.Degraded.Render(m.notice))
 	}

@@ -20,4 +20,9 @@ var (
 	Degraded     = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	OK           = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	Spinner      = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+
+	Overlay = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("212")).
+		Padding(0, 1)
 )

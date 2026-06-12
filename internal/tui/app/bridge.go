@@ -133,7 +133,7 @@ func (a *App) handleWaiting(ev pipeline.Event) tea.Cmd {
 		scr := screens.NewGHAuth("app/launch/ghauth", p.Code, p.URL)
 		return func() tea.Msg { return bus.ScreenPush{Model: scr} }
 	case steps.TelegramSetup:
-		scr := screens.NewTelegram("app/launch/telegram")
+		scr := screens.NewTelegram("app/launch/telegram", a.facade.TelegramConfigured())
 		return func() tea.Msg { return bus.ScreenPush{Model: scr} }
 	default:
 		return nil
@@ -193,8 +193,9 @@ func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd 
 			ctx := a.ctx
 			f := a.facade
 			a.busy = true
+			tick := a.startBusy()
 			m, _ := a.backToMenu("")
-			return m, tea.Cmd(func() tea.Msg {
+			return m, tea.Batch(tick, func() tea.Msg {
 				if err := f.SaveMemory(ctx); err != nil {
 					return resetDoneMsg{err: err}
 				}
@@ -206,8 +207,9 @@ func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd 
 			ctx := a.ctx
 			f := a.facade
 			a.busy = true
+			tick := a.startBusy()
 			m, _ := a.backToMenu(uistr.NoticeTelegramConfiguring)
-			return m, tea.Cmd(func() tea.Msg {
+			return m, tea.Batch(tick, func() tea.Msg {
 				return telegramDoneMsg{err: f.ConfigureTelegram(ctx, token)}
 			})
 		}
@@ -216,8 +218,10 @@ func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd 
 			ctx := a.ctx
 			f := a.facade
 			a.busy = true
+			a.harnessChoice = choice
+			tick := a.startBusy()
 			m, _ := a.backToMenu(uistr.NoticeHarnessApplying)
-			return m, tea.Cmd(func() tea.Msg {
+			return m, tea.Batch(tick, func() tea.Msg {
 				return harnessDoneMsg{err: f.ApplyHarness(ctx, choice)}
 			})
 		}
@@ -231,17 +235,19 @@ func (a App) handleTelegramDone(msg telegramDoneMsg) (tea.Model, tea.Cmd) {
 		a.facade.Logger().Error(uistr.LogTelegramFailed, "err", msg.err)
 		return a.backToMenu(uistr.NoticeTelegramErr + msg.err.Error())
 	}
-	return a.backToMenu(uistr.NoticeTelegramDone)
+	m, _ := a.backToMenu(uistr.NoticeTelegramDone)
+	return m, a.rememberTelegram()
 }
 
 func (a App) handleHarnessStatus(msg harnessStatusMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
+	a.frame.SetBusy("")
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogHarnessFailed, "err", msg.err)
 		return a.backToMenu(uistr.NoticeHarnessErr + msg.err.Error())
 	}
 	a.menuAction = "harness"
-	scr := screens.NewHarness("app/harness", msg.current)
+	scr := screens.NewHarness("app/harness", msg.current, a.facade.LastHarnessChoice())
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 	return a, tea.Batch(rc, scr.Init())
@@ -253,7 +259,9 @@ func (a App) handleHarnessDone(msg harnessDoneMsg) (tea.Model, tea.Cmd) {
 		a.facade.Logger().Error(uistr.LogHarnessFailed, "err", msg.err)
 		return a.backToMenu(uistr.NoticeHarnessErr + msg.err.Error())
 	}
-	return a.backToMenu(uistr.NoticeHarnessDone)
+	choice := a.harnessChoice
+	m, _ := a.backToMenu(uistr.NoticeHarnessDone)
+	return m, a.rememberHarness(choice)
 }
 
 func (a App) handleVSCodeDone(msg vscodeDoneMsg) (tea.Model, tea.Cmd) {
@@ -306,7 +314,32 @@ func (a App) handlePipelineDone(msg pipelineDoneMsg) (tea.Model, tea.Cmd) {
 	return a.backToMenu(notice)
 }
 
+func (a App) rememberHarness(choice string) tea.Cmd {
+	f := a.facade
+	log := a.facade.Logger()
+	return func() tea.Msg {
+		if err := f.RememberHarnessChoice(choice); err != nil {
+			log.Error(uistr.LogHarnessFailed, "err", err)
+		}
+		return nil
+	}
+}
+
+func (a App) rememberTelegram() tea.Cmd {
+	f := a.facade
+	log := a.facade.Logger()
+	return func() tea.Msg {
+		if err := f.MarkTelegramConfigured(); err != nil {
+			log.Error(uistr.LogTelegramFailed, "err", err)
+		}
+		return nil
+	}
+}
+
 func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
+	if !a.busy {
+		a.frame.SetBusy("")
+	}
 	menu := screens.NewMenu("app/menu")
 	if notice != "" {
 		menu = menu.WithNotice(notice)
@@ -353,7 +386,7 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(rc, scr.Init())
 	case screens.ActionTelegram:
 		a.menuAction = "telegram"
-		scr := screens.NewTelegram("app/telegram")
+		scr := screens.NewTelegram("app/telegram", a.facade.TelegramConfigured())
 		var rc tea.Cmd
 		a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 		return a, tea.Batch(rc, scr.Init())
@@ -361,7 +394,8 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		ctx := a.ctx
 		f := a.facade
 		a.busy = true
-		return a, tea.Cmd(func() tea.Msg {
+		tick := a.startBusy()
+		return a, tea.Batch(tick, func() tea.Msg {
 			current, err := f.HarnessStatus(ctx)
 			return harnessStatusMsg{current: current, err: err}
 		})
@@ -369,8 +403,9 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		ctx := a.ctx
 		f := a.facade
 		a.busy = true
+		tick := a.startBusy()
 		m, _ := a.backToMenu(uistr.NoticeVSCodeOpening)
-		return m, tea.Cmd(func() tea.Msg {
+		return m, tea.Batch(tick, func() tea.Msg {
 			return vscodeDoneMsg{err: f.OpenVSCode(ctx)}
 		})
 	default:
@@ -420,6 +455,12 @@ func (a App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		a.router, _ = a.router.Update(toggleCmdlogMsg{})
 		return a, nil
+	case "up", "k", "down", "j", "enter":
+		if a.router.Depth() == 1 {
+			var cmd tea.Cmd
+			a.frame, cmd = a.frame.Update(msg)
+			return a, cmd
+		}
 	}
 	var cmd tea.Cmd
 	a.router, cmd = a.router.Update(msg)
