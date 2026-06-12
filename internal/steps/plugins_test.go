@@ -1,4 +1,4 @@
-package plugins
+package steps
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestCheckSkipsWhenSetsEqual(t *testing.T) {
+func TestPluginsCheckSkipsWhenSetsEqual(t *testing.T) {
 	tests := []struct {
 		name          string
 		containerOut  string
@@ -83,7 +83,7 @@ func TestCheckSkipsWhenSetsEqual(t *testing.T) {
 				},
 			}
 
-			s := step{}
+			s := pluginsStep{}
 			got, err := s.Check(context.Background(), r)
 			if err != nil {
 				t.Fatalf("Check returned error: %v", err)
@@ -95,7 +95,7 @@ func TestCheckSkipsWhenSetsEqual(t *testing.T) {
 	}
 }
 
-func TestRun_Success(t *testing.T) {
+func TestPluginsRun_Success(t *testing.T) {
 	dir := t.TempDir()
 	var calls []string
 	r := &runner.FakeRunner{
@@ -105,7 +105,7 @@ func TestRun_Success(t *testing.T) {
 			return "", nil
 		},
 	}
-	impl := step{}
+	impl := pluginsStep{}
 	if err := impl.Run(context.Background(), r); err != nil {
 		t.Errorf("Run success = %v, want nil", err)
 	}
@@ -130,78 +130,46 @@ func TestRun_Success(t *testing.T) {
 	}
 }
 
-func TestRun_FirstCallError(t *testing.T) {
-	dir := t.TempDir()
-	callCount := 0
-	r := &runner.FakeRunner{
-		RepoVal: dir,
-		ContFunc: func(args []string) (string, error) {
-			callCount++
-			if callCount == 1 {
-				return "", fmt.Errorf("env write failed")
+func TestPluginsRun_CallErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		failOnCall int
+	}{
+		{"first call error", 1},
+		{"second call error", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			callCount := 0
+			r := &runner.FakeRunner{
+				RepoVal: dir,
+				ContFunc: func(args []string) (string, error) {
+					callCount++
+					if callCount == tt.failOnCall {
+						return "", fmt.Errorf("call %d failed", tt.failOnCall)
+					}
+					return "", nil
+				},
 			}
-			return "", nil
-		},
-	}
-	impl := step{}
-	err := impl.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run first-call error: expected non-nil error, got nil")
-	}
-	if callCount != 1 {
-		t.Errorf("Run first-call error: expected exactly 1 call before return, got %d", callCount)
+			err := pluginsStep{}.Run(context.Background(), r)
+			if err == nil {
+				t.Errorf("Run %s: expected non-nil error, got nil", tt.name)
+			}
+		})
 	}
 }
 
-func TestRun_SecondCallError(t *testing.T) {
-	dir := t.TempDir()
-	callCount := 0
-	r := &runner.FakeRunner{
-		RepoVal: dir,
-		ContFunc: func(args []string) (string, error) {
-			callCount++
-			if callCount == 2 {
-				return "", fmt.Errorf("provision failed")
-			}
-			return "", nil
-		},
-	}
-	impl := step{}
-	err := impl.Run(context.Background(), r)
-	if err == nil {
-		t.Error("Run second-call error: expected non-nil error, got nil")
-	}
-}
-
-func TestSteps_NameAndDeps(t *testing.T) {
-	registered := Steps()
+func TestPluginsSteps_NameAndDeps(t *testing.T) {
+	registered := pluginsSteps()
 	if len(registered) != 1 {
-		t.Fatalf("Steps() len = %d, want 1", len(registered))
+		t.Fatalf("pluginsSteps() len = %d, want 1", len(registered))
 	}
 	meta := registered[0].Meta
 	if meta.Name != "plugins" {
-		t.Errorf("Steps()[0].Name = %q, want plugins", meta.Name)
+		t.Errorf("pluginsSteps()[0].Name = %q, want plugins", meta.Name)
 	}
 	if len(meta.Deps) != 1 || meta.Deps[0] != "prepare" {
-		t.Errorf("Steps()[0].Deps = %v, want [prepare]", meta.Deps)
-	}
-}
-
-func TestSetsEqual(t *testing.T) {
-	tests := []struct {
-		a, b []string
-		want bool
-	}{
-		{nil, nil, true},
-		{[]string{}, nil, true},
-		{[]string{"a"}, []string{"a"}, true},
-		{[]string{"a", "b"}, []string{"b", "a"}, true},
-		{[]string{"a"}, []string{"b"}, false},
-		{[]string{"a", "b"}, []string{"a"}, false},
-	}
-	for _, tt := range tests {
-		if got := setsEqual(tt.a, tt.b); got != tt.want {
-			t.Errorf("setsEqual(%v, %v) = %v, want %v", tt.a, tt.b, got, tt.want)
-		}
+		t.Errorf("pluginsSteps()[0].Deps = %v, want [prepare]", meta.Deps)
 	}
 }

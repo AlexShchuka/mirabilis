@@ -78,12 +78,15 @@ func TestMenuNavigationSkipsDisabled(t *testing.T) {
 	m := sizedMenu(provision.Status{ContainerUp: false})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if it, _ := m.selected(); it.action != "reset" {
-		t.Errorf("down from launch landed on %q, want reset", it.action)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if action, ok := menuChoice(cmd); !ok || action != "reset" {
+		t.Errorf("down from launch: enter dispatched %q (ok=%v), want reset", action, ok)
 	}
+
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
-	if it, _ := m.selected(); it.action != "launch" {
-		t.Errorf("up from reset landed on %q, want launch", it.action)
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if action, ok := menuChoice(cmd); !ok || action != "launch" {
+		t.Errorf("up from reset: enter dispatched %q (ok=%v), want launch", action, ok)
 	}
 }
 

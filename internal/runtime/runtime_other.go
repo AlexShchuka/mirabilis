@@ -9,9 +9,6 @@ import (
 
 func keychainLookup(_ string) (string, bool) { return "", false }
 
-// KeychainStore is a no-op on non-macOS. Callers should use the file-based
-// fallback (WriteTelegramToken writes to ~/.claude/.mirabilis-telegram-token).
-// TODO: token source: pending isolation design (issue #115).
 func KeychainStore(_, _ string) error { return nil }
 
 func tryStartDocker(_ context.Context) error {

@@ -20,16 +20,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
-      - name: gofmt
-        run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "files above are not gofmt-clean"; exit 1; }
-      - name: build
-        run: go build ./...
-      - name: vet
-        run: go vet -tags integration ./...
-      - name: staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-          staticcheck ./...
+      - uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
+        with:
+          version: v2.12.2
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
@@ -44,8 +37,7 @@ jobs:
           echo "**Coverage:** $pct" >> "$GITHUB_STEP_SUMMARY"
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
           floor=90   # hard floor; target is 100% — keep raising real coverage, never lower this to pass
-          num=$(echo "$pct" | tr -d '%' | awk '{printf "%d", $1}')
-          if [ "$num" -lt "$floor" ]; then echo "coverage $pct below floor ${floor}%"; exit 1; fi
+          if awk -v pct="$(echo "$pct" | tr -d '%')" -v floor="$floor" 'BEGIN{exit !(pct < floor)}'; then echo "coverage $pct below floor ${floor}%"; exit 1; fi
       - if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
         with:
@@ -53,7 +45,7 @@ jobs:
           message: "Coverage: ${{ steps.cover.outputs.pct }}"
 
   go-macos:
-    name: go build · vet · test -race (macos)
+    name: go vet · test -race (macos)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -61,10 +53,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
-      - name: build
-        run: go build ./...
       - name: vet
-        run: go vet ./...
+        run: go vet -tags integration ./...
       - name: test -race
         run: go test -race ./...
 

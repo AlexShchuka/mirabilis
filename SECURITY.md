@@ -20,6 +20,18 @@ container is the security boundary, and the design assumes **trusted code only**
 Do not point mirabilis at untrusted code. For untrusted workloads you need a
 stronger isolation boundary (microVM) than a container provides.
 
+**Accepted risk — lethal trifecta:** mirabilis deliberately combines the three
+conditions that field guidance identifies as maximally dangerous: private data
+lives inside the container boundary, the agent routinely fetches untrusted content
+(web pages, MCP responses, cloned repos), and egress is open. The
+[Anthropic devcontainer docs](https://code.claude.com/docs/en/devcontainer)
+recommend deny-all egress as the default; [the lethal-trifecta analysis](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)
+treats the combination as the highest-risk prompt-injection scenario. mirabilis
+deviates from both deliberately — open egress is a first-class feature. The
+accepted blast radius is the container contents (workspace, memory volume, any
+credentials visible inside). Mitigations are the behavioural harness, the
+container boundary, and the host-side Telegram token never entering the container.
+
 ## Secrets
 
 - **GitHub** sign-in uses the native flow (`gh auth login`) and persists inside the
@@ -35,10 +47,23 @@ stronger isolation boundary (microVM) than a container provides.
   Note: `~/.claude/.credentials.json` produced by in-container `/login` has higher
   precedence than the env token — if that file exists in the `claude-home` volume,
   it silently wins. The provision-phase TUI warns the owner if both are present.
+  `CLAUDE_CODE_OAUTH_TOKEN` is visible inside the container via `/proc/1/environ` — it
+  is injected into the container environment by design, so the "never enters the
+  container" property belongs only to `TELEGRAM_BOT_TOKEN`, not to the OAuth token.
+- **Keychain write invariant (macOS):** `KeychainStore` feeds the secret via stdin
+  (`cmd.Stdin = ...`), not as a `-w <value>` argument, so the token never appears in
+  argv and is not visible in `ps`. An earlier form of this call passed `-w /dev/stdin`,
+  which `security` stores as the literal string `"/dev/stdin"` — wrong; do not
+  reintroduce it. This is the single keychain-write seam; callers must not scatter
+  keychain writes elsewhere.
 - The optional **Telegram** token's source depends on the host: on macOS it lives in the
   Keychain; on Linux and WSL it lives in `~/.claude/.mirabilis-telegram-token`
   (mode `0600`). The Go launcher injects it as `TELEGRAM_BOT_TOKEN` at container
   launch; Context7's MCP server runs anonymously, with no key.
+  The outbox queue is **at-most-once on failure**: `processOneJob` makes one send
+  attempt; on success or failure it writes a `.status` file and `PendingJobs` never
+  re-queues that job. The only duplicate path is a watcher crash after send but before
+  `WriteStatus` completes — the job stays pending and is re-sent on the next start.
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
   GitHub MCP server receives it as a request header, so it also
   lands in the container's per-user config on the `claude-home` volume — inside

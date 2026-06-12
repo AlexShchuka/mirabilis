@@ -12,7 +12,7 @@ func rtkConfigPath() string {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
 		return filepath.Join(x, "rtk", "config.toml")
 	}
-	return filepath.Join(home(), ".config", "rtk", "config.toml")
+	return filepath.Join(Home(), ".config", "rtk", "config.toml")
 }
 
 func EnsureRTKConfig(cfg config.Config) error {

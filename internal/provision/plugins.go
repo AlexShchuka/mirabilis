@@ -127,7 +127,7 @@ func writeEnabledPlugins(_ context.Context, _ runner.Runner, cfg config.Config) 
 		return nil
 	}
 	m["enabledPlugins"] = enabled
-	if err := writeJSON(dest, m); err != nil {
+	if err := WriteJSON(dest, m); err != nil {
 		warn("write enabledPlugins", err)
 	}
 	return nil

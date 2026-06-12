@@ -33,44 +33,45 @@ func TestMessageFor(t *testing.T) {
 }
 
 func TestEventName(t *testing.T) {
-	tests := []struct {
-		give string
-		want string
-	}{
-		{`{"hook_event_name":"Notification","session_id":"x"}`, "Notification"},
-		{`{"hook_event_name":"Stop"}`, "Stop"},
-		{`{"hook_event_name":"PreToolUse"}`, "PreToolUse"},
-		{`{"other":"field"}`, ""},
-		{`not json at all`, ""},
-		{``, ""},
-		{`{"hook_event_name":"Notification","extra":1}`, "Notification"},
-		{`{"hook_event_name" : "Stop" }`, "Stop"},
-	}
-	for _, tt := range tests {
-		got := eventName([]byte(tt.give))
-		if got != tt.want {
-			t.Errorf("eventName(%q) = %q, want %q", tt.give, got, tt.want)
+	t.Run("valid json", func(t *testing.T) {
+		tests := []struct {
+			give string
+			want string
+		}{
+			{`{"hook_event_name":"Notification","session_id":"x"}`, "Notification"},
+			{`{"hook_event_name":"Stop"}`, "Stop"},
+			{`{"hook_event_name":"PreToolUse"}`, "PreToolUse"},
+			{`{"other":"field"}`, ""},
+			{`not json at all`, ""},
+			{``, ""},
+			{`{"hook_event_name":"Notification","extra":1}`, "Notification"},
+			{`{"hook_event_name" : "Stop" }`, "Stop"},
 		}
-	}
-}
-
-func TestEventNameFallback(t *testing.T) {
-	tests := []struct {
-		give string
-		want string
-	}{
-		{`{"hook_event_name":"Notification","broken`, "Notification"},
-		{`{"hook_event_name":"Stop","broken`, "Stop"},
-		{`{"msg":"please send Notification","hook_event_name":"Stop","broken`, "Stop"},
-		{`{"hook_event_name":"Stop"`, "Stop"},
-		{`{"msg":"please send Notification"}`, ""},
-	}
-	for _, tt := range tests {
-		got := eventName([]byte(tt.give))
-		if got != tt.want {
-			t.Errorf("eventName(%q) = %q, want %q", tt.give, got, tt.want)
+		for _, tt := range tests {
+			got := eventName([]byte(tt.give))
+			if got != tt.want {
+				t.Errorf("eventName(%q) = %q, want %q", tt.give, got, tt.want)
+			}
 		}
-	}
+	})
+	t.Run("fallback on truncated json", func(t *testing.T) {
+		tests := []struct {
+			give string
+			want string
+		}{
+			{`{"hook_event_name":"Notification","broken`, "Notification"},
+			{`{"hook_event_name":"Stop","broken`, "Stop"},
+			{`{"msg":"please send Notification","hook_event_name":"Stop","broken`, "Stop"},
+			{`{"hook_event_name":"Stop"`, "Stop"},
+			{`{"msg":"please send Notification"}`, ""},
+		}
+		for _, tt := range tests {
+			got := eventName([]byte(tt.give))
+			if got != tt.want {
+				t.Errorf("eventName(%q) = %q, want %q", tt.give, got, tt.want)
+			}
+		}
+	})
 }
 
 func TestTelegramNoOpWhenChatEmpty(t *testing.T) {

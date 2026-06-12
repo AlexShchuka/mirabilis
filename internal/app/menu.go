@@ -167,11 +167,6 @@ func (m *menuModel) skipDisabled(dir int) {
 	}
 }
 
-func (m menuModel) selected() (item, bool) {
-	it, ok := m.list.SelectedItem().(item)
-	return it, ok
-}
-
 func (m menuModel) View() string {
 	return m.list.View() + "\n " + hintStyle.Render(ui.MenuHint)
 }

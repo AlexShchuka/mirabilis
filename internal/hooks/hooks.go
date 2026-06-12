@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/config"
+	"github.com/AlexShchuka/mirabilis/internal/provision"
 	"github.com/AlexShchuka/mirabilis/internal/telegram"
 	"github.com/google/uuid"
 )
@@ -256,16 +257,8 @@ func memoryIndex(dir string) (string, error) {
 	return sb.String(), nil
 }
 
-func sessionHome() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
-	}
-	h, _ := os.UserHomeDir()
-	return h
-}
-
 func proxyAlive() bool {
-	resp, err := http.Get("http://127.0.0.1:8787/stats")
+	resp, err := http.Get(provision.HeadroomProxyURL + "/stats")
 	if err != nil {
 		return false
 	}
@@ -288,9 +281,11 @@ func sessionStartBaseURL(path string) {
 	if env == nil {
 		env = make(map[string]any)
 	}
-	env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:8787"
+	env[provision.HeadroomBaseURLKey] = provision.HeadroomProxyURL
 	m["env"] = env
-	writeSettingsJSON(path, m)
+	if err := provision.WriteJSON(path, m); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
+	}
 }
 
 func sessionRemoveBaseURL(path string) {
@@ -305,55 +300,22 @@ func sessionRemoveBaseURL(path string) {
 		return
 	}
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] == nil {
+	if env == nil || env[provision.HeadroomBaseURLKey] == nil {
 		return
 	}
-	delete(env, "ANTHROPIC_BASE_URL")
+	delete(env, provision.HeadroomBaseURLKey)
 	m["env"] = env
-	writeSettingsJSON(path, m)
-}
-
-func writeSettingsJSON(path string, m map[string]any) {
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: marshal settings: %v\n", err)
-		return
-	}
-	data = append(data, '\n')
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: create temp settings: %v\n", err)
-		return
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
-		fmt.Fprintf(os.Stderr, "[hook] WARN: write temp settings: %v\n", err)
-		return
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		fmt.Fprintf(os.Stderr, "[hook] WARN: close temp settings: %v\n", err)
-		return
-	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
-		os.Remove(tmpName)
-		fmt.Fprintf(os.Stderr, "[hook] WARN: chmod temp settings: %v\n", err)
-		return
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		os.Remove(tmpName)
-		fmt.Fprintf(os.Stderr, "[hook] WARN: rename settings: %v\n", err)
+	if err := provision.WriteJSON(path, m); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
 	}
 }
 
 func headroomBin() string {
-	return filepath.Join(sessionHome(), ".headroom-venv", "bin", "headroom")
+	return filepath.Join(provision.Home(), ".headroom-venv", "bin", "headroom")
 }
 
 func ensureProxyForSession() {
-	h := sessionHome()
+	h := provision.Home()
 	sp := filepath.Join(h, ".claude", "settings.json")
 	if proxyAlive() {
 		sessionStartBaseURL(sp)
@@ -381,7 +343,7 @@ func ensureProxyForSession() {
 // state file inside ~/.claude. This file is written by detectAndCacheTelegramChannel
 // and read by sessionTelegramContext to inject an additionalContext line.
 func telegramChannelCachePath() string {
-	return filepath.Join(sessionHome(), ".claude", ".mirabilis-telegram-channel")
+	return filepath.Join(provision.Home(), ".claude", ".mirabilis-telegram-channel")
 }
 
 // detectAndCacheTelegramChannel attempts one getUpdates call to discover the
@@ -394,11 +356,8 @@ func telegramChannelCachePath() string {
 // The token is read from the secret file — it never appears in logs, output,
 // or error messages.
 func detectAndCacheTelegramChannel(tokenPath, cachePath, apiBaseURL string) {
-	// TODO: token source: pending isolation design (issue #115) — this read
-	// will move to a broker/keychain call once the isolation model is decided.
 	raw, err := os.ReadFile(tokenPath)
 	if err != nil {
-		// No token file — silently skip.
 		return
 	}
 	token := strings.TrimRight(string(raw), "\r\n")
@@ -485,7 +444,7 @@ func SessionStart() error {
 	}
 
 	// Collect additionalContext from memory and from the cached Telegram channel.
-	memDir := filepath.Join(sessionHome(), ".claude", "memory")
+	memDir := filepath.Join(provision.Home(), ".claude", "memory")
 
 	idx, _ := memoryIndex(memDir)
 	tgCtx := sessionTelegramContext(cachePath)
@@ -518,13 +477,6 @@ func SessionStart() error {
 	return nil
 }
 
-// telegramTokenSecretPath is the single token-source seam for hooks.
-// TODO: token source: pending isolation design (issue #115) — replace with a
-// broker/keychain call once the isolation model is decided.
-//
-// telegramTokenSecretPath returns the default path for the bot token secret
-// file as expected inside the container. This is the path the container mounts
-// via the compose secrets mechanism.
 func telegramTokenSecretPath() string {
 	const defaultPath = "/run/secrets/telegram_bot_token"
 	return defaultPath
@@ -587,7 +539,7 @@ func PostToolUseFailure() error {
 		return nil
 	}
 
-	memDir := filepath.Join(sessionHome(), ".claude", "memory")
+	memDir := filepath.Join(provision.Home(), ".claude", "memory")
 	entries, err := os.ReadDir(memDir)
 	if err != nil {
 		return nil

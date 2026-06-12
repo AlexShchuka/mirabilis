@@ -9,7 +9,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/config"
 )
 
-func home() string {
+func Home() string {
 	if h := os.Getenv("HOME"); h != "" {
 		return h
 	}
@@ -17,7 +17,7 @@ func home() string {
 	return h
 }
 
-func claudeDir() string { return filepath.Join(home(), ".claude") }
+func claudeDir() string { return filepath.Join(Home(), ".claude") }
 
 func settingsPath() string { return filepath.Join(claudeDir(), "settings.json") }
 
@@ -36,19 +36,12 @@ func readJSON(path string) (map[string]any, error) {
 	return m, nil
 }
 
-func writeJSON(path string, m map[string]any) error {
+func WriteJSON(path string, m map[string]any) error {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
 	data = append(data, '\n')
-	if _, serr := os.Stat(path); serr == nil {
-		f, werr := os.OpenFile(path, os.O_WRONLY, 0)
-		if werr != nil {
-			return werr
-		}
-		f.Close()
-	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
 	if err != nil {
 		return err
@@ -120,7 +113,7 @@ func EnsureSettings(cfg config.Config) error {
 		if derr == nil && serr == nil {
 			merged := mergeSettings(dm, sm)
 			delete(merged, "sandbox")
-			if werr := writeJSON(dest, merged); werr != nil {
+			if werr := WriteJSON(dest, merged); werr != nil {
 				warn("write settings; falling back to seed copy", werr)
 				return copyFile(seed, dest)
 			}
@@ -158,7 +151,7 @@ func EnsureTheme(cfg config.Config) error {
 		return nil
 	}
 	m["theme"] = th
-	if err := writeJSON(dest, m); err != nil {
+	if err := WriteJSON(dest, m); err != nil {
 		warn("write settings for theme", err)
 	}
 	return nil

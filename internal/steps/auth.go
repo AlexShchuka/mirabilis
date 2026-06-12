@@ -1,4 +1,4 @@
-package auth
+package steps
 
 import (
 	"context"
@@ -8,18 +8,18 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-type step struct{}
+type authStep struct{}
 
-func (step) Check(ctx context.Context, r runner.Runner) (bool, error) {
+func (authStep) Check(ctx context.Context, r runner.Runner) (bool, error) {
 	_, err := r.Container(ctx, "gh", "auth", "status")
 	return err == nil, nil
 }
 
-func (step) Run(_ context.Context, _ runner.Runner) error {
+func (authStep) Run(_ context.Context, _ runner.Runner) error {
 	return nil
 }
 
-func Steps() []pipeline.Registered {
+func authSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{
@@ -31,7 +31,7 @@ func Steps() []pipeline.Registered {
 				Interactive: true,
 				Timeout:     30 * time.Second,
 			},
-			Impl: step{},
+			Impl: authStep{},
 		},
 	}
 }

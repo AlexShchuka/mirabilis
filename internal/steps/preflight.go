@@ -1,4 +1,4 @@
-package preflight
+package steps
 
 import (
 	"context"
@@ -10,11 +10,11 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-type step struct{}
+type preflightStep struct{}
 
-func (step) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
+func (preflightStep) Check(context.Context, runner.Runner) (bool, error) { return false, nil }
 
-func (step) Run(ctx context.Context, r runner.Runner) error {
+func (preflightStep) Run(ctx context.Context, r runner.Runner) error {
 	code, _ := r.Container(ctx, "curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-m", "12", "https://api.anthropic.com/v1/models")
 	switch strings.TrimSpace(code) {
 	case "200", "401", "403":
@@ -26,7 +26,7 @@ func (step) Run(ctx context.Context, r runner.Runner) error {
 	}
 }
 
-func Steps() []pipeline.Registered {
+func preflightSteps() []pipeline.Registered {
 	return []pipeline.Registered{
 		{
 			Meta: pipeline.StepMeta{
@@ -37,7 +37,7 @@ func Steps() []pipeline.Registered {
 				Retry:   pipeline.RetryNone,
 				Timeout: 60 * time.Second,
 			},
-			Impl: step{},
+			Impl: preflightStep{},
 		},
 	}
 }

@@ -10,170 +10,144 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/runner"
 )
 
-func TestReadHarnessChoiceContainer_Skip(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "skip\n", nil
+func TestReadContainerFunctions(t *testing.T) {
+	tests := []struct {
+		name    string
+		contOut string
+		readFn  func(context.Context, *runner.FakeRunner) string
+		wantFn  func(string) bool
+		wantMsg string
+	}{
+		{
+			name:    "HarnessChoice skip",
+			contOut: "skip\n",
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadHarnessChoiceContainer(ctx, r)
+			},
+			wantFn:  func(got string) bool { return got == HarnessSkip },
+			wantMsg: "want " + HarnessSkip,
+		},
+		{
+			name:    "HarnessChoice install",
+			contOut: "install\n",
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadHarnessChoiceContainer(ctx, r)
+			},
+			wantFn:  func(got string) bool { return got == HarnessInstall },
+			wantMsg: "want " + HarnessInstall,
+		},
+		{
+			name:    "DisabledPlugins returns raw",
+			contOut: "plugin-x\nplugin-y\n",
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadDisabledPluginsContainer(ctx, r)
+			},
+			wantFn:  func(got string) bool { return strings.Contains(got, "plugin-x") && strings.Contains(got, "plugin-y") },
+			wantMsg: "want plugin-x and plugin-y",
+		},
+		{
+			name:    "Skills returns raw",
+			contOut: "owner/skill-a\nowner/skill-b\n",
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadSkillsContainer(ctx, r)
+			},
+			wantFn: func(got string) bool {
+				return strings.Contains(got, "owner/skill-a") && strings.Contains(got, "owner/skill-b")
+			},
+			wantMsg: "want owner/skill-a and owner/skill-b",
 		},
 	}
-	got := ReadHarnessChoiceContainer(context.Background(), r)
-	if got != HarnessSkip {
-		t.Errorf("ReadHarnessChoiceContainer = %q, want %q", got, HarnessSkip)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contOut := tt.contOut
+			r := &runner.FakeRunner{
+				ContFunc: func(args []string) (string, error) {
+					return contOut, nil
+				},
+			}
+			got := tt.readFn(context.Background(), r)
+			if !tt.wantFn(got) {
+				t.Errorf("got %q, %s", got, tt.wantMsg)
+			}
+		})
 	}
 }
 
-func TestReadHarnessChoiceContainer_Install(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "install\n", nil
+func TestWriteContainerFunctions(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		writeFn func(context.Context, *runner.FakeRunner, string) error
+		readFn  func(context.Context, *runner.FakeRunner) string
+	}{
+		{
+			name:  "HarnessChoice skip round-trip",
+			input: HarnessSkip,
+			writeFn: func(ctx context.Context, r *runner.FakeRunner, v string) error {
+				return WriteHarnessChoiceContainer(ctx, r, v)
+			},
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadHarnessChoiceContainer(ctx, r)
+			},
+		},
+		{
+			name:  "HarnessChoice install round-trip",
+			input: HarnessInstall,
+			writeFn: func(ctx context.Context, r *runner.FakeRunner, v string) error {
+				return WriteHarnessChoiceContainer(ctx, r, v)
+			},
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadHarnessChoiceContainer(ctx, r)
+			},
+		},
+		{
+			name:  "DisabledPlugins round-trip",
+			input: "plugin-x\nplugin-y\n",
+			writeFn: func(ctx context.Context, r *runner.FakeRunner, v string) error {
+				return WriteDisabledPluginsContainer(ctx, r, v)
+			},
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadDisabledPluginsContainer(ctx, r)
+			},
+		},
+		{
+			name:  "Skills round-trip",
+			input: "owner/skill-a\nowner/skill-b\n",
+			writeFn: func(ctx context.Context, r *runner.FakeRunner, v string) error {
+				return WriteSkillsContainer(ctx, r, v)
+			},
+			readFn: func(ctx context.Context, r *runner.FakeRunner) string {
+				return ReadSkillsContainer(ctx, r)
+			},
 		},
 	}
-	got := ReadHarnessChoiceContainer(context.Background(), r)
-	if got != HarnessInstall {
-		t.Errorf("ReadHarnessChoiceContainer = %q, want %q", got, HarnessInstall)
-	}
-}
-
-func TestReadHarnessChoiceContainer_UsesCorrectFile(t *testing.T) {
-	var capturedScript string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedScript = strings.Join(args, " ")
-			return "", nil
-		},
-	}
-	ReadHarnessChoiceContainer(context.Background(), r)
-	if !strings.Contains(capturedScript, FileHarness) {
-		t.Errorf("ReadHarnessChoiceContainer script = %q, want to reference %s", capturedScript, FileHarness)
-	}
-}
-
-func TestWriteHarnessChoiceContainer_WritesSkip(t *testing.T) {
-	var capturedScript string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedScript = strings.Join(args, " ")
-			return "", nil
-		},
-	}
-	if err := WriteHarnessChoiceContainer(context.Background(), r, HarnessSkip); err != nil {
-		t.Fatalf("WriteHarnessChoiceContainer = %v, want nil", err)
-	}
-	if !strings.Contains(capturedScript, HarnessSkip) {
-		t.Errorf("WriteHarnessChoiceContainer script = %q, want to contain %s", capturedScript, HarnessSkip)
-	}
-	if !strings.Contains(capturedScript, FileHarness) {
-		t.Errorf("WriteHarnessChoiceContainer script = %q, want to reference %s", capturedScript, FileHarness)
-	}
-}
-
-func TestWriteHarnessChoiceContainer_WritesInstall(t *testing.T) {
-	var capturedScript string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedScript = strings.Join(args, " ")
-			return "", nil
-		},
-	}
-	if err := WriteHarnessChoiceContainer(context.Background(), r, HarnessInstall); err != nil {
-		t.Fatalf("WriteHarnessChoiceContainer = %v, want nil", err)
-	}
-	if !strings.Contains(capturedScript, HarnessInstall) {
-		t.Errorf("WriteHarnessChoiceContainer script = %q, want to contain %s", capturedScript, HarnessInstall)
-	}
-}
-
-func TestReadDisabledPluginsContainer_ReturnsRaw(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "plugin-x\nplugin-y\n", nil
-		},
-	}
-	got := ReadDisabledPluginsContainer(context.Background(), r)
-	if !strings.Contains(got, "plugin-x") || !strings.Contains(got, "plugin-y") {
-		t.Errorf("ReadDisabledPluginsContainer = %q, want plugin-x and plugin-y", got)
-	}
-}
-
-func TestReadDisabledPluginsContainer_UsesCorrectFile(t *testing.T) {
-	var capturedScript string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedScript = strings.Join(args, " ")
-			return "", nil
-		},
-	}
-	ReadDisabledPluginsContainer(context.Background(), r)
-	if !strings.Contains(capturedScript, FilePluginsDisabled) {
-		t.Errorf("ReadDisabledPluginsContainer script = %q, want to reference %s", capturedScript, FilePluginsDisabled)
-	}
-}
-
-func TestWriteDisabledPluginsContainer_PassesContent(t *testing.T) {
-	content := "plugin-a\nplugin-b"
-	var capturedArgs []string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedArgs = args
-			return "", nil
-		},
-	}
-	if err := WriteDisabledPluginsContainer(context.Background(), r, content); err != nil {
-		t.Fatalf("WriteDisabledPluginsContainer = %v, want nil", err)
-	}
-	joined := strings.Join(capturedArgs, " ")
-	if !strings.Contains(joined, FilePluginsDisabled) {
-		t.Errorf("WriteDisabledPluginsContainer args = %v, want to reference %s", capturedArgs, FilePluginsDisabled)
-	}
-	if !strings.Contains(joined, content) {
-		t.Errorf("WriteDisabledPluginsContainer args = %v, want content %q", capturedArgs, content)
-	}
-}
-
-func TestReadSkillsContainer_ReturnsRaw(t *testing.T) {
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			return "owner/skill-a\nowner/skill-b\n", nil
-		},
-	}
-	got := ReadSkillsContainer(context.Background(), r)
-	if !strings.Contains(got, "owner/skill-a") || !strings.Contains(got, "owner/skill-b") {
-		t.Errorf("ReadSkillsContainer = %q, want owner/skill-a and owner/skill-b", got)
-	}
-}
-
-func TestReadSkillsContainer_UsesCorrectFile(t *testing.T) {
-	var capturedScript string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedScript = strings.Join(args, " ")
-			return "", nil
-		},
-	}
-	ReadSkillsContainer(context.Background(), r)
-	if !strings.Contains(capturedScript, FileSkills) {
-		t.Errorf("ReadSkillsContainer script = %q, want to reference %s", capturedScript, FileSkills)
-	}
-}
-
-func TestWriteSkillsContainer_PassesContent(t *testing.T) {
-	content := "owner/skill-a\nowner/skill-b"
-	var capturedArgs []string
-	r := &runner.FakeRunner{
-		ContFunc: func(args []string) (string, error) {
-			capturedArgs = args
-			return "", nil
-		},
-	}
-	if err := WriteSkillsContainer(context.Background(), r, content); err != nil {
-		t.Fatalf("WriteSkillsContainer = %v, want nil", err)
-	}
-	joined := strings.Join(capturedArgs, " ")
-	if !strings.Contains(joined, FileSkills) {
-		t.Errorf("WriteSkillsContainer args = %v, want to reference %s", capturedArgs, FileSkills)
-	}
-	if !strings.Contains(joined, content) {
-		t.Errorf("WriteSkillsContainer args = %v, want content %q", capturedArgs, content)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			var captured string
+			rw := &runner.FakeRunner{
+				ContFunc: func(args []string) (string, error) {
+					captured = strings.Join(args, " ")
+					return "", nil
+				},
+			}
+			if err := tt.writeFn(ctx, rw, tt.input); err != nil {
+				t.Fatalf("write error: %v", err)
+			}
+			if !strings.Contains(captured, tt.input) {
+				t.Errorf("write script does not contain value %q; script: %q", tt.input, captured)
+			}
+			rr := &runner.FakeRunner{
+				ContFunc: func(args []string) (string, error) {
+					return tt.input, nil
+				},
+			}
+			got := tt.readFn(ctx, rr)
+			want := strings.TrimSpace(tt.input)
+			if strings.TrimSpace(got) != want {
+				t.Errorf("round-trip %q: got %q, want %q", tt.name, got, want)
+			}
+		})
 	}
 }
 

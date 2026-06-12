@@ -115,12 +115,7 @@ func TestQueueWriter_Confirm_WritesExactlyOneJobFile(t *testing.T) {
 	dir := t.TempDir()
 	queueDir := filepath.Join(dir, "outbox")
 
-	code := runSend(queueDir, "-100test", "hello confirm", true, 0, io.Discard, io.Discard)
-	if code != 0 {
-		// Exit code 0 is success; non-zero only if WriteJob fails or status
-		// wait fails — both acceptable (no watcher running in tests).
-		// The relevant assertion is below: file must exist.
-	}
+	runSend(queueDir, "-100test", "hello confirm", true, 0, io.Discard, io.Discard)
 
 	entries, err := os.ReadDir(queueDir)
 	if err != nil {
@@ -303,6 +298,18 @@ func TestRunSend_StatusFailed_ReturnsOne(t *testing.T) {
 	<-done
 	if code != 1 {
 		t.Errorf("runSend with failed status = %d, want 1", code)
+	}
+}
+
+// TestRunSend_WaitTimeout_ReturnsZero verifies that when waitForStatus times
+// out (no status file written), runSend still returns exit code 0: the job is
+// on disk and the watcher not running is non-fatal.
+func TestRunSend_WaitTimeout_ReturnsZero(t *testing.T) {
+	dir := t.TempDir()
+	queueDir := filepath.Join(dir, "outbox")
+	code := runSend(queueDir, "-100test", "timeout test", true, time.Millisecond, io.Discard, io.Discard)
+	if code != 0 {
+		t.Errorf("runSend with timed-out wait = %d, want 0 (non-fatal)", code)
 	}
 }
 

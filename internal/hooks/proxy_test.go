@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/AlexShchuka/mirabilis/internal/provision"
 )
 
 func startFakeProxy8787(t *testing.T) (stop func(), ok bool) {
@@ -64,7 +65,7 @@ func TestSessionStartBaseURL_SetsKey(t *testing.T) {
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set; env = %v", env)
 	}
 	if m["theme"] != "dark" {
@@ -80,14 +81,14 @@ func TestSessionRemoveBaseURL_RemovesKey(t *testing.T) {
 	tmp := t.TempDir()
 	sp := filepath.Join(tmp, "settings.json")
 	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787", "OTHER": "val"},
+		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL, "OTHER": "val"},
 	})
 
 	sessionRemoveBaseURL(sp)
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env != nil && env["ANTHROPIC_BASE_URL"] != nil {
+	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
 		t.Errorf("ANTHROPIC_BASE_URL should be removed; env = %v", env)
 	}
 	if env == nil || env["OTHER"] != "val" {
@@ -112,31 +113,6 @@ func TestSessionRemoveBaseURL_MissingFile_Noop(t *testing.T) {
 	sessionRemoveBaseURL(filepath.Join(t.TempDir(), "nonexistent.json"))
 }
 
-func TestWriteSettingsJSON_RoundTrip(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	in := map[string]any{"env": map[string]any{"K": "V"}, "theme": "dark"}
-
-	writeSettingsJSON(sp, in)
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env == nil || env["K"] != "V" {
-		t.Errorf("round-trip failed; m = %v", m)
-	}
-}
-
-func TestWriteSettingsJSON_DirMissing_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "nonexistent", "settings.json")
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{})
-	errOut := getErr()
-	if !strings.Contains(errOut, "WARN") {
-		t.Errorf("expected WARN on missing dir; stderr = %q", errOut)
-	}
-}
-
 func TestProxyAlive_WithFakeServer_ReturnsTrue(t *testing.T) {
 	stop, ok := startFakeProxy8787(t)
 	if !ok {
@@ -154,14 +130,14 @@ func TestEnsureProxyForSession_BinaryAbsent_StaleKeyRemoved(t *testing.T) {
 	t.Setenv("HOME", tmp)
 	sp := filepath.Join(tmp, ".claude", "settings.json")
 	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
+		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL},
 	})
 
 	ensureProxyForSession()
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env != nil && env["ANTHROPIC_BASE_URL"] != nil {
+	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
 		t.Errorf("stale ANTHROPIC_BASE_URL not removed when binary absent; env = %v", env)
 	}
 }
@@ -182,7 +158,7 @@ func TestEnsureProxyForSession_ProxyAlive_SetsBaseURL(t *testing.T) {
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set when proxy alive; env = %v", env)
 	}
 }
@@ -203,51 +179,4 @@ func TestSessionRemoveBaseURL_InvalidJSON_Noop(t *testing.T) {
 		t.Fatal(err)
 	}
 	sessionRemoveBaseURL(sp)
-}
-
-func TestWriteSettingsJSON_MarshalError_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"bad": make(chan int)})
-	errOut := getErr()
-	if !strings.Contains(errOut, "marshal settings") {
-		t.Errorf("stderr = %q, want marshal settings WARN", errOut)
-	}
-}
-
-func TestWriteSettingsJSON_CreateTempFails_Warns(t *testing.T) {
-	if os.Getuid() == 0 {
-		t.Skip("permission checks not effective as root")
-	}
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.WriteFile(sp, []byte("{}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(tmp, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(tmp, 0o755) })
-
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"k": "v"})
-	errOut := getErr()
-	if !strings.Contains(errOut, "create temp settings") {
-		t.Errorf("stderr = %q, want 'create temp settings' WARN when dir unwritable", errOut)
-	}
-}
-
-func TestWriteSettingsJSON_RenameFails_Warns(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.MkdirAll(sp, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	getErr := captureStderr(t)
-	writeSettingsJSON(sp, map[string]any{"k": "v"})
-	errOut := getErr()
-	if !strings.Contains(errOut, "WARN") {
-		t.Errorf("stderr = %q, want a WARN when rename fails (target is a directory)", errOut)
-	}
 }
