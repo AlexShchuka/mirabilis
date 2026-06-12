@@ -1,0 +1,83 @@
+package bus
+
+import (
+	"strings"
+
+	"github.com/AlexShchuka/mirabilis/internal/obs"
+)
+
+type NodeID string
+
+func (n NodeID) Child(name string) NodeID {
+	if n == "" {
+		return NodeID(name)
+	}
+	return NodeID(string(n) + "/" + name)
+}
+
+func (n NodeID) Contains(target NodeID) bool {
+	if n == "" || target == n {
+		return true
+	}
+	return strings.HasPrefix(string(target), string(n)+"/")
+}
+
+type Envelope struct {
+	Msg any
+	To  NodeID
+}
+
+type MenuChosen struct {
+	Action string
+}
+
+type StepEventKind int
+
+const (
+	StepStarted StepEventKind = iota
+	StepLine
+	StepDone
+	StepFailed
+	StepSkipped
+	StepWaiting
+)
+
+type StepEvent struct {
+	Argv []string
+	Step string
+	Line string
+	Kind StepEventKind
+}
+
+type PipelineDone struct {
+	Failed bool
+}
+
+type NeedInteractive struct {
+	Payload any
+	Step    string
+}
+
+type NeedsTerminal struct {
+	Argv []string
+	Step string
+}
+
+type ScreenPush struct {
+	Model any
+}
+
+type ScreenPop struct{}
+
+type ScreenResult struct {
+	Value any
+}
+
+type StatusChanged struct {
+	Snapshot obs.Snapshot
+}
+
+type SecretStored struct {
+	Err error
+	Key string
+}
