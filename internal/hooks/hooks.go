@@ -3,27 +3,232 @@ package hooks
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/AlexShchuka/mirabilis/internal/config"
-	"github.com/AlexShchuka/mirabilis/internal/provision"
-	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
+	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
+	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
 	"github.com/google/uuid"
 )
 
-var telegramAPI = "https://api.telegram.org"
+const (
+	headroomVenvRel   = ".headroom-venv/bin/headroom"
+	headroomStatsURL  = "http://127.0.0.1:8787/stats"
+	headroomPollLimit = 60
+
+	postToolUseFailureBulletCap = 10
+	postToolUseFailureByteCap   = 2048
+)
+
+var runner exec.Runner = exec.NewHost()
 
 var eventNameRe = regexp.MustCompile(`"hook_event_name"\s*:\s*"([^"]*)"`)
+
+func Dispatch(name string) error {
+	switch name {
+	case "telegram":
+		return Telegram()
+	case "session-start":
+		return SessionStart()
+	case "post-tool-use-failure":
+		return PostToolUseFailure()
+	default:
+		return fmt.Errorf("unknown hook: %s", name)
+	}
+}
+
+func Telegram() error {
+	repo := repoRoot()
+	chat, err := notify.ReadChatID(repo)
+	if err != nil || chat == "" {
+		return nil
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: read stdin: %v\n", err)
+		return nil
+	}
+
+	text, ok := messageFor(eventName(data))
+	if !ok {
+		return nil
+	}
+	if proj := cwdBaseName(data); proj != "" {
+		text = strings.Replace(text, "mirabilis:", "mirabilis ["+proj+"]:", 1)
+	}
+
+	job := notify.Job{
+		ID:        uuid.NewString(),
+		ChatID:    chat,
+		Text:      text,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := notify.WriteJob(notify.OutboxDir(repo), job); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram queue: %v\n", err)
+	}
+	return nil
+}
+
+func SessionStart() error {
+	_, _ = io.ReadAll(os.Stdin)
+
+	ensureProxyForSession(context.Background())
+
+	memDir := filepath.Join(home(), ".claude", "memory")
+	idx, _ := memoryIndex(memDir)
+	tgCtx := sessionTelegramContext(repoRoot())
+
+	additionalContext := idx
+	if tgCtx != "" {
+		if additionalContext != "" {
+			additionalContext += "\n" + tgCtx
+		} else {
+			additionalContext = tgCtx
+		}
+	}
+
+	if idx != "" {
+		if err := os.WriteFile(filepath.Join(memDir, "MEMORY.md"), []byte(idx), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "[hook] WARN: write MEMORY.md: %v\n", err)
+		}
+	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "SessionStart",
+			"additionalContext": additionalContext,
+		},
+	})
+	_, _ = os.Stdout.Write(payload)
+	return nil
+}
+
+func PostToolUseFailure() error {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: PostToolUseFailure: read stdin: %v\n", err)
+		return nil
+	}
+
+	var payload struct {
+		ToolInput struct {
+			Command string `json:"command"`
+		} `json:"tool_input"`
+		ToolResponse struct {
+			Stdout string `json:"stdout"`
+		} `json:"tool_response"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return nil
+	}
+
+	combined := payload.ToolInput.Command + " " + payload.ToolResponse.Stdout
+	tokens := tokenize(combined)
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	memDir := filepath.Join(home(), ".claude", "memory")
+	entries, err := os.ReadDir(memDir)
+	if err != nil {
+		return nil
+	}
+
+	var matched []string
+	totalBytes := 0
+outer:
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == "MEMORY.md" {
+			continue
+		}
+		fileData, err := os.ReadFile(filepath.Join(memDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, bullet := range readBullets(fileData) {
+			if !matchesBullet(bullet, tokens) {
+				continue
+			}
+			if len(matched) >= postToolUseFailureBulletCap {
+				break outer
+			}
+			if totalBytes+len(bullet) > postToolUseFailureByteCap {
+				break outer
+			}
+			matched = append(matched, bullet)
+			totalBytes += len(bullet)
+		}
+	}
+
+	if len(matched) == 0 {
+		return nil
+	}
+
+	additionalContext := "Relevant memory:\n" + strings.Join(matched, "\n")
+	out, _ := json.Marshal(map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "PostToolUseFailure",
+			"additionalContext": additionalContext,
+		},
+	})
+	_, _ = os.Stdout.Write(out)
+	return nil
+}
+
+func ensureProxyForSession(ctx context.Context) {
+	data, err := os.ReadFile(filepath.Join(home(), ".claude", provision.UpstreamFileName))
+	if err != nil {
+		return
+	}
+	if proxyAlive(ctx) {
+		return
+	}
+	if !startHeadroom(ctx, strings.TrimSpace(string(data))) {
+		fmt.Fprintln(os.Stderr, "[hook] WARN: headroom proxy not ready")
+	}
+}
+
+func proxyAlive(ctx context.Context) bool {
+	return runScript(ctx, `curl -fsS `+headroomStatsURL+` >/dev/null 2>&1`) == nil
+}
+
+func startHeadroom(ctx context.Context, upstream string) bool {
+	env := ""
+	if upstream != "" {
+		env = fmt.Sprintf("ANTHROPIC_TARGET_API_URL=%q ", upstream)
+	}
+	start := fmt.Sprintf(`%ssetsid nohup %q proxy >"$HOME/.headroom-proxy.log" 2>&1 &`,
+		env, filepath.Join(home(), headroomVenvRel))
+	if err := runScript(ctx, start); err != nil {
+		return false
+	}
+	poll := fmt.Sprintf(`for i in $(seq 1 %d); do curl -fsS %s >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1`,
+		headroomPollLimit, headroomStatsURL)
+	return runScript(ctx, poll) == nil
+}
+
+func runScript(ctx context.Context, script string) error {
+	_, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"bash", "-lc", script}})
+	return err
+}
+
+func sessionTelegramContext(repo string) string {
+	id, err := notify.ReadChatID(repo)
+	if err != nil || id == "" {
+		return ""
+	}
+	return "telegram channel: " + id + " (cached)"
+}
 
 func eventName(data []byte) string {
 	if len(data) == 0 {
@@ -64,46 +269,19 @@ func messageFor(event string) (string, bool) {
 	return "", false
 }
 
-func telegramQueueDir() string {
-	repo := os.Getenv("MIRABILIS_REPO")
-	if repo == "" {
-		repo = "/workspace"
+func repoRoot() string {
+	if repo := os.Getenv("MIRABILIS_REPO"); repo != "" {
+		return repo
 	}
-	return telegram.OutboxDir(repo)
+	return "/workspace"
 }
 
-func Telegram() error {
-	chat := os.Getenv("TELEGRAM_CHAT_ID")
-	if chat == "" {
-		return nil
+func home() string {
+	if h := os.Getenv("HOME"); h != "" {
+		return h
 	}
-
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: read stdin: %v\n", err)
-		return nil
-	}
-
-	name := eventName(data)
-	text, ok := messageFor(name)
-	if !ok {
-		return nil
-	}
-
-	if proj := cwdBaseName(data); proj != "" {
-		text = strings.Replace(text, "mirabilis:", "mirabilis ["+proj+"]:", 1)
-	}
-
-	job := telegram.Job{
-		ID:        uuid.NewString(),
-		ChatID:    chat,
-		Text:      text,
-		CreatedAt: time.Now().UTC(),
-	}
-	if err := telegram.WriteJob(telegramQueueDir(), job); err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: telegram queue: %v\n", err)
-	}
-	return nil
+	h, _ := os.UserHomeDir()
+	return h
 }
 
 type memoryMeta struct {
@@ -257,236 +435,6 @@ func memoryIndex(dir string) (string, error) {
 	return sb.String(), nil
 }
 
-func proxyAlive() bool {
-	resp, err := http.Get(provision.HeadroomProxyURL + "/stats")
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
-func sessionStartBaseURL(path string) {
-	f, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	var m map[string]any
-	dec := json.NewDecoder(strings.NewReader(string(f)))
-	dec.UseNumber()
-	if err := dec.Decode(&m); err != nil {
-		return
-	}
-	env, _ := m["env"].(map[string]any)
-	if env == nil {
-		env = make(map[string]any)
-	}
-	env[provision.HeadroomBaseURLKey] = provision.HeadroomProxyURL
-	m["env"] = env
-	if err := provision.WriteJSON(path, m); err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
-	}
-}
-
-func sessionRemoveBaseURL(path string) {
-	f, err := os.ReadFile(path)
-	if err != nil {
-		return
-	}
-	var m map[string]any
-	dec := json.NewDecoder(strings.NewReader(string(f)))
-	dec.UseNumber()
-	if err := dec.Decode(&m); err != nil {
-		return
-	}
-	env, _ := m["env"].(map[string]any)
-	if env == nil || env[provision.HeadroomBaseURLKey] == nil {
-		return
-	}
-	delete(env, provision.HeadroomBaseURLKey)
-	m["env"] = env
-	if err := provision.WriteJSON(path, m); err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
-	}
-}
-
-func headroomBin() string {
-	return filepath.Join(provision.Home(), ".headroom-venv", "bin", "headroom")
-}
-
-func ensureProxyForSession() {
-	h := provision.Home()
-	sp := filepath.Join(h, ".claude", "settings.json")
-	if proxyAlive() {
-		sessionStartBaseURL(sp)
-		return
-	}
-	if _, err := os.Stat(headroomBin()); err != nil {
-		sessionRemoveBaseURL(sp)
-		return
-	}
-	_ = exec.Command("bash", "-lc",
-		`setsid nohup "$HOME/.headroom-venv/bin/headroom" proxy >"$HOME/.headroom-proxy.log" 2>&1 &`).Start()
-	deadline := time.Now().Add(35 * time.Second)
-	for time.Now().Before(deadline) {
-		time.Sleep(1 * time.Second)
-		if proxyAlive() {
-			sessionStartBaseURL(sp)
-			return
-		}
-	}
-	fmt.Fprintf(os.Stderr, "[hook] WARN: headroom proxy not ready; removing ANTHROPIC_BASE_URL\n")
-	sessionRemoveBaseURL(sp)
-}
-
-// telegramChannelCachePath returns the path to the cached Telegram channel-ID
-// state file inside ~/.claude. This file is written by detectAndCacheTelegramChannel
-// and read by sessionTelegramContext to inject an additionalContext line.
-func telegramChannelCachePath() string {
-	return filepath.Join(provision.Home(), ".claude", ".mirabilis-telegram-channel")
-}
-
-// detectAndCacheTelegramChannel attempts one getUpdates call to discover the
-// channel ID from the first channel_post in the bot's update queue. It is
-// called only when the bot token secret exists AND no channel is cached yet.
-//
-// Fail-soft: any error (no token, network, no posts yet) writes nothing and
-// emits at most one brief stderr note. The session NEVER fails because of this.
-//
-// The token is read from the secret file — it never appears in logs, output,
-// or error messages.
-func detectAndCacheTelegramChannel(tokenPath, cachePath, apiBaseURL string) {
-	raw, err := os.ReadFile(tokenPath)
-	if err != nil {
-		return
-	}
-	token := strings.TrimRight(string(raw), "\r\n")
-	if token == "" {
-		return
-	}
-
-	// Build the URL without the token visible in any string we log.
-	apiURL := apiBaseURL + "/bot" + token + "/getUpdates"
-	params := url.Values{}
-	params.Set("allowed_updates", `["channel_post"]`)
-	params.Set("limit", "1")
-	params.Set("timeout", "0")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.PostForm(apiURL, params)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] telegram: channel not detected yet — post anything in the channel\n")
-		return
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-
-	var result struct {
-		OK     bool `json:"ok"`
-		Result []struct {
-			ChannelPost *struct {
-				Chat struct {
-					ID int64 `json:"id"`
-				} `json:"chat"`
-			} `json:"channel_post"`
-		} `json:"result"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil || !result.OK {
-		fmt.Fprintf(os.Stderr, "[hook] telegram: channel not detected yet — post anything in the channel\n")
-		return
-	}
-	for _, u := range result.Result {
-		if u.ChannelPost == nil {
-			continue
-		}
-		id := u.ChannelPost.Chat.ID
-		if id == 0 {
-			continue
-		}
-		// Write the chat ID to the cache file.
-		data := fmt.Sprintf("%d\n", id)
-		if err := os.WriteFile(cachePath, []byte(data), 0o600); err != nil {
-			fmt.Fprintf(os.Stderr, "[hook] WARN: write telegram channel cache: %v\n", err)
-		}
-		return
-	}
-	fmt.Fprintf(os.Stderr, "[hook] telegram: channel not detected yet — post anything in the channel\n")
-}
-
-// sessionTelegramContext returns an additionalContext line for the Telegram
-// channel if the channel ID is already cached. Returns empty string otherwise.
-// The token is NEVER read or included — only the chat ID.
-func sessionTelegramContext(cachePath string) string {
-	data, err := os.ReadFile(cachePath)
-	if err != nil {
-		return ""
-	}
-	id := strings.TrimRight(string(data), "\r\n")
-	if id == "" {
-		return ""
-	}
-	return "telegram channel: " + id + " (cached)"
-}
-
-func SessionStart() error {
-	_, _ = io.ReadAll(os.Stdin)
-
-	ensureProxyForSession()
-
-	// Telegram channel auto-detect: if the bot token secret exists and no
-	// channel is cached yet, make one getUpdates call to discover the channel.
-	// This is strictly fail-soft — session startup never blocks on this.
-	tokenPath := telegramTokenSecretPath()
-	cachePath := telegramChannelCachePath()
-	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
-		detectAndCacheTelegramChannel(tokenPath, cachePath, telegramAPI)
-	}
-
-	// Collect additionalContext from memory and from the cached Telegram channel.
-	memDir := filepath.Join(provision.Home(), ".claude", "memory")
-
-	idx, _ := memoryIndex(memDir)
-	tgCtx := sessionTelegramContext(cachePath)
-
-	additionalContext := idx
-	if tgCtx != "" {
-		if additionalContext != "" {
-			additionalContext += "\n" + tgCtx
-		} else {
-			additionalContext = tgCtx
-		}
-	}
-
-	// Write MEMORY.md only when the memory index is non-empty.
-	// Gate on idx (not additionalContext) so that a Telegram-only context
-	// never truncates MEMORY.md to an empty string.
-	if idx != "" {
-		if err := os.WriteFile(filepath.Join(memDir, "MEMORY.md"), []byte(idx), 0o644); err != nil {
-			fmt.Fprintf(os.Stderr, "[hook] WARN: write MEMORY.md: %v\n", err)
-		}
-	}
-
-	payload, _ := json.Marshal(map[string]any{
-		"hookSpecificOutput": map[string]any{
-			"hookEventName":     "SessionStart",
-			"additionalContext": additionalContext,
-		},
-	})
-	_, _ = os.Stdout.Write(payload)
-	return nil
-}
-
-func telegramTokenSecretPath() string {
-	const defaultPath = "/run/secrets/telegram_bot_token"
-	return defaultPath
-}
-
-const (
-	postToolUseFailureBulletCap = 10
-	postToolUseFailureByteCap   = 2048
-)
-
 func tokenize(s string) []string {
 	fields := strings.FieldsFunc(s, func(r rune) bool {
 		switch r {
@@ -512,89 +460,4 @@ func matchesBullet(bullet string, tokens []string) bool {
 		}
 	}
 	return false
-}
-
-func PostToolUseFailure() error {
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[hook] WARN: PostToolUseFailure: read stdin: %v\n", err)
-		return nil
-	}
-
-	var payload struct {
-		ToolInput struct {
-			Command string `json:"command"`
-		} `json:"tool_input"`
-		ToolResponse struct {
-			Stdout string `json:"stdout"`
-		} `json:"tool_response"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return nil
-	}
-
-	combined := payload.ToolInput.Command + " " + payload.ToolResponse.Stdout
-	tokens := tokenize(combined)
-	if len(tokens) == 0 {
-		return nil
-	}
-
-	memDir := filepath.Join(provision.Home(), ".claude", "memory")
-	entries, err := os.ReadDir(memDir)
-	if err != nil {
-		return nil
-	}
-
-	var matched []string
-	totalBytes := 0
-outer:
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".md" || e.Name() == "MEMORY.md" {
-			continue
-		}
-		fileData, err := os.ReadFile(filepath.Join(memDir, e.Name()))
-		if err != nil {
-			continue
-		}
-		for _, bullet := range readBullets(fileData) {
-			if !matchesBullet(bullet, tokens) {
-				continue
-			}
-			if len(matched) >= postToolUseFailureBulletCap {
-				break outer
-			}
-			if totalBytes+len(bullet) > postToolUseFailureByteCap {
-				break outer
-			}
-			matched = append(matched, bullet)
-			totalBytes += len(bullet)
-		}
-	}
-
-	if len(matched) == 0 {
-		return nil
-	}
-
-	additionalContext := "Relevant memory:\n" + strings.Join(matched, "\n")
-	out, _ := json.Marshal(map[string]any{
-		"hookSpecificOutput": map[string]any{
-			"hookEventName":     "PostToolUseFailure",
-			"additionalContext": additionalContext,
-		},
-	})
-	_, _ = os.Stdout.Write(out)
-	return nil
-}
-
-func Dispatch(name string) error {
-	switch name {
-	case "telegram":
-		return Telegram()
-	case "session-start":
-		return SessionStart()
-	case "post-tool-use-failure":
-		return PostToolUseFailure()
-	default:
-		return fmt.Errorf("unknown hook: %s", name)
-	}
 }

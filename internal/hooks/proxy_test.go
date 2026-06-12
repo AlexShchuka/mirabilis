@@ -1,182 +1,220 @@
 package hooks
 
 import (
-	"encoding/json"
-	"net"
-	"net/http"
+	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/AlexShchuka/mirabilis/internal/provision"
+	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
 )
 
-func startFakeProxy8787(t *testing.T) (stop func(), ok bool) {
+var bashPrefix = []string{"bash", "-lc"}
+
+func setRunner(t *testing.T, r exec.Runner) {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:8787")
-	if err != nil {
-		return func() {}, false
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	srv := &http.Server{Handler: mux}
-	go srv.Serve(ln) //nolint:errcheck
-	return func() { srv.Close() }, true
+	old := runner
+	runner = r
+	t.Cleanup(func() { runner = old })
 }
 
-func writeHooksSettings(t *testing.T, path string, m map[string]any) {
+func writeUpstreamFile(t *testing.T, home, upstream string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, provision.UpstreamFileName), []byte(upstream+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func readHooksSettings(t *testing.T, path string) map[string]any {
+func scriptOf(t *testing.T, call exec.FakeCall) string {
 	t.Helper()
-	f, err := os.Open(path)
+	if len(call.Argv) != 3 || call.Argv[0] != "bash" || call.Argv[1] != "-lc" {
+		t.Fatalf("call argv = %v, want [bash -lc <script>]", call.Argv)
+	}
+	return call.Argv[2]
+}
+
+func TestEnsureProxyForSession_UpstreamFileAbsent_ZeroRunnerCalls(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	fake := exec.NewFake()
+	setRunner(t, fake)
+
+	ensureProxyForSession(context.Background())
+
+	if calls := fake.Calls(); len(calls) != 0 {
+		t.Errorf("runner calls = %d (%v), want 0 when upstream file absent", len(calls), calls)
+	}
+}
+
+func TestEnsureProxyForSession_ProxyReachable_ProbeOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
+
+	fake := exec.NewFake().Expect(bashPrefix, "", nil)
+	setRunner(t, fake)
+
+	ensureProxyForSession(context.Background())
+
+	calls := fake.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("runner calls = %d, want 1 (probe only)", len(calls))
+	}
+	probe := scriptOf(t, calls[0])
+	if !strings.Contains(probe, "curl -fsS http://127.0.0.1:8787/stats") {
+		t.Errorf("probe script = %q, want curl against :8787/stats", probe)
+	}
+	if strings.Contains(probe, "setsid") {
+		t.Errorf("probe script = %q, must not start headroom", probe)
+	}
+}
+
+func TestEnsureProxyForSession_ProxyUnreachable_StartsHeadroomAndPolls(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
+
+	fake := exec.NewFake().
+		Expect(bashPrefix, "", errors.New("connection refused")).
+		Expect(bashPrefix, "", nil).
+		Expect(bashPrefix, "", nil)
+	setRunner(t, fake)
+
+	getErr := captureStderr(t)
+	ensureProxyForSession(context.Background())
+	errOut := getErr()
+
+	calls := fake.Calls()
+	if len(calls) != 3 {
+		t.Fatalf("runner calls = %d, want 3 (probe, start, poll)", len(calls))
+	}
+
+	start := scriptOf(t, calls[1])
+	if !strings.Contains(start, `ANTHROPIC_TARGET_API_URL="http://host.docker.internal:8788" `) {
+		t.Errorf("start script = %q, want ANTHROPIC_TARGET_API_URL env prefix", start)
+	}
+	if !strings.Contains(start, "setsid nohup") {
+		t.Errorf("start script = %q, want setsid nohup", start)
+	}
+	if !strings.Contains(start, filepath.Join(home, ".headroom-venv/bin/headroom")) {
+		t.Errorf("start script = %q, want headroom venv bin path", start)
+	}
+	if !strings.Contains(start, `proxy >"$HOME/.headroom-proxy.log" 2>&1 &`) {
+		t.Errorf("start script = %q, want backgrounded proxy with log redirect", start)
+	}
+
+	poll := scriptOf(t, calls[2])
+	if !strings.Contains(poll, "seq 1 60") {
+		t.Errorf("poll script = %q, want 60s poll loop", poll)
+	}
+	if !strings.Contains(poll, "curl -fsS http://127.0.0.1:8787/stats") {
+		t.Errorf("poll script = %q, want curl against :8787/stats", poll)
+	}
+
+	if errOut != "" {
+		t.Errorf("stderr = %q, want empty on successful start", errOut)
+	}
+}
+
+func TestEnsureProxyForSession_EmptyUpstream_StartsWithoutEnvPrefix(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeUpstreamFile(t, home, "")
+
+	fake := exec.NewFake().
+		Expect(bashPrefix, "", errors.New("connection refused")).
+		Expect(bashPrefix, "", nil).
+		Expect(bashPrefix, "", nil)
+	setRunner(t, fake)
+
+	ensureProxyForSession(context.Background())
+
+	calls := fake.Calls()
+	if len(calls) != 3 {
+		t.Fatalf("runner calls = %d, want 3", len(calls))
+	}
+	start := scriptOf(t, calls[1])
+	if strings.Contains(start, "ANTHROPIC_TARGET_API_URL") {
+		t.Errorf("start script = %q, want no env prefix for empty upstream", start)
+	}
+	if !strings.HasPrefix(start, "setsid nohup") {
+		t.Errorf("start script = %q, want to begin with setsid nohup", start)
+	}
+}
+
+func TestEnsureProxyForSession_PollFails_WarnsOnStderr(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
+
+	fake := exec.NewFake().
+		Expect(bashPrefix, "", errors.New("connection refused")).
+		Expect(bashPrefix, "", nil).
+		Expect(bashPrefix, "", errors.New("exit status 1"))
+	setRunner(t, fake)
+
+	getErr := captureStderr(t)
+	ensureProxyForSession(context.Background())
+	errOut := getErr()
+
+	if !strings.Contains(errOut, "headroom proxy not ready") {
+		t.Errorf("stderr = %q, want WARN about proxy not ready", errOut)
+	}
+}
+
+func TestEnsureProxyForSession_NeverWritesSettings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
+
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	original := []byte("{\n  \"env\": {\n    \"ANTHROPIC_BASE_URL\": \"http://127.0.0.1:8787\"\n  },\n  \"theme\": \"dark\"\n}\n")
+	if err := os.WriteFile(settingsPath, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := exec.NewFake().
+		Expect(bashPrefix, "", errors.New("connection refused")).
+		Expect(bashPrefix, "", nil).
+		Expect(bashPrefix, "", nil)
+	setRunner(t, fake)
+
+	ensureProxyForSession(context.Background())
+
+	after, err := os.ReadFile(settingsPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	var m map[string]any
-	dec := json.NewDecoder(f)
-	dec.UseNumber()
-	if err := dec.Decode(&m); err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
-
-func TestSessionStartBaseURL_SetsKey(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	writeHooksSettings(t, sp, map[string]any{"theme": "dark"})
-
-	sessionStartBaseURL(sp)
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
-		t.Errorf("ANTHROPIC_BASE_URL not set; env = %v", env)
-	}
-	if m["theme"] != "dark" {
-		t.Errorf("theme key lost; m = %v", m)
+	if !bytes.Equal(after, original) {
+		t.Errorf("settings.json changed:\nbefore: %s\nafter:  %s", original, after)
 	}
 }
 
-func TestSessionStartBaseURL_MissingFile_Noop(t *testing.T) {
-	sessionStartBaseURL(filepath.Join(t.TempDir(), "nonexistent.json"))
-}
+func TestSessionStart_UpstreamPresent_ProbesViaRunner(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
+	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
 
-func TestSessionRemoveBaseURL_RemovesKey(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL, "OTHER": "val"},
-	})
+	fake := exec.NewFake().Expect(bashPrefix, "", nil)
+	setRunner(t, fake)
 
-	sessionRemoveBaseURL(sp)
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
-		t.Errorf("ANTHROPIC_BASE_URL should be removed; env = %v", env)
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+	if err := SessionStart(); err != nil {
+		_ = getOut()
+		t.Fatalf("SessionStart: %v", err)
 	}
-	if env == nil || env["OTHER"] != "val" {
-		t.Errorf("OTHER key should be preserved; env = %v", env)
+	_ = getOut()
+
+	if calls := fake.Calls(); len(calls) != 1 {
+		t.Errorf("runner calls = %d, want 1 probe from SessionStart", len(calls))
 	}
-}
-
-func TestSessionRemoveBaseURL_KeyAbsent_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	writeHooksSettings(t, sp, map[string]any{"theme": "dark"})
-
-	sessionRemoveBaseURL(sp)
-
-	m := readHooksSettings(t, sp)
-	if m["theme"] != "dark" {
-		t.Errorf("settings mutated unexpectedly: %v", m)
-	}
-}
-
-func TestSessionRemoveBaseURL_MissingFile_Noop(t *testing.T) {
-	sessionRemoveBaseURL(filepath.Join(t.TempDir(), "nonexistent.json"))
-}
-
-func TestProxyAlive_WithFakeServer_ReturnsTrue(t *testing.T) {
-	stop, ok := startFakeProxy8787(t)
-	if !ok {
-		t.Skip("port 8787 already in use; skipping")
-	}
-	defer stop()
-
-	if !proxyAlive() {
-		t.Error("proxyAlive = false with fake server on 8787, want true")
-	}
-}
-
-func TestEnsureProxyForSession_BinaryAbsent_StaleKeyRemoved(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	sp := filepath.Join(tmp, ".claude", "settings.json")
-	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL},
-	})
-
-	ensureProxyForSession()
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
-		t.Errorf("stale ANTHROPIC_BASE_URL not removed when binary absent; env = %v", env)
-	}
-}
-
-func TestEnsureProxyForSession_ProxyAlive_SetsBaseURL(t *testing.T) {
-	stop, ok := startFakeProxy8787(t)
-	if !ok {
-		t.Skip("port 8787 already in use; skipping")
-	}
-	defer stop()
-
-	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
-	sp := filepath.Join(tmp, ".claude", "settings.json")
-	writeHooksSettings(t, sp, map[string]any{"theme": "dark"})
-
-	ensureProxyForSession()
-
-	m := readHooksSettings(t, sp)
-	env, _ := m["env"].(map[string]any)
-	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
-		t.Errorf("ANTHROPIC_BASE_URL not set when proxy alive; env = %v", env)
-	}
-}
-
-func TestSessionStartBaseURL_InvalidJSON_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.WriteFile(sp, []byte("{not valid json"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	sessionStartBaseURL(sp)
-}
-
-func TestSessionRemoveBaseURL_InvalidJSON_Noop(t *testing.T) {
-	tmp := t.TempDir()
-	sp := filepath.Join(tmp, "settings.json")
-	if err := os.WriteFile(sp, []byte("{not valid json"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	sessionRemoveBaseURL(sp)
 }

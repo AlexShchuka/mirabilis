@@ -1,13 +1,20 @@
 package hooks
 
 import (
+	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 )
+
+func writeChatID(t *testing.T, repo, id string) {
+	t.Helper()
+	if err := notify.WriteChatID(repo, id); err != nil {
+		t.Fatalf("WriteChatID: %v", err)
+	}
+}
 
 func TestMessageFor(t *testing.T) {
 	tests := []struct {
@@ -74,29 +81,6 @@ func TestEventName(t *testing.T) {
 	})
 }
 
-func TestTelegramNoOpWhenChatEmpty(t *testing.T) {
-	t.Setenv("TELEGRAM_CHAT_ID", "")
-	replaceStdin(t, `{"hook_event_name":"Stop"}`)
-	if err := Telegram(); err != nil {
-		t.Errorf("Telegram() = %v, want nil when TELEGRAM_CHAT_ID empty", err)
-	}
-}
-
-func TestDispatchUnknown(t *testing.T) {
-	err := Dispatch("nonexistent")
-	if err == nil {
-		t.Error("Dispatch(unknown) should return error")
-	}
-}
-
-func TestDispatchTelegram(t *testing.T) {
-	t.Setenv("TELEGRAM_CHAT_ID", "")
-	replaceStdin(t, `{"hook_event_name":"Stop"}`)
-	if err := Dispatch("telegram"); err != nil {
-		t.Errorf("Dispatch(telegram) with empty env = %v, want nil", err)
-	}
-}
-
 func TestCWDBaseName(t *testing.T) {
 	tests := []struct {
 		give string
@@ -117,25 +101,47 @@ func TestCWDBaseName(t *testing.T) {
 	}
 }
 
+func TestRepoRoot_DefaultsToWorkspace(t *testing.T) {
+	t.Setenv("MIRABILIS_REPO", "")
+	if got := repoRoot(); got != "/workspace" {
+		t.Errorf("repoRoot() = %q, want /workspace", got)
+	}
+}
+
 func TestTelegram_StopEvent_WritesQueueJob(t *testing.T) {
 	repoDir := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repoDir)
-	t.Setenv("TELEGRAM_CHAT_ID", "chat456")
+	writeChatID(t, repoDir, "chat456")
 
 	replaceStdin(t, `{"hook_event_name":"Stop"}`)
 	if err := Telegram(); err != nil {
 		t.Fatalf("Telegram() = %v, want nil", err)
 	}
 
-	queueDir := telegram.OutboxDir(repoDir)
-	jobs, err := telegram.PendingJobs(queueDir)
+	queueDir := notify.OutboxDir(repoDir)
+	jobs, err := notify.PendingJobs(queueDir)
 	if err != nil {
 		t.Fatalf("PendingJobs: %v", err)
 	}
 	if len(jobs) != 1 {
 		t.Fatalf("queue jobs = %d, want 1", len(jobs))
 	}
-	job, err := telegram.ReadJob(jobs[0])
+
+	raw, err := os.ReadFile(jobs[0])
+	if err != nil {
+		t.Fatalf("ReadFile job: %v", err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatalf("job file not valid JSON: %v", err)
+	}
+	for _, key := range []string{"id", "chat_id", "text", "created_at"} {
+		if v, ok := fields[key].(string); !ok || v == "" {
+			t.Errorf("job JSON field %q = %v, want non-empty string", key, fields[key])
+		}
+	}
+
+	job, err := notify.ReadJob(jobs[0])
 	if err != nil {
 		t.Fatalf("ReadJob: %v", err)
 	}
@@ -145,20 +151,94 @@ func TestTelegram_StopEvent_WritesQueueJob(t *testing.T) {
 	if !strings.Contains(job.Text, "task finished") {
 		t.Errorf("job.Text = %q, want stop message", job.Text)
 	}
+	if job.CreatedAt.IsZero() {
+		t.Error("job.CreatedAt is zero, want set")
+	}
+}
+
+func TestTelegram_ChatIDFileAbsent_SilentSkip(t *testing.T) {
+	repoDir := t.TempDir()
+	t.Setenv("MIRABILIS_REPO", repoDir)
+
+	replaceStdin(t, `{"hook_event_name":"Stop"}`)
+	if err := Telegram(); err != nil {
+		t.Fatalf("Telegram() = %v, want nil when chat-id file absent", err)
+	}
+
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
+	if len(jobs) != 0 {
+		t.Errorf("queue jobs = %d, want 0 when chat-id file absent", len(jobs))
+	}
+}
+
+func TestTelegram_ChatIDFileEmpty_SilentSkip(t *testing.T) {
+	repoDir := t.TempDir()
+	t.Setenv("MIRABILIS_REPO", repoDir)
+	writeChatID(t, repoDir, "")
+
+	replaceStdin(t, `{"hook_event_name":"Stop"}`)
+	if err := Telegram(); err != nil {
+		t.Fatalf("Telegram() = %v, want nil when chat-id file empty", err)
+	}
+
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
+	if len(jobs) != 0 {
+		t.Errorf("queue jobs = %d, want 0 when chat-id file empty", len(jobs))
+	}
+}
+
+func TestTelegram_IgnoresTelegramChatIDEnv(t *testing.T) {
+	t.Run("env set without file writes nothing", func(t *testing.T) {
+		repoDir := t.TempDir()
+		t.Setenv("MIRABILIS_REPO", repoDir)
+		t.Setenv("TELEGRAM_CHAT_ID", "env-chat")
+
+		replaceStdin(t, `{"hook_event_name":"Stop"}`)
+		if err := Telegram(); err != nil {
+			t.Fatalf("Telegram() = %v, want nil", err)
+		}
+
+		jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
+		if len(jobs) != 0 {
+			t.Errorf("queue jobs = %d, want 0 — TELEGRAM_CHAT_ID env must be ignored", len(jobs))
+		}
+	})
+	t.Run("file wins over env", func(t *testing.T) {
+		repoDir := t.TempDir()
+		t.Setenv("MIRABILIS_REPO", repoDir)
+		t.Setenv("TELEGRAM_CHAT_ID", "env-chat")
+		writeChatID(t, repoDir, "file-chat")
+
+		replaceStdin(t, `{"hook_event_name":"Stop"}`)
+		if err := Telegram(); err != nil {
+			t.Fatalf("Telegram() = %v, want nil", err)
+		}
+
+		jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
+		if len(jobs) != 1 {
+			t.Fatalf("queue jobs = %d, want 1", len(jobs))
+		}
+		job, err := notify.ReadJob(jobs[0])
+		if err != nil {
+			t.Fatalf("ReadJob: %v", err)
+		}
+		if job.ChatID != "file-chat" {
+			t.Errorf("job.ChatID = %q, want file-chat (from bind-mounted file, not env)", job.ChatID)
+		}
+	})
 }
 
 func TestTelegram_StopEvent_NoTokenInJob(t *testing.T) {
 	repoDir := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repoDir)
-	t.Setenv("TELEGRAM_CHAT_ID", "chat999")
+	writeChatID(t, repoDir, "chat999")
 
 	replaceStdin(t, `{"hook_event_name":"Stop"}`)
 	if err := Telegram(); err != nil {
 		t.Fatalf("Telegram() = %v, want nil", err)
 	}
 
-	queueDir := telegram.OutboxDir(repoDir)
-	jobs, _ := telegram.PendingJobs(queueDir)
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
 	if len(jobs) == 0 {
 		t.Fatal("expected a job file")
 	}
@@ -175,15 +255,14 @@ func TestTelegram_StopEvent_NoTokenInJob(t *testing.T) {
 func TestTelegram_UnknownEvent_NoQueueJob(t *testing.T) {
 	repoDir := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repoDir)
-	t.Setenv("TELEGRAM_CHAT_ID", "chat1")
+	writeChatID(t, repoDir, "chat1")
 
 	replaceStdin(t, `{"hook_event_name":"PreToolUse"}`)
 	if err := Telegram(); err != nil {
 		t.Fatalf("Telegram() = %v, want nil", err)
 	}
 
-	queueDir := telegram.OutboxDir(repoDir)
-	jobs, _ := telegram.PendingJobs(queueDir)
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
 	if len(jobs) != 0 {
 		t.Errorf("queue jobs = %d, want 0 for unknown event", len(jobs))
 	}
@@ -192,19 +271,18 @@ func TestTelegram_UnknownEvent_NoQueueJob(t *testing.T) {
 func TestTelegram_WithCWD_AppendsProjectInJob(t *testing.T) {
 	repoDir := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repoDir)
-	t.Setenv("TELEGRAM_CHAT_ID", "chat1")
+	writeChatID(t, repoDir, "chat1")
 
 	replaceStdin(t, `{"hook_event_name":"Stop","cwd":"/workspace/myproject"}`)
 	if err := Telegram(); err != nil {
 		t.Fatalf("Telegram() = %v, want nil", err)
 	}
 
-	queueDir := telegram.OutboxDir(repoDir)
-	jobs, _ := telegram.PendingJobs(queueDir)
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
 	if len(jobs) == 0 {
 		t.Fatal("expected a job file")
 	}
-	job, err := telegram.ReadJob(jobs[0])
+	job, err := notify.ReadJob(jobs[0])
 	if err != nil {
 		t.Fatalf("ReadJob: %v", err)
 	}
@@ -216,25 +294,31 @@ func TestTelegram_WithCWD_AppendsProjectInJob(t *testing.T) {
 func TestTelegram_NotificationEvent_WritesQueueJob(t *testing.T) {
 	repoDir := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repoDir)
-	t.Setenv("TELEGRAM_CHAT_ID", "chat1")
+	writeChatID(t, repoDir, "chat1")
 
 	replaceStdin(t, `{"hook_event_name":"Notification"}`)
 	if err := Telegram(); err != nil {
 		t.Fatalf("Telegram() = %v, want nil", err)
 	}
 
-	queueDir := telegram.OutboxDir(repoDir)
-	jobs, _ := telegram.PendingJobs(queueDir)
+	jobs, _ := notify.PendingJobs(notify.OutboxDir(repoDir))
 	if len(jobs) != 1 {
 		t.Errorf("queue jobs = %d, want 1 for Notification", len(jobs))
 	}
 }
 
-func TestTelegramQueueDir_DefaultsToWorkspace(t *testing.T) {
-	t.Setenv("MIRABILIS_REPO", "")
-	dir := telegramQueueDir()
-	expected := filepath.Join("/workspace", ".mirabilis", "outbox")
-	if dir != expected {
-		t.Errorf("telegramQueueDir() = %q, want %q", dir, expected)
+func TestDispatchUnknown(t *testing.T) {
+	err := Dispatch("nonexistent")
+	if err == nil {
+		t.Error("Dispatch(unknown) should return error")
+	}
+}
+
+func TestDispatchTelegram(t *testing.T) {
+	repoDir := t.TempDir()
+	t.Setenv("MIRABILIS_REPO", repoDir)
+	replaceStdin(t, `{"hook_event_name":"Stop"}`)
+	if err := Dispatch("telegram"); err != nil {
+		t.Errorf("Dispatch(telegram) with no chat-id file = %v, want nil", err)
 	}
 }

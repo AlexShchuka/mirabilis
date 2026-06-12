@@ -140,6 +140,10 @@ func TestMemoryIndex_MissingDir(t *testing.T) {
 func TestDispatchSessionStart_MissingMemoryDir(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
+	replaceStdin(t, "")
+	getOut := captureStdout(t)
+	defer getOut()
 
 	err := Dispatch("session-start")
 	if err != nil {
@@ -267,6 +271,7 @@ max_lines: 80
 - fact one
 `)
 	t.Setenv("HOME", tmp)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	replaceStdin(t, "")
 	getOut := captureStdout(t)
 
@@ -301,6 +306,7 @@ func TestSessionStart_EmptyMemoryDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", tmp)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	replaceStdin(t, "")
 	getOut := captureStdout(t)
 
@@ -343,6 +349,7 @@ max_lines: 80
 - no gcc in this container
 `)
 	t.Setenv("HOME", tmp)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	replaceStdin(t, "")
 	getOut := captureStdout(t)
 
