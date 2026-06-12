@@ -93,4 +93,7 @@ const (
 	FormDescClaudeToken    = "Run `claude setup-token` on the host and paste the token. Stored in the keychain / secret file."
 
 	ErrTokenEmpty = "token cannot be empty"
+
+	NoticeLaunchFailed    = "launch failed"
+	NoticeLaunchErrPrefix = "launch error: "
 )
