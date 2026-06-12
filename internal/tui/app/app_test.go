@@ -377,7 +377,16 @@ func TestTerminalClaudeAuth(t *testing.T) {
 	_, _ = tokenTee.Write([]byte("sk-ant-oat01-TESTTOKEN"))
 	_ = tokenGetFn
 
-	cmd, cb := getCaptured()
+	var cmd tea.ExecCommand
+	var cb tea.ExecCallback
+	captureDeadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(captureDeadline) {
+		cmd, cb = getCaptured()
+		if cmd != nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 	if cmd == nil {
 		t.Fatal("execRunner was not called")
 	}

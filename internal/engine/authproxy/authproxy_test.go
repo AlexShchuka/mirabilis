@@ -259,6 +259,10 @@ func TestUpstream401InvalidatesToken(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 (upstream rejected)", resp.StatusCode)
 	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && ts.invalidations() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if got := ts.invalidations(); got != 1 {
 		t.Fatalf("invalidations = %d, want 1 (rotation: a rejected token must be evicted)", got)
 	}

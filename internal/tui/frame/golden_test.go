@@ -3,6 +3,7 @@ package frame_test
 import (
 	"bytes"
 	"io"
+	"regexp"
 	"testing"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 )
+
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;?]*[a-zA-Z]")
+
+func stripANSI(b []byte) []byte {
+	return ansiPattern.ReplaceAll(b, nil)
+}
 
 type appHarness struct {
 	fr   frame.Model
@@ -70,7 +77,7 @@ func TestFrameMenuGolden(t *testing.T) {
 	}
 	acc.Write(rest)
 
-	teatest.RequireEqualOutput(t, lastFrame(acc.Bytes()))
+	teatest.RequireEqualOutput(t, stripANSI(lastFrame(acc.Bytes())))
 }
 
 func lastFrame(out []byte) []byte {
