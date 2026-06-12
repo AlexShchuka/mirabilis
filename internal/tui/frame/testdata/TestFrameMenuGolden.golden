@@ -1,0 +1,24 @@
+[?25l[?2004h[>4;2m[=1;1u[?u[J mirabilis                        v1.3.0 · container up · harness on · proxy on
+> Launch          │ mirabilis
+  Harness         │
+  Telegram        │ Launch      setup pipeline + Claude in container
+  VS Code         │ Harness     neuro-matrix: on / off / reinstall
+  Reset           │ Telegram    bot notifications: token, optional
+  Quit            │ VS Code     attach /workspace in VS Code
+[18C│ Reset       container, image and volumes — permanent
+[18C│
+[18C│ select an action on the left
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+[18C│
+ enter select · esc back · tab log · q quit[>4m[=0;1u[J[?25h[?2004l
