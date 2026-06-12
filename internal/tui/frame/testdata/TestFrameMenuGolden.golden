@@ -1,4 +1,4 @@
-[>4;2m[=1;1u mirabilis                        v1.3.0 · container up · harness on · proxy on
+ mirabilis                        v1.3.0 · container up · harness on · proxy on
 > Launch          │ mirabilis
   Harness         │
   Telegram        │ Launch      setup pipeline + Claude in container
@@ -21,4 +21,4 @@
 │
 │
 │
- enter select · esc back · tab log · q quit[>4m[=0;1u
+ enter select · esc back · tab log · q quit

@@ -17,7 +17,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 )
 
-var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;?]*[a-zA-Z]")
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;<=>?]*[ -/]*[@-~]")
 
 func stripANSI(b []byte) []byte {
 	return ansiPattern.ReplaceAll(b, nil)
