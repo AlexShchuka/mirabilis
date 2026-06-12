@@ -32,7 +32,7 @@ install_claude_cli() {
   say "installing host claude CLI…"
   curl -fsSL https://claude.ai/install.sh | bash
   if ! command -v claude >/dev/null 2>&1; then
-    say "warning: claude CLI not found on PATH after install — add ~/.local/bin to PATH, then run: claude setup-token"
+    say "warning: claude CLI not found on PATH after install — add ~/.local/bin to PATH"
   fi
 }
 
@@ -48,7 +48,7 @@ clone_and_finish() {
   say "putting the 'mirabilis' command on your PATH…"
   git -C "$DEST" config core.hooksPath .githooks
   make -C "$DEST" install
-  say "done — run: claude setup-token, then: mirabilis"
+  say "done — run: mirabilis"
 }
 
 install_darwin() {
@@ -68,7 +68,7 @@ install_darwin() {
   install_claude_cli
   say "putting the 'mirabilis' command on your PATH…"
   make -C "$DEST" install
-  say "done — run: claude setup-token, then: mirabilis"
+  say "done — run: mirabilis"
 }
 
 install_linux() {

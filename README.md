@@ -49,24 +49,16 @@ curl -fsSL https://raw.githubusercontent.com/AlexShchuka/mirabilis/main/install.
 ```
 
 That one line clones mirabilis to `~/.mirabilis`, installs the host claude CLI, and puts
-`mirabilis` on your PATH. Then store your Claude token on the host:
-
-```sh
-claude setup-token
-```
-
-The resulting OAuth token is stored in your host keychain (macOS) or a host-side secret
-file (Linux/WSL). It never enters the container — the auth chain injects it transparently
-at the host proxy layer. After that, run it from anywhere:
+`mirabilis` on your PATH. Run it from anywhere:
 
 ```sh
 mirabilis
 ```
 
 The first launch builds the container image (claude-code, gh, and docker-ce-cli baked in),
-starts the container, provisions it, signs you in to GitHub (native device flow, saved in
-the sandbox), and drops you into Claude. Repeat launches are instant — all steps are
-idempotent and skip when already satisfied.
+starts the container, provisions it, signs you in to Claude (via the menu's auth step) and
+to GitHub (native device flow, saved in the sandbox), and drops you into Claude. Repeat
+launches are instant — all steps are idempotent and skip when already satisfied.
 
 ## Documentation
 
