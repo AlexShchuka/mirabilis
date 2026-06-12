@@ -105,8 +105,8 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 80 {
 		t.Errorf("width = %d, want 80", got)
 	}
-	if w, h := m.MainSize(); w != 80-frame.MenuWidth-1 || h != 22 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,22)", w, h, 80-frame.MenuWidth-1)
+	if w, h := m.MainSize(); w != 80-m.MenuWidth()-1 || h != 22 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,22)", w, h, 80-m.MenuWidth()-1)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -117,8 +117,159 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 100 {
 		t.Errorf("width = %d, want 100", got)
 	}
-	if w, h := m.MainSize(); w != 100-frame.MenuWidth-1 || h != 28 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,28)", w, h, 100-frame.MenuWidth-1)
+	if w, h := m.MainSize(); w != 100-m.MenuWidth()-1 || h != 28 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,28)", w, h, 100-m.MenuWidth()-1)
+	}
+}
+
+func TestMenuWidthProportionalAndClamped(t *testing.T) {
+	tests := []struct {
+		w, want int
+	}{
+		{60, 13},
+		{80, 17},
+		{100, 22},
+		{200, frame.MenuMax},
+	}
+	for _, tt := range tests {
+		m := frame.New("mirabilis", "v1.0.0", items())
+		m, _ = m.Update(tea.WindowSizeMsg{Width: tt.w, Height: 30})
+		if got := m.MenuWidth(); got != tt.want {
+			t.Errorf("MenuWidth(width=%d) = %d, want %d", tt.w, got, tt.want)
+		}
+		if got := m.MenuWidth(); got < frame.MenuMin || got > frame.MenuMax {
+			t.Errorf("MenuWidth(width=%d) = %d outside [%d,%d]", tt.w, got, frame.MenuMin, frame.MenuMax)
+		}
+	}
+}
+
+func TestResizeMatrixNeverOverflowsHeight(t *testing.T) {
+	sizes := []struct {
+		name string
+		w, h int
+	}{
+		{"wide", 120, 40},
+		{"narrow", 50, 20},
+		{"short", 80, 12},
+		{"tiny", 30, 8},
+		{"min-edge", 40, 10},
+		{"degenerate-1x1", 1, 1},
+		{"degenerate-2x1", 2, 1},
+	}
+	for _, s := range sizes {
+		t.Run(s.name, func(t *testing.T) {
+			m := frame.New("mirabilis", "v1.0.0", items())
+			m, _ = m.Update(tea.WindowSizeMsg{Width: s.w, Height: s.h})
+			view := plain(m.View(strings.Repeat("content\n", 60)))
+			if got := lipgloss.Height(view); got > s.h {
+				t.Errorf("height = %d, want <= %d", got, s.h)
+			}
+			if got := lipgloss.Width(view); got > s.w {
+				t.Errorf("width = %d, want <= %d", got, s.w)
+			}
+		})
+	}
+}
+
+func TestNarrowCollapsesMenuToGlyphs(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
+	view := plain(m.View("main area"))
+	if strings.Contains(view, "Launch") || strings.Contains(view, "Harness") {
+		t.Errorf("narrow menu still shows full titles:\n%s", view)
+	}
+	if !strings.Contains(view, "> L") {
+		t.Errorf("narrow menu missing collapsed selected glyph:\n%s", view)
+	}
+	if m.MenuWidth() != frame.NarrowMenu {
+		t.Errorf("narrow MenuWidth = %d, want %d", m.MenuWidth(), frame.NarrowMenu)
+	}
+}
+
+func TestTooSmallState(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 30, Height: 8})
+	view := plain(m.View("main area"))
+	if !strings.Contains(view, "terminal too small") {
+		t.Errorf("tiny view missing too-small message:\n%s", view)
+	}
+	if !strings.Contains(view, "30x8") || !strings.Contains(view, "40x10") {
+		t.Errorf("tiny view missing current/required size:\n%s", view)
+	}
+	if strings.Contains(view, "Launch") {
+		t.Errorf("tiny view still renders the menu:\n%s", view)
+	}
+	if got := lipgloss.Height(view); got != 8 {
+		t.Errorf("tiny view height = %d, want 8", got)
+	}
+}
+
+func TestMenuPanelRendersItemTitlesAndCursor(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	view := plain(m.View("main area"))
+	for _, title := range []string{"Launch", "Harness", "Reset", "Quit"} {
+		if !strings.Contains(view, title) {
+			t.Errorf("frame view missing menu item %q:\n%s", title, view)
+		}
+	}
+	if !strings.Contains(view, "> Launch") {
+		t.Errorf("frame view missing cursor on the selected item:\n%s", view)
+	}
+}
+
+func descItems() []frame.Item {
+	return []frame.Item{
+		{Title: "Launch", Desc: "setup pipeline in container", Action: "launch", Enabled: true},
+		{Title: "Harness", Desc: "neuro-matrix on off reinstall", Action: "harness", Enabled: true},
+		{Title: "Quit", Action: "quit", Enabled: true},
+	}
+}
+
+func TestMenuShowsSelectedDescAndFollowsCursor(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", descItems())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	view := plain(m.View("main area"))
+	if !strings.Contains(view, "setup pipeline") {
+		t.Errorf("frame view missing selected item desc:\n%s", view)
+	}
+	if strings.Contains(view, "neuro-matrix") {
+		t.Errorf("frame view shows a non-selected item's desc:\n%s", view)
+	}
+
+	m, _ = m.Update(key("down"))
+	view = plain(m.View("main area"))
+	if !strings.Contains(view, "neuro-matrix") {
+		t.Errorf("desc did not follow the cursor to harness:\n%s", view)
+	}
+	if strings.Contains(view, "setup pipeline") {
+		t.Errorf("desc still shows the previous selection after move:\n%s", view)
+	}
+
+	m, _ = m.Update(key("down"))
+	view = plain(m.View("main area"))
+	if strings.Contains(view, "neuro-matrix") {
+		t.Errorf("desc shown for an item with no Desc:\n%s", view)
+	}
+}
+
+func TestMenuDescShortBreakpointVisibleNarrowHidden(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", descItems())
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
+	short := plain(m.View("main area"))
+	if got := lipgloss.Height(short); got > 12 {
+		t.Errorf("short view height = %d, want <= 12", got)
+	}
+	if !strings.Contains(short, "setup") {
+		t.Errorf("short breakpoint hid the desc:\n%s", short)
+	}
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 50, Height: 20})
+	narrow := plain(m.View("main area"))
+	if strings.Contains(narrow, "setup") || strings.Contains(narrow, "pipeline") {
+		t.Errorf("narrow breakpoint still renders the desc:\n%s", narrow)
 	}
 }
 

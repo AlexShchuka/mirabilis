@@ -1,6 +1,7 @@
 package frame
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -12,7 +13,53 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
-const MenuWidth = 18
+const (
+	MinWidth    = 40
+	MinHeight   = 10
+	NarrowWidth = 60
+	ShortHeight = 16
+	MenuMin     = 12
+	MenuMax     = 22
+	NarrowMenu  = 4
+)
+
+const menuFracNum, menuFracDen = 22, 100
+
+type breakpoint int
+
+const (
+	bpTiny breakpoint = iota
+	bpNarrow
+	bpShort
+	bpNormal
+)
+
+func (m Model) breakpoint() breakpoint {
+	switch {
+	case m.width < MinWidth || m.height < MinHeight:
+		return bpTiny
+	case m.width < NarrowWidth:
+		return bpNarrow
+	case m.height < ShortHeight:
+		return bpShort
+	default:
+		return bpNormal
+	}
+}
+
+func (m Model) MenuWidth() int {
+	if m.breakpoint() == bpNarrow {
+		return NarrowMenu
+	}
+	w := m.width * menuFracNum / menuFracDen
+	if w < MenuMin {
+		w = MenuMin
+	}
+	if w > MenuMax {
+		w = MenuMax
+	}
+	return w
+}
 
 type Item struct {
 	Title   string
@@ -29,7 +76,10 @@ type Model struct {
 	cursor  int
 	width   int
 	height  int
+	busy    string
 }
+
+func (m *Model) SetBusy(text string) { m.busy = text }
 
 func New(title, version string, items []Item) Model {
 	m := Model{
@@ -113,10 +163,13 @@ func (m *Model) SetEnabled(action string, enabled bool) {
 }
 
 func (m Model) MainSize() (int, int) {
-	return max(m.width-MenuWidth-1, 0), max(m.height-2, 0)
+	return max(m.width-m.MenuWidth()-1, 0), max(m.height-2, 0)
 }
 
 func (m Model) View(main string) string {
+	if m.breakpoint() == bpTiny {
+		return m.tooSmallView()
+	}
 	mw, mh := m.MainSize()
 	body := lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -127,11 +180,29 @@ func (m Model) View(main string) string {
 	return lipgloss.JoinVertical(lipgloss.Left, m.headerView(), body, m.footerView())
 }
 
+func (m Model) tooSmallView() string {
+	size := fmt.Sprintf("%dx%d", m.width, m.height)
+	need := fmt.Sprintf("%dx%d", MinWidth, MinHeight)
+	body := lipgloss.JoinVertical(
+		lipgloss.Center,
+		styles.Degraded.Render(uistr.TooSmall),
+		styles.Hint.Render(size+uistr.SizeSep+need),
+	)
+	placed := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
+	return lipgloss.NewStyle().MaxWidth(m.width).MaxHeight(m.height).Render(placed)
+}
+
 func (m Model) headerView() string {
 	left := " " + styles.Header.Render(m.title)
 	right := ""
+	if m.busy != "" {
+		right = styles.Spinner.Render(m.busy)
+	}
 	if m.version != "" {
-		right = styles.HeaderRight.Render(m.version)
+		if right != "" {
+			right += uistr.StatusSep
+		}
+		right += styles.HeaderRight.Render(m.version)
 	}
 	if sv := m.status.View(); sv != "" {
 		if right != "" {
@@ -147,6 +218,8 @@ func (m Model) headerView() string {
 }
 
 func (m Model) menuView(h int) string {
+	narrow := m.breakpoint() == bpNarrow
+	w := m.MenuWidth()
 	lines := make([]string, 0, len(m.items))
 	for i, it := range m.items {
 		cursor, style := "  ", styles.MenuNormal
@@ -156,9 +229,35 @@ func (m Model) menuView(h int) string {
 		case i == m.cursor:
 			cursor, style = "> ", styles.MenuSelected
 		}
-		lines = append(lines, cursor+style.Render(it.Title))
+		label := it.Title
+		if narrow {
+			label = menuGlyph(it.Title)
+		}
+		lines = append(lines, cursor+style.Render(label))
 	}
-	return lipgloss.NewStyle().Width(MenuWidth).Height(h).MaxHeight(h).Render(strings.Join(lines, "\n"))
+	body := strings.Join(lines, "\n")
+	if desc := m.selectedDesc(w); desc != "" {
+		body += "\n\n" + desc
+	}
+	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(body)
+}
+
+func (m Model) selectedDesc(w int) string {
+	if m.breakpoint() == bpNarrow {
+		return ""
+	}
+	it, ok := m.Selected()
+	if !ok || it.Desc == "" {
+		return ""
+	}
+	return styles.Hint.Width(w).Render(it.Desc)
+}
+
+func menuGlyph(title string) string {
+	for _, r := range title {
+		return string(r)
+	}
+	return " "
 }
 
 func (m Model) separator(h int) string {

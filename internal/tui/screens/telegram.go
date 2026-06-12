@@ -19,9 +19,12 @@ type Telegram struct {
 	done bool
 }
 
-func NewTelegram(id bus.NodeID) Telegram {
+func NewTelegram(id bus.NodeID, configured bool) Telegram {
 	sel := new(string)
 	tok := new(string)
+	if configured {
+		*sel = TelegramSkip
+	}
 
 	f := huh.NewForm(
 		huh.NewGroup(

@@ -4,8 +4,10 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
@@ -13,6 +15,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
+	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
 type Facade interface {
@@ -28,6 +31,10 @@ type Facade interface {
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
+	LastHarnessChoice() string
+	RememberHarnessChoice(choice string) error
+	TelegramConfigured() bool
+	MarkTelegramConfigured() error
 }
 
 var execRunner = tea.Exec
@@ -46,6 +53,10 @@ type App struct {
 	winH            int
 	launchCancelled bool
 	busy            bool
+	busyStarted     time.Time
+	busyFrame       int
+	busyGen         int
+	harnessChoice   string
 }
 
 func New(ctx context.Context, f Facade) App {
@@ -87,6 +98,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return a.handleKey(msg)
 
+	case busyTickMsg:
+		return a.handleBusyTick(msg)
+
 	case bus.MenuChosen:
 		return a.handleMenuChosen(msg)
 
@@ -126,6 +140,46 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+type mainAreaScreen interface{ MainArea() bool }
+
+func isOverlay(s router.Screen) bool {
+	_, ok := s.(mainAreaScreen)
+	return !ok
+}
+
 func (a App) View() tea.View {
-	return tea.NewView(a.frame.View(a.router.View()))
+	var content string
+	if a.router.Depth() > 1 && a.winW > 0 && a.winH > 0 && isOverlay(a.router.Top()) {
+		content = a.overlayView()
+	} else {
+		content = a.frame.View(a.router.View())
+	}
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
+}
+
+func (a App) overlayView() string {
+	base := a.frame.View(a.router.Below().View())
+	box := styles.Overlay.Render(a.router.Top().View())
+
+	menuW := a.frame.MenuWidth() + 1
+	mainW := max(a.winW-menuW, 0)
+	boxW, boxH := lipgloss.Width(box), lipgloss.Height(box)
+
+	cx := menuW + max((mainW-boxW)/2, 0)
+	cy := 1 + max((a.winH-2-boxH)/2, 0)
+	if cx+boxW > a.winW {
+		cx = max(a.winW-boxW, 0)
+	}
+	if cy+boxH > a.winH {
+		cy = max(a.winH-boxH, 0)
+	}
+
+	canvas := lipgloss.NewCanvas(a.winW, a.winH)
+	canvas.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(base).Z(0),
+		lipgloss.NewLayer(box).X(cx).Y(cy).Z(1),
+	))
+	return canvas.Render()
 }

@@ -112,10 +112,50 @@ is_wsl() {
   [ "$OS" = Darwin ] || skip "darwin-only path"
   shim git 'exit 0'
   shim brew 'exit 0'
-  shim make 'exit 0'
+  shim make 'printf "make %s\n" "$*"'
+  shim claude 'exit 0'
   dest="$WORKDIR/home"
   mkdir -p "$dest/.git"
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
+  [[ "$output" == *"make bootstrap"* ]]
+  [[ "$output" == *"make install"* ]]
   [[ "$output" == *"claude setup-token"* ]]
+}
+
+@test "darwin claude present via npm: installer no-ops claude, bootstrap runs" {
+  [ "$OS" = Darwin ] || skip "darwin-only path"
+  shim git 'exit 0'
+  shim brew 'exit 0'
+  shim make 'printf "make %s\n" "$*"'
+  shim claude 'exit 0'
+  shim curl 'printf "curl-claude-install-ran\n"; exit 0'
+  dest="$WORKDIR/home"
+  mkdir -p "$dest/.git"
+  run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"make bootstrap"* ]]
+  [[ "$output" == *"claude CLI already installed"* ]]
+  [[ "$output" != *"curl-claude-install-ran"* ]]
+  [[ "$output" == *"claude setup-token"* ]]
+}
+
+@test "darwin claude absent: bootstrap then host claude install" {
+  [ "$OS" = Darwin ] || skip "darwin-only path"
+  shim git 'exit 0'
+  shim brew 'exit 0'
+  shim make 'printf "make %s\n" "$*"'
+  shim curl 'printf "curl-claude-install-ran\n" >&2; printf "exit 0\n"'
+  dest="$WORKDIR/home"
+  mkdir -p "$dest/.git"
+  run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"make bootstrap"* ]]
+  [[ "$output" == *"installing host claude CLI"* ]]
+  [[ "$output" == *"curl-claude-install-ran"* ]]
+}
+
+@test "Brewfile has no claude-code cask" {
+  run grep -q 'claude-code' "$REPO_ROOT/Brewfile"
+  [ "$status" -ne 0 ]
 }

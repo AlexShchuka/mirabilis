@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -27,19 +28,19 @@ func TestMenuID(t *testing.T) {
 }
 
 func TestMenuQuitKeys(t *testing.T) {
-	for _, key := range []tea.KeyPressMsg{
-		{Code: 'q', Text: "q"},
-		{Code: tea.KeyEscape},
-	} {
-		m := NewMenu("app/menu")
-		_, cmd := m.Update(key)
-		if cmd == nil {
-			t.Fatalf("Update(%v) returned nil cmd", key)
-		}
-		got, ok := cmd().(bus.MenuChosen)
-		if !ok || got.Action != ActionQuit {
-			t.Errorf("Update(%v) emitted %v, want MenuChosen{quit}", key, got)
-		}
+	m := NewMenu("app/menu")
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if cmd == nil {
+		t.Fatal("Update(esc) returned nil cmd")
+	}
+	got, ok := cmd().(bus.MenuChosen)
+	if !ok || got.Action != ActionQuit {
+		t.Errorf("Update(esc) emitted %v, want MenuChosen{quit}", got)
+	}
+
+	m = NewMenu("app/menu")
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd != nil {
+		t.Errorf("Update(q) emitted %v, want nil (q consumed at app depth 1)", cmd())
 	}
 }
 
@@ -67,10 +68,13 @@ func TestMenuOtherKeysIgnored(t *testing.T) {
 
 func TestMenuViewWelcomeAndNotice(t *testing.T) {
 	view := plain(NewMenu("app/menu").View())
-	for _, want := range []string{"mirabilis", "Launch", "setup pipeline + Claude in container", "select an action on the left"} {
+	for _, want := range []string{uistr.AppName, uistr.WelcomeHint} {
 		if !strings.Contains(view, want) {
 			t.Errorf("View() missing %q:\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "Launch") || strings.Contains(view, "setup pipeline") {
+		t.Errorf("menu screen still renders the item list (moved to frame):\n%s", view)
 	}
 	if strings.Contains(view, "launch canceled") {
 		t.Error("View() shows a notice without WithNotice")

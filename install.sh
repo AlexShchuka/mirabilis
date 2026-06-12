@@ -65,6 +65,7 @@ install_darwin() {
 
   say "installing prerequisites (Docker Desktop, host claude CLI, Go)…"
   make -C "$DEST" bootstrap
+  install_claude_cli
   say "putting the 'mirabilis' command on your PATH…"
   make -C "$DEST" install
   say "done — run: claude setup-token, then: mirabilis"

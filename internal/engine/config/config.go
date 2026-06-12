@@ -45,6 +45,23 @@ func ReadStacks(repo string) (string, bool) { return envRead(repo, "STACKS") }
 
 func WriteStacks(repo, csv string) error { return envWrite(repo, "STACKS", csv) }
 
+func ReadLastHarness(repo string) (string, bool) { return envRead(repo, "LAST_HARNESS") }
+
+func WriteLastHarness(repo, val string) error { return envWrite(repo, "LAST_HARNESS", val) }
+
+func TelegramConfigured(repo string) bool {
+	v, _ := envRead(repo, "TELEGRAM_CONFIGURED")
+	return v == "1"
+}
+
+func WriteTelegramConfigured(repo string, on bool) error {
+	v := "0"
+	if on {
+		v = "1"
+	}
+	return envWrite(repo, "TELEGRAM_CONFIGURED", v)
+}
+
 func ReadSkills(repo string) (string, bool) { return envRead(repo, "SKILLS") }
 
 func WriteSkills(repo, csv string) error { return envWrite(repo, "SKILLS", csv) }

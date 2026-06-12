@@ -21,6 +21,8 @@ type launchScr struct {
 
 var _ router.Screen = launchScr{}
 
+func (s launchScr) MainArea() bool { return true }
+
 func (s launchScr) ID() bus.NodeID { return s.id }
 
 func (s launchScr) Init() tea.Cmd {
