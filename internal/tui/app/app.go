@@ -17,6 +17,7 @@ import (
 
 type Facade interface {
 	LaunchSteps() []pipeline.Command
+	Version() string
 	Logger() *slog.Logger
 	StatusUpdates() <-chan obs.Snapshot
 	OnTokenExtracted(token string)
@@ -55,7 +56,7 @@ func New(ctx context.Context, f Facade) App {
 		cancel:   cancel,
 		facade:   f,
 		statusCh: f.StatusUpdates(),
-		frame:    frame.New("mirabilis", "v2.0.0", screens.MenuItems()),
+		frame:    frame.New("mirabilis", f.Version(), screens.MenuItems()),
 		router:   router.New(menu),
 	}
 	return a

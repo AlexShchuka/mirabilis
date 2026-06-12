@@ -96,6 +96,8 @@ func (f *fakeFacade) LaunchSteps() []pipeline.Command {
 	return f.steps
 }
 
+func (f *fakeFacade) Version() string { return "vtest" }
+
 func (f *fakeFacade) Logger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }

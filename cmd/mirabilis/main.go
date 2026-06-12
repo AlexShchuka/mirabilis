@@ -124,6 +124,7 @@ func runProvision(ctx context.Context, args []string) error {
 	if oerr != nil {
 		return fmt.Errorf("provision: obs: %w", oerr)
 	}
+	defer o.Close()
 
 	deps := provision.Deps{
 		Runner:     newHost(),

@@ -97,6 +97,10 @@ func (f *facade) LaunchSteps() []pipeline.Command {
 	return steps.Launch(f.deps)
 }
 
+func (f *facade) Version() string {
+	return effectiveVersion()
+}
+
 func (f *facade) Logger() *slog.Logger {
 	return f.obs.Logger("app")
 }

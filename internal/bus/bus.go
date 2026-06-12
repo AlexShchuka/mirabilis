@@ -49,20 +49,6 @@ type StepEvent struct {
 	Kind StepEventKind
 }
 
-type PipelineDone struct {
-	Failed bool
-}
-
-type NeedInteractive struct {
-	Payload any
-	Step    string
-}
-
-type NeedsTerminal struct {
-	Argv []string
-	Step string
-}
-
 type ScreenPush struct {
 	Model any
 }
@@ -75,9 +61,4 @@ type ScreenResult struct {
 
 type StatusChanged struct {
 	Snapshot obs.Snapshot
-}
-
-type SecretStored struct {
-	Err error
-	Key string
 }

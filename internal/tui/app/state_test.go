@@ -43,6 +43,8 @@ func (f *stubFacade) LaunchSteps() []pipeline.Command {
 	return f.steps
 }
 
+func (f *stubFacade) Version() string { return "vtest" }
+
 func (f *stubFacade) Logger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func (f *stubFacade) StatusUpdates() <-chan obs.Snapshot { return make(chan obs.Snapshot, 1) }
