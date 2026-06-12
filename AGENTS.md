@@ -124,7 +124,7 @@ Prose here only identifies the home; the home is what actually enforces it.
 | D2/G2 | `internal/engine/**` never imports `internal/tui`, `internal/bus`, or bubbletea/charmbracelet | **depguard** rule `engine-no-tui` |
 | §4.2 | `tui/{screens,components,frame,router}` never import `internal/engine` | **depguard** rule `tui-leaves-no-engine` |
 | D10 | No comments in code or non-workflow config | **errcheck** excludes are curated (no real errors hidden); CI `no-config-comments` job; pre-commit hook |
-| BAR | No swallowed errors | **errcheck** (excludes cover only: best-effort Close in defers, fmt.Print* to stdout in CLI, test ResponseWriter writes) |
+| BAR | No swallowed errors | **errcheck** (global excludes: best-effort Close in defers only; path-scoped: provision CLI stdout prints, httptest handler writes in tests; every other intentional ignore is an explicit `_ =` at the call site) |
 | I1/secrets | gitleaks catches committed secrets | **gitleaks** CI job; pre-commit gitleaks hook (no-op if not installed) |
 
 ## Engineering bar

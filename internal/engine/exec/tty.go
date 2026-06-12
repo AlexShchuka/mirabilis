@@ -14,7 +14,10 @@ import (
 	"github.com/creack/pty"
 )
 
-const ttyWaitDelay = 5 * time.Second
+const (
+	ttyWaitDelay  = 5 * time.Second
+	ptyDrainGrace = time.Second
+)
 
 type TTY struct {
 	stdin          io.Reader
@@ -91,8 +94,11 @@ func (p *PTYTee) Run() error {
 
 	err = cmd.Wait()
 	close(inDone)
-	closeMaster()
+	forceClose := time.AfterFunc(ptyDrainGrace, closeMaster)
+	_ = master.SetReadDeadline(time.Now().Add(ptyDrainGrace))
 	outDone.Wait()
+	forceClose.Stop()
+	closeMaster()
 	return err
 }
 

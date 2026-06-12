@@ -119,15 +119,15 @@ func writeAtomic(dir, name, tmpPattern string, data []byte) error {
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("notify queue: write temp: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("notify queue: close temp: %w", err)
 	}
 	if err := os.Rename(tmpName, dest); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return fmt.Errorf("notify queue: rename to %q: %w", dest, err)
 	}
 	return nil

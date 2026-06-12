@@ -58,14 +58,7 @@ linters:
         - (*os.File).Close
         - (io.ReadCloser).Close
         - (net/http.Response.Body).Close
-        - fmt.Fprint
-        - fmt.Fprintf
-        - fmt.Fprintln
-        - os.Remove
-        - os.Unsetenv
         - (*github.com/AlexShchuka/mirabilis/internal/obs.Obs).Close
-        - (*encoding/json.Encoder).Encode
-        - (net/http.ResponseWriter).Write
   exclusions:
     rules:
       - path: "internal/engine/exec/"
@@ -88,6 +81,14 @@ linters:
         linters:
           - forbidigo
         text: "log\\.|fmt\\.Fprint"
+      - path: "internal/engine/provision/provision\\.go"
+        linters:
+          - errcheck
+        text: "fmt\\.Fprint"
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+        text: "fmt\\.Fprint|Encoder\\)\\.Encode|w\\.Write"
 
 formatters:
   enable:

@@ -146,7 +146,8 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"
 	},
-	"create-marker": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
+	"create-marker":      func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
+	"claude-credentials": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
 	"start-marker": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		t.Setenv("MIRABILIS_VERSION", "vtest")
 		d.SessionKey = "sk-contract"

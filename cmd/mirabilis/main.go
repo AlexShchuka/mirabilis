@@ -68,6 +68,7 @@ func runTUI() error {
 		fmt.Fprintln(os.Stderr, "mirabilis: already running")
 		return nil
 	}
+	defer releaseFlock()
 
 	f, err := newFacade(repo)
 	if err != nil {
@@ -85,11 +86,7 @@ func runTUI() error {
 	}()
 	status.New(f.docker, f.obs).Start(ctx)
 
-	chatID, cerr := notify.ReadChatID(repo)
-	if cerr == nil && chatID != "" {
-		n := notify.NewTelegram(f.store, "")
-		go notify.Watch(ctx, notify.OutboxDir(repo), n, f.obs, 0)
-	}
+	go notify.Watch(ctx, notify.OutboxDir(repo), notify.NewTelegram(f.store, ""), f.obs, 0)
 
 	a := app.New(ctx, f)
 	_, err = tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx)).Run()

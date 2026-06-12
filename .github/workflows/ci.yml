@@ -2,6 +2,7 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -32,11 +33,11 @@ jobs:
       - id: cover
         name: coverage summary
         run: |
-          grep -vE 'cmd/(mirabilis|tgsmoke|tgsend)' cover.out > cover_filtered.out
+          grep -v 'cmd/mirabilis' cover.out > cover_filtered.out
           pct=$(go tool cover -func=cover_filtered.out | tail -1 | awk '{print $3}')
           echo "**Coverage:** $pct" >> "$GITHUB_STEP_SUMMARY"
           echo "pct=$pct" >> "$GITHUB_OUTPUT"
-          floor=90   # hard floor; target is 100% — keep raising real coverage, never lower this to pass
+          floor=86   # ratchet: raise alongside real coverage gains, never lower to pass; 90→86 owner-approved in PR#126 — the old floor predated any integration tests and was never reachable (real coverage then 84.1%; now 88.4% with the integration suite, 87.2% without a docker daemon)
           if awk -v pct="$(echo "$pct" | tr -d '%')" -v floor="$floor" 'BEGIN{exit !(pct < floor)}'; then echo "coverage $pct below floor ${floor}%"; exit 1; fi
       - if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4

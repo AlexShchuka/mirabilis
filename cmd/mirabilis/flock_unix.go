@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"syscall"
 )
 
@@ -27,6 +26,12 @@ func acquireFlock(repo string) error {
 		return fmt.Errorf("flock: locked: %w", err)
 	}
 	flockFile = f
-	runtime.KeepAlive(flockFile)
 	return nil
+}
+
+func releaseFlock() {
+	if flockFile != nil {
+		_ = flockFile.Close()
+		flockFile = nil
+	}
 }

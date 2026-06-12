@@ -127,6 +127,30 @@ func TestWatchDeliversPendingJobOnce(t *testing.T) {
 	}
 }
 
+func TestWatchFirstLaunchDeliversJobConfiguredAfterBoot(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), ".mirabilis", "outbox")
+	f := &fakeNotifier{}
+	o, _ := newObs(t)
+	startWatch(t, dir, f, o)
+
+	waitFor(t, "watcher healthy on empty first launch", func() bool {
+		return o.Snapshot()[nodeName].State == obs.StateOK
+	})
+	time.Sleep(50 * time.Millisecond)
+	if state := o.Snapshot()[nodeName].State; state != obs.StateOK {
+		t.Fatalf("obs state = %v on missing outbox dir, want ok", state)
+	}
+
+	mustWriteJob(t, dir, "boot-1", "-42", "configured mid-session")
+	waitFor(t, "delivery without watcher restart", func() bool {
+		st, err := ReadStatus(dir, "boot-1")
+		return err == nil && st.OK
+	})
+	if f.last() != "-42|configured mid-session" {
+		t.Errorf("sent = %q, want -42|configured mid-session", f.last())
+	}
+}
+
 func TestWatchSendFailureDegradesAndNeverRetries(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteJob(t, dir, "fail-1", "-100", "boom payload")

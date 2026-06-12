@@ -49,10 +49,14 @@ boundary, and the Claude and Telegram tokens never entering the container.
   random per host-process start; anyone with host root can read it from the container,
   but it grants no access once the host proxy exits. `claude setup-token` on the host
   is the only setup path; in-container `/login` and `CLAUDE_CODE_OAUTH_TOKEN` injection
-  are both replaced by this chain.
+  are both replaced by this chain. The proxy listens on `127.0.0.1` on macOS; on Linux it
+  binds the Docker bridge gateway IP when the daemon can resolve it and falls back to
+  `0.0.0.0` otherwise — the 256-bit session key remains the auth gate in both cases.
   Note: `~/.claude/.credentials.json` in the `claude-home` volume has higher precedence
-  than `ANTHROPIC_AUTH_TOKEN` — if that file exists it silently wins. The provision-phase
-  TUI warns the owner if both are present.
+  than `ANTHROPIC_AUTH_TOKEN` — if that file existed it would silently win. The provision
+  `start` phase therefore hard-removes it on every launch (`claude-credentials` step, a
+  non-optional gate): in-container `/login` state never survives a relaunch, so the proxy
+  chain stays the only auth path.
 - **Keychain write invariant (macOS):** `KeychainStore` feeds the secret via stdin
   (`cmd.Stdin = ...`), not as a `-w <value>` argument, so the token never appears in
   argv and is not visible in `ps`. This is the single keychain-write seam; callers must
@@ -96,8 +100,7 @@ present the in-container agent has full access to the host Docker daemon — it 
 privileged containers, mount host paths, and perform any operation that a root-equivalent
 user could perform on the Docker Desktop VM. The sandbox fingerprint changes when the
 socket override is applied, so re-creating the container is required. The TUI and
-`SECURITY.md` surface this consequence. The socket is also required for the Ryuk reaper
-container used by testcontainers-go in integration tests.
+`SECURITY.md` surface this consequence.
 
 ## Persistent-memory poisoning
 

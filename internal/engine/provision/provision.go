@@ -48,7 +48,7 @@ func Create(d Deps) []pipeline.Command {
 }
 
 func Start(d Deps) []pipeline.Command {
-	out := []pipeline.Command{&headroomStep{d: d}, &settingsEnvStep{d: d}}
+	out := []pipeline.Command{&credentialsStep{d: d}, &headroomStep{d: d}, &settingsEnvStep{d: d}}
 	out = append(out, carryStart(d)...)
 	return append(out, &startMarkerStep{d: d})
 }
@@ -126,15 +126,15 @@ func writeJSON(path string, m map[string]any) error {
 	tmpName := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	if err := os.Chmod(tmpName, 0o644); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName)
 		return err
 	}
 	return os.Rename(tmpName, path)

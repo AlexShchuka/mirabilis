@@ -30,7 +30,7 @@ func TestEffectiveVersion_fallback(t *testing.T) {
 	orig := version
 	t.Cleanup(func() { version = orig })
 	version = "unknown"
-	os.Unsetenv("MIRABILIS_VERSION")
+	_ = os.Unsetenv("MIRABILIS_VERSION")
 	if got := effectiveVersion(); got != "unknown" {
 		t.Fatalf("expected unknown, got %q", got)
 	}

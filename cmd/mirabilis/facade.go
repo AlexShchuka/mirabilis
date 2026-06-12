@@ -14,6 +14,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/membackup"
+	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
@@ -119,6 +120,22 @@ func (f *facade) SaveMemory(ctx context.Context) error {
 
 func (f *facade) ResetSandbox(ctx context.Context) error {
 	return drain(f.sb.Reset(ctx))
+}
+
+func (f *facade) ConfigureTelegram(ctx context.Context, token string) error {
+	return notify.Configure(ctx, f.store, "", f.repo, token)
+}
+
+func (f *facade) HarnessStatus(ctx context.Context) (string, error) {
+	return steps.HarnessStatus(ctx, f.deps)
+}
+
+func (f *facade) ApplyHarness(ctx context.Context, choice string) error {
+	return steps.HarnessApply(ctx, f.deps, choice)
+}
+
+func (f *facade) OpenVSCode(ctx context.Context) error {
+	return f.sb.OpenVSCode(ctx)
 }
 
 func drain(events <-chan exec.Event) error {

@@ -103,13 +103,13 @@ func TestHarnessCheckHonorsDeadline(t *testing.T) {
 	}
 }
 
-func TestHarnessRunNoopWithoutClaude(t *testing.T) {
+func TestHarnessRunFailsWithoutClaude(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
 		Expect(harnessBash("command -v claude"), "", errors.New("not found"))
 	s := newHarnessForTest(t, fake)
-	if _, err := runStep(t, s, nil); err != nil {
-		t.Fatalf("run: %v", err)
+	if _, err := runStep(t, s, nil); !errors.Is(err, errHarnessContainer) {
+		t.Fatalf("run err = %v, want errHarnessContainer", err)
 	}
 	if got := len(fake.Calls()); got != 1 {
 		t.Fatalf("got %d calls, want 1", got)

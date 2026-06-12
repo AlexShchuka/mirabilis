@@ -48,6 +48,8 @@ func NewHarness(id bus.NodeID, current string) Harness {
 
 func harnessLabel(current string) string {
 	switch current {
+	case HarnessOn:
+		return uistr.MenuHarnessOn
 	case HarnessOff:
 		return uistr.MenuHarnessOff
 	case "missing":

@@ -23,22 +23,28 @@ type Facade interface {
 	NewTokenTee() (io.Writer, func() (string, bool))
 	SaveMemory(ctx context.Context) error
 	ResetSandbox(ctx context.Context) error
+	ConfigureTelegram(ctx context.Context, token string) error
+	HarnessStatus(ctx context.Context) (string, error)
+	ApplyHarness(ctx context.Context, choice string) error
+	OpenVSCode(ctx context.Context) error
 }
 
 var execRunner = tea.Exec
 
 type App struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	facade     Facade
-	statusCh   <-chan obs.Snapshot
-	frame      frame.Model
-	router     router.Model
-	pipe       *pipeline.Pipeline
-	waiting    string
-	menuAction string
-	winW       int
-	winH       int
+	ctx             context.Context
+	cancel          context.CancelFunc
+	facade          Facade
+	statusCh        <-chan obs.Snapshot
+	frame           frame.Model
+	router          router.Model
+	pipe            *pipeline.Pipeline
+	waiting         string
+	menuAction      string
+	winW            int
+	winH            int
+	launchCancelled bool
+	busy            bool
 }
 
 func New(ctx context.Context, f Facade) App {
@@ -100,6 +106,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case resetDoneMsg:
 		return a.handleResetDone(msg)
+
+	case telegramDoneMsg:
+		return a.handleTelegramDone(msg)
+
+	case harnessStatusMsg:
+		return a.handleHarnessStatus(msg)
+
+	case harnessDoneMsg:
+		return a.handleHarnessDone(msg)
+
+	case vscodeDoneMsg:
+		return a.handleVSCodeDone(msg)
 	}
 
 	var cmd tea.Cmd
