@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -200,20 +201,22 @@ func TestKeychainStoreGetTimeout(t *testing.T) {
 }
 
 func TestKeychainAccountResolution(t *testing.T) {
+	currentUser, err := user.Current()
+	if err != nil {
+		t.Fatalf("user.Current: %v", err)
+	}
+
 	tests := []struct {
 		name    string
 		envAcct string
-		envUser string
 		want    string
 	}{
-		{name: "explicit override", envAcct: "override-acct", envUser: "someone", want: "override-acct"},
-		{name: "user fallback", envUser: "someone", want: "someone"},
-		{name: "default account", want: "mirabilis"},
+		{name: "explicit override", envAcct: "override-acct", want: "override-acct"},
+		{name: "os user fallback", want: currentUser.Username},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", tt.envAcct)
-			t.Setenv("USER", tt.envUser)
 			fake := exec.NewFake()
 			fake.Expect(findNewArgv(tt.want, "claude-token"), "tok\n", nil)
 			store := NewKeychainStore(fake, t.TempDir())

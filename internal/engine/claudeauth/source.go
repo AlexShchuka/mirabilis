@@ -45,3 +45,9 @@ func (s *cachedSource) Token(ctx context.Context) (string, error) {
 	s.token = value
 	return value, nil
 }
+
+func (s *cachedSource) Invalidate() {
+	s.mu.Lock()
+	s.token = ""
+	s.mu.Unlock()
+}

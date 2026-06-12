@@ -14,6 +14,8 @@ import (
 	"github.com/creack/pty"
 )
 
+const ttyWaitDelay = 5 * time.Second
+
 type TTY struct {
 	stdin          io.Reader
 	stdout, stderr io.Writer
@@ -31,6 +33,8 @@ func (t *TTY) Run() error {
 	cmd.Stdin = t.stdin
 	cmd.Stdout = t.stdout
 	cmd.Stderr = t.stderr
+	cmd.WaitDelay = ttyWaitDelay
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd.Run()
 }
 
@@ -53,12 +57,16 @@ func (p *PTYTee) SetStderr(w io.Writer) { p.stderr = w }
 func (p *PTYTee) Run() error {
 	cmd := osexec.Command(p.Argv[0], p.Argv[1:]...)
 	cmd.Env = append(os.Environ(), p.Env...)
+	cmd.WaitDelay = ttyWaitDelay
 
 	master, err := p.start(cmd)
 	if err != nil {
 		return err
 	}
-	defer master.Close()
+
+	var closeOnce sync.Once
+	closeMaster := func() { closeOnce.Do(func() { master.Close() }) }
+	defer closeMaster()
 
 	stopWinch := p.forwardWinch(master)
 	defer stopWinch()
@@ -83,6 +91,7 @@ func (p *PTYTee) Run() error {
 
 	err = cmd.Wait()
 	close(inDone)
+	closeMaster()
 	outDone.Wait()
 	return err
 }
@@ -120,7 +129,15 @@ func (p *PTYTee) pumpStdin(master *os.File, done <-chan struct{}) {
 	}
 	f, ok := p.stdin.(*os.File)
 	if !ok {
-		_, _ = io.Copy(master, p.stdin)
+		copyDone := make(chan struct{})
+		go func() {
+			defer close(copyDone)
+			_, _ = io.Copy(master, p.stdin)
+		}()
+		select {
+		case <-done:
+		case <-copyDone:
+		}
 		return
 	}
 	defer func() { _ = f.SetReadDeadline(time.Time{}) }()

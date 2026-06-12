@@ -31,6 +31,10 @@ type execDoneMsg struct {
 	err  error
 }
 
+type resetDoneMsg struct {
+	err error
+}
+
 func watchStatus(ch <-chan obs.Snapshot) tea.Cmd {
 	return func() tea.Msg {
 		snap, ok := <-ch
@@ -134,15 +138,7 @@ func (a *App) handleTerminal(ev pipeline.Event) tea.Cmd {
 			return execDoneMsg{step: step, err: err}
 		})
 	}
-	attachArgv, aerr := a.facade.AttachArgv(a.ctx)
-	if aerr != nil {
-		if a.pipe != nil {
-			_ = a.pipe.Resume(step, pipeline.Result{Cancelled: true})
-		}
-		return nil
-	}
-	_ = argv
-	cmd := &exec.TTY{Argv: attachArgv}
+	cmd := &exec.TTY{Argv: argv}
 	return execRunner(cmd, func(err error) tea.Msg {
 		return execDoneMsg{step: step, err: err}
 	})
@@ -181,15 +177,24 @@ func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd 
 		if v, ok := msg.Value.(bool); ok && v {
 			ctx := a.ctx
 			f := a.facade
-			m, _ := a.backToMenu(uistr.NoticeResetDone)
+			m, _ := a.backToMenu("")
 			return m, tea.Cmd(func() tea.Msg {
-				_ = f.SaveMemory(ctx)
-				_ = f.ResetSandbox(ctx)
-				return nil
+				if err := f.SaveMemory(ctx); err != nil {
+					return resetDoneMsg{err: err}
+				}
+				return resetDoneMsg{err: f.ResetSandbox(ctx)}
 			})
 		}
 	}
 	return a, popCmd
+}
+
+func (a App) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		a.facade.Logger().Error(uistr.LogResetFailed, "err", msg.err)
+		return a.backToMenu(uistr.NoticeResetFailed)
+	}
+	return a.backToMenu(uistr.NoticeResetDone)
 }
 
 func (a App) handleScreenPop() (tea.Model, tea.Cmd) {

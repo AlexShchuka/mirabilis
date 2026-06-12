@@ -19,7 +19,6 @@ type Facade interface {
 	LaunchSteps() []pipeline.Command
 	Logger() *slog.Logger
 	StatusUpdates() <-chan obs.Snapshot
-	AttachArgv(ctx context.Context) ([]string, error)
 	OnTokenExtracted(token string)
 	NewTokenTee() (io.Writer, func() (string, bool))
 	SaveMemory(ctx context.Context) error
@@ -32,6 +31,7 @@ type App struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	facade     Facade
+	statusCh   <-chan obs.Snapshot
 	frame      frame.Model
 	router     router.Model
 	pipe       *pipeline.Pipeline
@@ -45,11 +45,12 @@ func New(ctx context.Context, f Facade) App {
 	ctx, cancel := context.WithCancel(ctx)
 	menu := screens.NewMenu("app/menu")
 	a := App{
-		ctx:    ctx,
-		cancel: cancel,
-		facade: f,
-		frame:  frame.New("mirabilis", "v2.0.0", screens.MenuItems()),
-		router: router.New(menu),
+		ctx:      ctx,
+		cancel:   cancel,
+		facade:   f,
+		statusCh: f.StatusUpdates(),
+		frame:    frame.New("mirabilis", "v2.0.0", screens.MenuItems()),
+		router:   router.New(menu),
 	}
 	return a
 }
@@ -57,7 +58,7 @@ func New(ctx context.Context, f Facade) App {
 func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.router.Init(),
-		watchStatus(a.facade.StatusUpdates()),
+		watchStatus(a.statusCh),
 	)
 }
 
@@ -74,7 +75,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var fc tea.Cmd
 		sc := bus.StatusChanged{Snapshot: obs.Snapshot(msg)}
 		a.frame, fc = a.frame.Update(sc)
-		return a, tea.Batch(fc, watchStatus(a.facade.StatusUpdates()))
+		return a, tea.Batch(fc, watchStatus(a.statusCh))
 
 	case tea.KeyPressMsg:
 		return a.handleKey(msg)
@@ -96,6 +97,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case execDoneMsg:
 		return a.handleExecDone(msg)
+
+	case resetDoneMsg:
+		return a.handleResetDone(msg)
 	}
 
 	var cmd tea.Cmd

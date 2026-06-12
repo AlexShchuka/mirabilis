@@ -1,8 +1,10 @@
 package steps
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
@@ -31,6 +33,26 @@ func TestGHAuthCheck(t *testing.T) {
 		t.Parallel()
 		mustCheck(t, newGHAuthForTest(t, exec.NewFake().Expect(status, "", errors.New("not logged in"))), false)
 	})
+}
+
+func TestGHAuthCheckHonorsDeadline(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().ExpectHang([]string{"docker", "exec", "mirabilis", "gh"})
+	s := newGHAuthForTest(t, fake)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	ok, err := s.Check(ctx)
+	elapsed := time.Since(start)
+	if ok {
+		t.Fatal("Check = true, want false on hung exec")
+	}
+	if err != nil {
+		t.Fatalf("Check err = %v, want nil", err)
+	}
+	if elapsed > 3*time.Second {
+		t.Fatalf("Check took %v, want < 3s when parent ctx expires", elapsed)
+	}
 }
 
 func TestGHAuthRunExtractsCodeAndURL(t *testing.T) {

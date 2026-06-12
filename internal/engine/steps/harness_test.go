@@ -1,9 +1,11 @@
 package steps
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
@@ -76,6 +78,28 @@ func TestHarnessRunFallsBackToMarketplaceUpdate(t *testing.T) {
 	want := []string{"docker", "exec", "mirabilis", "claude", "plugin", "marketplace", "update", "neuro-matrix"}
 	if got := fake.Calls()[2].Argv; !slices.Equal(got, want) {
 		t.Fatalf("fallback argv = %v, want %v", got, want)
+	}
+}
+
+func TestHarnessCheckHonorsDeadline(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().
+		Expect(harnessBash(harnessPrefScript), "", nil).
+		ExpectHang(harnessBash(harnessProbeScript))
+	s := newHarnessForTest(t, fake)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	ok, err := s.Check(ctx)
+	elapsed := time.Since(start)
+	if ok {
+		t.Fatal("Check = true, want false on hung exec")
+	}
+	if err != nil {
+		t.Fatalf("Check err = %v, want nil", err)
+	}
+	if elapsed > 3*time.Second {
+		t.Fatalf("Check took %v, want < 3s when parent ctx expires", elapsed)
 	}
 }
 

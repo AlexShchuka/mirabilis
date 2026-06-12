@@ -12,9 +12,13 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
+const maxLines = 5000
+
 type Model struct {
 	vp      viewport.Model
-	lines   []string
+	ring    [maxLines]string
+	head    int
+	size    int
 	width   int
 	focused bool
 	follow  bool
@@ -31,13 +35,30 @@ func (m *Model) SetSize(w, h int) {
 	m.refresh()
 }
 
-func (m *Model) Add(line string) {
-	m.lines = append(m.lines, line)
-	m.refresh()
+func (m *Model) add(line string) {
+	if m.size < maxLines {
+		m.ring[(m.head+m.size)%maxLines] = line
+		m.size++
+	} else {
+		m.ring[m.head] = line
+		m.head = (m.head + 1) % maxLines
+	}
+}
+
+func (m Model) Lines() []string {
+	out := make([]string, m.size)
+	for i := range m.size {
+		out[i] = m.ring[(m.head+i)%maxLines]
+	}
+	return out
 }
 
 func (m *Model) refresh() {
-	m.vp.SetContent(strings.Join(m.lines, "\n"))
+	lines := make([]string, m.size)
+	for i := range m.size {
+		lines[i] = m.ring[(m.head+i)%maxLines]
+	}
+	m.vp.SetContent(strings.Join(lines, "\n"))
 	if m.follow {
 		m.vp.GotoBottom()
 	}
@@ -59,22 +80,24 @@ func (m Model) Following() bool {
 	return m.follow
 }
 
-func (m Model) Lines() []string {
-	return append([]string(nil), m.lines...)
-}
-
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case bus.StepEvent:
+		added := false
 		switch msg.Kind {
 		case bus.StepStarted:
 			if len(msg.Argv) > 0 {
-				m.Add(uistr.CmdlogPrefix + strings.Join(msg.Argv, " "))
+				m.add(uistr.CmdlogPrefix + strings.Join(msg.Argv, " "))
+				added = true
 			}
 		case bus.StepLine:
 			if msg.Line != "" {
-				m.Add(msg.Line)
+				m.add(msg.Line)
+				added = true
 			}
+		}
+		if added {
+			m.refresh()
 		}
 		return m, nil
 	case tea.KeyPressMsg:

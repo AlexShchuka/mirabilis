@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
@@ -71,6 +73,26 @@ func TestProvisionStartCheck(t *testing.T) {
 			s := newProvision(newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore()), phaseStart)
 			mustCheck(t, s, tc.want)
 		})
+	}
+}
+
+func TestProvisionCheckHonorsDeadline(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().ExpectHang([]string{"docker", "exec", "mirabilis", "cat"})
+	s := newProvision(newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore()), phaseCreate)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	ok, err := s.Check(ctx)
+	elapsed := time.Since(start)
+	if ok {
+		t.Fatal("Check = true, want false on hung exec")
+	}
+	if err != nil {
+		t.Fatalf("Check err = %v, want nil", err)
+	}
+	if elapsed > 3*time.Second {
+		t.Fatalf("Check took %v, want < 3s when parent ctx expires", elapsed)
 	}
 }
 

@@ -96,4 +96,6 @@ const (
 
 	NoticeLaunchFailed    = "launch failed"
 	NoticeLaunchErrPrefix = "launch error: "
+	NoticeResetFailed     = "reset failed"
+	LogResetFailed        = "reset failed"
 )

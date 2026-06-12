@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
@@ -39,7 +40,9 @@ func (s *ghAuthStep) Meta() pipeline.Meta {
 }
 
 func (s *ghAuthStep) Check(ctx context.Context) (bool, error) {
-	_, err := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("gh", "auth", "status")})
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := exec.Run(checkCtx, s.d.Runner, exec.Spec{Argv: containerArgv("gh", "auth", "status")})
 	return err == nil, nil
 }
 

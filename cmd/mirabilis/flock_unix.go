@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 )
+
+var flockFile *os.File
 
 func acquireFlock(repo string) error {
 	dir := filepath.Join(repo, ".mirabilis")
@@ -23,5 +26,7 @@ func acquireFlock(repo string) error {
 		f.Close()
 		return fmt.Errorf("flock: locked: %w", err)
 	}
+	flockFile = f
+	runtime.KeepAlive(flockFile)
 	return nil
 }

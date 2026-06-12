@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const ptyTestDeadline = 5 * time.Second
+
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -75,6 +77,45 @@ func TestPTYTeeChildSeesTTYAndTeeCaptures(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "notty") {
 		t.Fatal("child did not get a tty")
+	}
+}
+
+func TestPTYTeeTokenCapturedAndReturns(t *testing.T) {
+	var tee syncBuffer
+	var out syncBuffer
+	cmd := NewPTYTee([]string{"/bin/sh", "-c", "echo sk-ant-oat01-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}, &tee)
+	cmd.SetStdout(&out)
+	done := make(chan error, 1)
+	go func() { done <- cmd.Run() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(ptyTestDeadline):
+		t.Fatal("PTYTee.Run timed out — regression: blocked after child exit")
+	}
+	if !strings.Contains(tee.String(), "sk-ant-oat01-") {
+		t.Fatalf("tee did not capture token: %q", tee.String())
+	}
+}
+
+func TestPTYTeeGrandchildHoldingSlaveCantHang(t *testing.T) {
+	var out syncBuffer
+	cmd := NewPTYTee([]string{"/bin/sh", "-c", "sleep 30 & echo done"}, nil)
+	cmd.SetStdout(&out)
+	done := make(chan error, 1)
+	go func() { done <- cmd.Run() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(ptyTestDeadline):
+		t.Fatal("PTYTee.Run timed out — regression: grandchild holding slave fd blocked master close")
+	}
+	if !strings.Contains(out.String(), "done") {
+		t.Fatalf("stdout missing expected output: %q", out.String())
 	}
 }
 

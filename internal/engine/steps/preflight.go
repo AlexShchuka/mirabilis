@@ -32,10 +32,12 @@ func (s *preflightStep) Meta() pipeline.Meta {
 }
 
 func (s *preflightStep) Check(ctx context.Context) (bool, error) {
-	if !s.dockerUp(ctx) {
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if !s.dockerUp(checkCtx) {
 		return false, nil
 	}
-	_, err := exec.Run(ctx, s.d.Runner, s.composeConfigSpec())
+	_, err := exec.Run(checkCtx, s.d.Runner, s.composeConfigSpec())
 	return err == nil, nil
 }
 

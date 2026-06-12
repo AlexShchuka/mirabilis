@@ -3,8 +3,10 @@ package app_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/app"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
+	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
 func init() {
@@ -45,16 +48,18 @@ func getCaptured() (tea.ExecCommand, tea.ExecCallback) {
 }
 
 type fakeFacade struct {
-	mu              sync.Mutex
-	steps           []pipeline.Command
-	statusCh        chan obs.Snapshot
-	tokenExtracted  string
-	teeCalled       bool
-	attachArgvCalls int
-	saveCalls       int
-	resetCalls      int
-	callLog         []string
-	newTokenTeeHook func(io.Writer, func() (string, bool))
+	mu                 sync.Mutex
+	steps              []pipeline.Command
+	statusCh           chan obs.Snapshot
+	tokenExtracted     string
+	teeCalled          bool
+	saveCalls          int
+	resetCalls         int
+	statusUpdatesCalls int
+	callLog            []string
+	newTokenTeeHook    func(io.Writer, func() (string, bool))
+	saveErr            error
+	resetErr           error
 }
 
 func newFakeFacade(steps []pipeline.Command) *fakeFacade {
@@ -62,6 +67,12 @@ func newFakeFacade(steps []pipeline.Command) *fakeFacade {
 		steps:    steps,
 		statusCh: make(chan obs.Snapshot, 4),
 	}
+}
+
+func (f *fakeFacade) statusUpdatesCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.statusUpdatesCalls
 }
 
 func (f *fakeFacade) LaunchSteps() []pipeline.Command {
@@ -75,14 +86,10 @@ func (f *fakeFacade) Logger() *slog.Logger {
 }
 
 func (f *fakeFacade) StatusUpdates() <-chan obs.Snapshot {
-	return f.statusCh
-}
-
-func (f *fakeFacade) AttachArgv(_ context.Context) ([]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.attachArgvCalls++
-	return []string{"docker", "exec", "-it", "mirabilis", "claude"}, nil
+	f.statusUpdatesCalls++
+	return f.statusCh
 }
 
 func (f *fakeFacade) OnTokenExtracted(token string) {
@@ -112,7 +119,7 @@ func (f *fakeFacade) SaveMemory(_ context.Context) error {
 	defer f.mu.Unlock()
 	f.saveCalls++
 	f.callLog = append(f.callLog, "SaveMemory")
-	return nil
+	return f.saveErr
 }
 
 func (f *fakeFacade) ResetSandbox(_ context.Context) error {
@@ -120,7 +127,7 @@ func (f *fakeFacade) ResetSandbox(_ context.Context) error {
 	defer f.mu.Unlock()
 	f.resetCalls++
 	f.callLog = append(f.callLog, "ResetSandbox")
-	return nil
+	return f.resetErr
 }
 
 func (f *fakeFacade) getCallLog() []string {
@@ -635,5 +642,73 @@ func TestReset_PopReturnsToMenuWithoutCalls(t *testing.T) {
 
 	if save != 0 || reset != 0 {
 		t.Errorf("expected no facade calls on ScreenPop, got saveCalls=%d resetCalls=%d", save, reset)
+	}
+}
+
+func TestReset_SuccessNoticeAppearsAfterCompletion(t *testing.T) {
+	f := newFakeFacade(nil)
+	tm := newApp(t, f)
+
+	tm.Send(bus.MenuChosen{Action: screens.ActionReset})
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("Delete everything"))
+	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	tm.Send(bus.ScreenResult{Value: true})
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte(uistr.NoticeResetDone))
+	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+}
+
+func TestReset_FailureShowsFailureNotice(t *testing.T) {
+	f := newFakeFacade(nil)
+	f.resetErr = errors.New("compose down failed")
+	tm := newApp(t, f)
+
+	tm.Send(bus.MenuChosen{Action: screens.ActionReset})
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("Delete everything"))
+	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	tm.Send(bus.ScreenResult{Value: true})
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte(uistr.NoticeResetFailed))
+	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	f.mu.Lock()
+	saveN := f.saveCalls
+	resetN := f.resetCalls
+	f.mu.Unlock()
+	if saveN != 1 {
+		t.Errorf("SaveMemory called %d times, want 1", saveN)
+	}
+	if resetN != 1 {
+		t.Errorf("ResetSandbox called %d times, want 1", resetN)
+	}
+}
+
+func TestStatusUpdatesSubscribedOnce(t *testing.T) {
+	f := newFakeFacade(nil)
+	tm := newApp(t, f)
+
+	for i := range 5 {
+		f.mu.Lock()
+		f.statusCh <- obs.Snapshot{"node": obs.NodeStatus{State: obs.StateOK, Detail: strconv.Itoa(i)}}
+		f.mu.Unlock()
+	}
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("mirabilis"))
+	}, teatest.WithDuration(3*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	time.Sleep(100 * time.Millisecond)
+
+	n := f.statusUpdatesCount()
+	if n != 1 {
+		t.Errorf("StatusUpdates() called %d times, want exactly 1 (subscribe-once violation)", n)
 	}
 }

@@ -184,3 +184,46 @@ func TestClose(t *testing.T) {
 		t.Error("second Close returned nil, want error")
 	}
 }
+
+func TestWatchCountStaysAtOne(t *testing.T) {
+	o := newTestObs(t)
+	ch := o.Watch()
+
+	for i := range 10 {
+		o.Set("node", StateOK, strconv.Itoa(i))
+		select {
+		case <-ch:
+		default:
+		}
+	}
+
+	o.mu.Lock()
+	n := len(o.watchers)
+	o.mu.Unlock()
+
+	if n != 1 {
+		t.Fatalf("watcher count = %d after 10 Sets on same channel, want 1", n)
+	}
+}
+
+func TestUnwatch(t *testing.T) {
+	o := newTestObs(t)
+	ch := o.Watch()
+
+	o.mu.Lock()
+	before := len(o.watchers)
+	o.mu.Unlock()
+
+	o.Unwatch(ch)
+
+	o.mu.Lock()
+	after := len(o.watchers)
+	o.mu.Unlock()
+
+	if before != 1 {
+		t.Fatalf("before Unwatch: watcher count = %d, want 1", before)
+	}
+	if after != 0 {
+		t.Fatalf("after Unwatch: watcher count = %d, want 0", after)
+	}
+}

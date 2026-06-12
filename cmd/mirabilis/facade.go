@@ -104,12 +104,6 @@ func (f *facade) StatusUpdates() <-chan obs.Snapshot {
 	return f.obs.Watch()
 }
 
-func (f *facade) AttachArgv(ctx context.Context) ([]string, error) {
-	ghToken := os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
-	spf := f.sb.SystemPromptFile(ctx)
-	return sandbox.BuildAttachArgv(spf, ghToken), nil
-}
-
 func (f *facade) OnTokenExtracted(token string) {
 	claudeauth.StoreInBackground(f.store, token, f.obs)
 }
@@ -124,10 +118,17 @@ func (f *facade) SaveMemory(ctx context.Context) error {
 }
 
 func (f *facade) ResetSandbox(ctx context.Context) error {
-	events := f.sb.Reset(ctx)
-	for range events {
+	return drain(f.sb.Reset(ctx))
+}
+
+func drain(events <-chan exec.Event) error {
+	var err error
+	for ev := range events {
+		if ev.Kind == exec.KindExited {
+			err = ev.Err
+		}
 	}
-	return nil
+	return err
 }
 
 func resolveRepo() string {

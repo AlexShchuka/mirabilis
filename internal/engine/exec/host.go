@@ -91,6 +91,9 @@ func scanPipe(r io.Reader, kind EventKind, ch chan<- Event, wg *sync.WaitGroup) 
 	for scanner.Scan() {
 		ch <- Event{Kind: kind, Line: scanner.Text()}
 	}
+	if err := scanner.Err(); err != nil {
+		ch <- Event{Kind: KindStderr, Line: "scan error: " + err.Error()}
+	}
 }
 
 func exitCode(err error) int {

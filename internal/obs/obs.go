@@ -101,6 +101,17 @@ func (o *Obs) Watch() <-chan Snapshot {
 	return ch
 }
 
+func (o *Obs) Unwatch(ch <-chan Snapshot) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for i, w := range o.watchers {
+		if w == ch {
+			o.watchers = append(o.watchers[:i], o.watchers[i+1:]...)
+			return
+		}
+	}
+}
+
 func (o *Obs) Close() error {
 	return o.file.Close()
 }

@@ -29,7 +29,7 @@ func filled(n int) Model {
 	m := New()
 	m.SetSize(40, 5)
 	for i := 0; i < n; i++ {
-		m.Add(fmt.Sprintf("line %d", i))
+		m, _ = m.Update(bus.StepEvent{Step: "s", Kind: bus.StepLine, Line: fmt.Sprintf("line %d", i)})
 	}
 	return m
 }
@@ -83,7 +83,7 @@ func TestScrollUpSuspendsFollow(t *testing.T) {
 	if m.Following() {
 		t.Fatal("Following() = true after scrolling up")
 	}
-	m.Add("line 10")
+	m, _ = m.Update(bus.StepEvent{Step: "s", Kind: bus.StepLine, Line: "line 10"})
 	if strings.Contains(plain(m.View()), "line 10") {
 		t.Errorf("View() = %q, new line must not force a jump while scrolled up", m.View())
 	}
@@ -99,7 +99,7 @@ func TestScrollBackToBottomResumesFollow(t *testing.T) {
 	if !m.Following() {
 		t.Fatal("Following() = false after returning to bottom")
 	}
-	m.Add("line 10")
+	m, _ = m.Update(bus.StepEvent{Step: "s", Kind: bus.StepLine, Line: "line 10"})
 	if !strings.Contains(plain(m.View()), "line 10") {
 		t.Errorf("View() = %q, want autoscroll resumed", m.View())
 	}
@@ -130,5 +130,25 @@ func TestViewTitleRule(t *testing.T) {
 	first := strings.Split(plain(m.View()), "\n")[0]
 	if !strings.Contains(first, "─ commands ─") {
 		t.Errorf("title rule = %q, want commands rule", first)
+	}
+}
+
+func TestRingBufferCap(t *testing.T) {
+	const n = 20000
+	m := New()
+	for i := range n {
+		m.add(fmt.Sprintf("line %d", i))
+	}
+	lines := m.Lines()
+	if len(lines) > maxLines {
+		t.Fatalf("len(lines) = %d after %d adds, want ≤ %d", len(lines), n, maxLines)
+	}
+	newest := fmt.Sprintf("line %d", n-1)
+	if len(lines) == 0 || lines[len(lines)-1] != newest {
+		last := ""
+		if len(lines) > 0 {
+			last = lines[len(lines)-1]
+		}
+		t.Errorf("newest line = %q, want %q", last, newest)
 	}
 }

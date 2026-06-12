@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,6 +28,39 @@ type staticToken struct {
 }
 
 func (s staticToken) Token(context.Context) (string, error) { return s.token, s.err }
+
+type switchableToken struct {
+	mu          sync.Mutex
+	token       string
+	err         error
+	invalidated int
+}
+
+func (s *switchableToken) Token(_ context.Context) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.token, s.err
+}
+
+func (s *switchableToken) set(token string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.token = token
+	s.err = err
+}
+
+func (s *switchableToken) Invalidate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invalidated++
+	s.token = ""
+}
+
+func (s *switchableToken) invalidations() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.invalidated
+}
 
 func newTestObs(t *testing.T) (*obs.Obs, string) {
 	t.Helper()
@@ -123,16 +156,131 @@ func TestBindHost(t *testing.T) {
 	}
 }
 
-func TestStartTokenError(t *testing.T) {
+func TestStartSucceedsWithoutToken(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
-	p := New(staticToken{err: errors.New("keychain stalled")}, o, 0)
-	err := p.Start(context.Background())
-	if err == nil {
-		t.Fatal("Start = nil, want error")
+	ts := &switchableToken{}
+	p := New(ts, o, 0)
+	u, err := url.Parse(upstream.URL)
+	if err != nil {
+		t.Fatalf("parse upstream: %v", err)
+	}
+	p.upstream = u
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); waitDone(t, p) })
+
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start with no token = %v, want nil", err)
+	}
+	st := o.Snapshot()[node]
+	if st.State != obs.StateOK || !strings.HasPrefix(st.Detail, "listening :") {
+		t.Fatalf("proxy state after Start = %v %q, want ok listening", st.State, st.Detail)
+	}
+}
+
+func TestTokenAbsentAtBootRequestGets503(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("upstream reached despite missing token")
+	}))
+	t.Cleanup(upstream.Close)
+	o, _ := newTestObs(t)
+	ts := &switchableToken{}
+	p := New(ts, o, 0)
+	u, _ := url.Parse(upstream.URL)
+	p.upstream = u
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); waitDone(t, p) })
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	resp := doRequest(t, p, "Bearer "+p.Key(), "")
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.StatusCode)
 	}
 	st := o.Snapshot()[node]
 	if st.State != obs.StateDegraded {
 		t.Fatalf("proxy state = %v, want degraded", st.State)
+	}
+}
+
+func TestTokenAppearsLaterSelfHeals(t *testing.T) {
+	var gotAuth atomic.Value
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth.Store(r.Header.Get("Authorization"))
+		fmt.Fprint(w, "ok")
+	}))
+	t.Cleanup(upstream.Close)
+	o, _ := newTestObs(t)
+	ts := &switchableToken{}
+	p := New(ts, o, 0)
+	u, _ := url.Parse(upstream.URL)
+	p.upstream = u
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); waitDone(t, p) })
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	resp1 := doRequest(t, p, "Bearer "+p.Key(), "")
+	if resp1.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("first request status = %d, want 503 (no token yet)", resp1.StatusCode)
+	}
+
+	ts.set(testToken, nil)
+
+	resp2 := doRequest(t, p, "Bearer "+p.Key(), "")
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("second request status = %d, want 200 (token now available)", resp2.StatusCode)
+	}
+	if got := gotAuth.Load(); got != "Bearer "+testToken {
+		t.Fatalf("upstream Authorization = %v, want Bearer <token>", got)
+	}
+}
+
+func TestUpstream401InvalidatesToken(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "oauth rejected", http.StatusUnauthorized)
+	}))
+	t.Cleanup(upstream.Close)
+	o, _ := newTestObs(t)
+	ts := &switchableToken{token: testToken}
+	p := New(ts, o, 0)
+	u, _ := url.Parse(upstream.URL)
+	p.upstream = u
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); waitDone(t, p) })
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	resp := doRequest(t, p, "Bearer "+p.Key(), "")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (upstream rejected)", resp.StatusCode)
+	}
+	if got := ts.invalidations(); got != 1 {
+		t.Fatalf("invalidations = %d, want 1 (rotation: a rejected token must be evicted)", got)
+	}
+	if st := o.Snapshot()[node]; st.State != obs.StateDegraded {
+		t.Fatalf("proxy state = %v, want degraded after upstream 401", st.State)
+	}
+}
+
+func TestReadHeaderTimeoutSet(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	t.Cleanup(upstream.Close)
+	o, _ := newTestObs(t)
+	p, _ := startProxy(t, o, upstream.URL)
+	_ = p
+	if readHeaderTimeout == 0 {
+		t.Fatal("readHeaderTimeout must be non-zero")
+	}
+	if readTimeout == 0 {
+		t.Fatal("readTimeout must be non-zero")
+	}
+	if idleTimeout == 0 {
+		t.Fatal("idleTimeout must be non-zero")
 	}
 }
 
@@ -158,8 +306,8 @@ func TestAuthorizationInjection(t *testing.T) {
 		t.Fatalf("upstream Authorization = %v, want Bearer <token>", got)
 	}
 	st := o.Snapshot()[node]
-	if st.State != obs.StateOK || !strings.HasPrefix(st.Detail, "listening :") {
-		t.Fatalf("proxy status = %v %q, want ok listening", st.State, st.Detail)
+	if st.State != obs.StateOK {
+		t.Fatalf("proxy state = %v, want ok", st.State)
 	}
 }
 

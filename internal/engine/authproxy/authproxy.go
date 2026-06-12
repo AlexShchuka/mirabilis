@@ -21,8 +21,12 @@ import (
 )
 
 const (
-	node            = "proxy"
-	shutdownTimeout = 3 * time.Second
+	node              = "proxy"
+	shutdownTimeout   = 3 * time.Second
+	tokenResolveLimit = 5 * time.Second
+	readHeaderTimeout = 15 * time.Second
+	readTimeout       = 60 * time.Second
+	idleTimeout       = 120 * time.Second
 )
 
 type Proxy struct {
@@ -57,12 +61,8 @@ func (p *Proxy) Key() string { return p.key }
 func (p *Proxy) Addr() string { return p.addr }
 
 func (p *Proxy) Start(ctx context.Context) error {
-	token, err := p.ts.Token(ctx)
-	if err != nil {
-		p.obs.Set(node, obs.StateDegraded, "token unavailable")
-		return fmt.Errorf("authproxy: token: %w", err)
-	}
-	ln, err := net.Listen("tcp", net.JoinHostPort(bindHost(runtime.GOOS), strconv.Itoa(p.port)))
+	host := bindHost(runtime.GOOS)
+	ln, err := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(p.port)))
 	if err != nil {
 		p.obs.Set(node, obs.StateDegraded, "listen failed")
 		return fmt.Errorf("authproxy: listen: %w", err)
@@ -70,9 +70,14 @@ func (p *Proxy) Start(ctx context.Context) error {
 	p.addr = ln.Addr().String()
 	_, boundPort, _ := net.SplitHostPort(p.addr)
 	p.obs.Set(node, obs.StateOK, "listening :"+boundPort)
-	p.log.Info("listening", slog.String("addr", p.addr))
+	p.log.Info("listening", slog.String("addr", p.addr), slog.String("interface", host))
 
-	srv := &http.Server{Handler: p.handler(token)}
+	srv := &http.Server{
+		Handler:           p.handler(),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       idleTimeout,
+	}
 	served := make(chan struct{})
 	go func() {
 		defer close(served)
@@ -97,12 +102,16 @@ func (p *Proxy) Start(ctx context.Context) error {
 	return nil
 }
 
-func (p *Proxy) handler(token string) http.Handler {
+type tokenKey struct{}
+
+func (p *Proxy) handler() http.Handler {
 	rp := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(p.upstream)
 			pr.Out.Host = p.upstream.Host
-			pr.Out.Header.Set("Authorization", "Bearer "+token)
+			if tok, ok := pr.In.Context().Value(tokenKey{}).(string); ok {
+				pr.Out.Header.Set("Authorization", "Bearer "+tok)
+			}
 		},
 		FlushInterval: -1,
 		ErrorLog:      slog.NewLogLogger(p.log.Handler(), slog.LevelInfo),
@@ -124,7 +133,24 @@ func (p *Proxy) handler(token string) http.Handler {
 			http.Error(sw, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		rp.ServeHTTP(sw, r)
+		tokenCtx, cancel := context.WithTimeout(r.Context(), tokenResolveLimit)
+		defer cancel()
+		token, err := p.ts.Token(tokenCtx)
+		if err != nil || token == "" {
+			p.obs.Set(node, obs.StateDegraded, "token not ready")
+			p.log.Info("token not ready", slog.Bool("has_err", err != nil))
+			http.Error(sw, "service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		rp.ServeHTTP(sw, r.WithContext(context.WithValue(r.Context(), tokenKey{}, token)))
+		if sw.status == http.StatusUnauthorized {
+			if inv, ok := p.ts.(interface{ Invalidate() }); ok {
+				inv.Invalidate()
+			}
+			p.obs.Set(node, obs.StateDegraded, "upstream rejected token")
+			return
+		}
+		p.obs.Set(node, obs.StateOK, "ok")
 	})
 }
 

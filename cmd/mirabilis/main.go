@@ -73,11 +73,16 @@ func runTUI() error {
 	if err != nil {
 		return fmt.Errorf("init: %w", err)
 	}
+	defer f.obs.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() { _ = f.proxy.Start(ctx) }()
+	go func() {
+		if err := f.proxy.Start(ctx); err != nil {
+			f.obs.Logger("authproxy").Error("listen failed", "err", err)
+		}
+	}()
 	status.New(f.docker, f.obs).Start(ctx)
 
 	chatID, cerr := notify.ReadChatID(repo)

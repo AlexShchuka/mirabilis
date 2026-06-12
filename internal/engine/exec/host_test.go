@@ -210,6 +210,32 @@ func TestHostNoGoroutineLeak(t *testing.T) {
 	}
 }
 
+func TestHostOverLongLineSurfacesScanError(t *testing.T) {
+	line := strings.Repeat("x", scanLineMax+1)
+	argv := []string{"/bin/sh", "-c", "cat"}
+	spec := Spec{Argv: argv, Stdin: strings.NewReader(line + "\n")}
+	evs := drain(NewHost().Stream(context.Background(), spec))
+	var stderrLines []string
+	for _, ev := range evs {
+		if ev.Kind == KindStderr {
+			stderrLines = append(stderrLines, ev.Line)
+		}
+	}
+	if len(stderrLines) == 0 {
+		t.Fatal("expected scan error diagnostic on stderr, got none")
+	}
+	found := false
+	for _, l := range stderrLines {
+		if strings.Contains(l, "scan error") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("stderr lines = %v, want one containing 'scan error'", stderrLines)
+	}
+}
+
 func TestRunCollectsStdout(t *testing.T) {
 	argv := []string{"/bin/sh", "-c", "printf 'a\\nb\\n'"}
 	out, err := Run(context.Background(), NewHost(), Spec{Argv: argv})

@@ -12,6 +12,8 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
 
+const provisionCheckTimeout = 30 * time.Second
+
 const (
 	phaseCreate = "create"
 	phaseStart  = "start"
@@ -53,11 +55,13 @@ func (s *provisionStep) Meta() pipeline.Meta {
 }
 
 func (s *provisionStep) Check(ctx context.Context) (bool, error) {
+	checkCtx, cancel := context.WithTimeout(ctx, provisionCheckTimeout)
+	defer cancel()
 	path := createMarkerPath
 	if s.phase == phaseStart {
 		path = startMarkerPath
 	}
-	out, err := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("cat", path)})
+	out, err := exec.Run(checkCtx, s.d.Runner, exec.Spec{Argv: containerArgv("cat", path)})
 	if err != nil {
 		return false, nil
 	}

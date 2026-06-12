@@ -9,6 +9,8 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
+const checkTimeout = 30 * time.Second
+
 const (
 	harnessPrefScript   = `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`
 	harnessProbeScript  = "claude plugin list 2>/dev/null | grep -q neuro-matrix"
@@ -32,11 +34,13 @@ func (s *harnessStep) Meta() pipeline.Meta {
 }
 
 func (s *harnessStep) Check(ctx context.Context) (bool, error) {
-	pref, _ := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("bash", "-lc", harnessPrefScript)})
+	checkCtx, cancel := context.WithTimeout(ctx, checkTimeout)
+	defer cancel()
+	pref, _ := exec.Run(checkCtx, s.d.Runner, exec.Spec{Argv: containerArgv("bash", "-lc", harnessPrefScript)})
 	if strings.TrimSpace(pref) == harnessSkip {
 		return true, nil
 	}
-	_, err := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("bash", "-lc", harnessProbeScript)})
+	_, err := exec.Run(checkCtx, s.d.Runner, exec.Spec{Argv: containerArgv("bash", "-lc", harnessProbeScript)})
 	return err == nil, nil
 }
 

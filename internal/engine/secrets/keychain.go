@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -104,8 +105,8 @@ func keychainAccount() string {
 	if a := os.Getenv("MIRABILIS_KEYCHAIN_ACCOUNT"); a != "" {
 		return a
 	}
-	if u := os.Getenv("USER"); u != "" {
-		return u
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
 	}
 	return "mirabilis"
 }
