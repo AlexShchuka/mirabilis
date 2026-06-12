@@ -15,7 +15,6 @@ node_modules/
 tmp/
 /workspace/
 bin/
-.build/
 .gotmp/
 
 .mcp.json

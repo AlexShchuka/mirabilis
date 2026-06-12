@@ -105,6 +105,19 @@ jobs:
           hits=$(echo "$files" | xargs grep -HnE '(^|[[:space:]])(//|#)[[:space:]]' 2>/dev/null || true)
           if [ -n "$hits" ]; then printf '%s\n' "$hits"; exit 1; fi
 
+  image-build:
+    name: docker image build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: build
+        run: |
+          MIRABILIS_VERSION=$(git rev-parse --short HEAD)
+          export MIRABILIS_VERSION STACKS=
+          docker compose -f docker-compose.yml build
+
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest

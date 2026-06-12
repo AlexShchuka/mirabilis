@@ -1,3 +1,18 @@
+FROM golang:1.25-trixie@sha256:a6e25d7f1059dd305c4573dc6b4f3a7862d48bc8bcb7721308d983a81844eaec AS build
+
+ARG MIRABILIS_VERSION=unknown
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
+COPY cmd/ cmd/
+COPY internal/ internal/
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -ldflags "-X main.version=${MIRABILIS_VERSION}" -o /out/mirabilis ./cmd/mirabilis
+
 FROM node:26-trixie-slim@sha256:95a34da32a840bd9b3b09a5b773591c16923e350174b1c50e1200c75bf15eaa9
 
 ARG TZ=Etc/UTC
@@ -125,7 +140,7 @@ RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh 
     && chown -R node:node /workspace /opt/mirabilis /home/node
 
 COPY config/                    /opt/mirabilis/config/
-COPY .build/mirabilis-linux     /usr/local/bin/mirabilis
+COPY --from=build /out/mirabilis /usr/local/bin/mirabilis
 RUN chmod 0755 /usr/local/bin/mirabilis
 
 RUN git config --system url."https://github.com/".insteadOf "git@github.com:" \
