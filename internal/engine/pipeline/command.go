@@ -61,6 +61,7 @@ type Event struct {
 	Step    string
 	Line    string
 	Argv    []string
+	Env     []string
 	Kind    EventKind
 	Failed  bool
 }

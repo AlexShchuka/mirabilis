@@ -3,13 +3,15 @@ package exec
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 )
 
 type FakeCall struct {
-	Dir  string
-	Argv []string
+	Stdin io.Reader
+	Dir   string
+	Argv  []string
 }
 
 type fakeStub struct {
@@ -65,7 +67,7 @@ func (f *Fake) Remaining() int {
 
 func (f *Fake) Stream(ctx context.Context, spec Spec) <-chan Event {
 	f.mu.Lock()
-	f.calls = append(f.calls, FakeCall{Argv: spec.Argv, Dir: spec.Dir})
+	f.calls = append(f.calls, FakeCall{Argv: spec.Argv, Dir: spec.Dir, Stdin: spec.Stdin})
 	var stub fakeStub
 	matched := false
 	for i, s := range f.stubs {

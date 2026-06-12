@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
@@ -492,19 +494,27 @@ func TestStateScreenResultResumesWaiting(t *testing.T) {
 func TestStateAttachExecDonePipelineOwnsMenuReturn(t *testing.T) {
 	oldRunner := execRunner
 	var mu sync.Mutex
+	var capturedCmd tea.ExecCommand
 	var capturedCb tea.ExecCallback
-	execRunner = func(_ tea.ExecCommand, fn tea.ExecCallback) tea.Cmd {
+	execRunner = func(c tea.ExecCommand, fn tea.ExecCallback) tea.Cmd {
 		mu.Lock()
+		capturedCmd = c
 		capturedCb = fn
 		mu.Unlock()
 		return nil
 	}
 	t.Cleanup(func() { execRunner = oldRunner })
 
+	const fakeToken = "gho_test-secret-token"
 	attach := &stateStep{
 		meta: pipeline.Meta{Name: "attach", Title: "Attach", Kind: pipeline.Terminal},
 		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-			out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: "attach", Argv: []string{"docker", "exec", "-it", "mirabilis", "claude"}}
+			out <- pipeline.Event{
+				Kind: pipeline.EvWaiting,
+				Step: "attach",
+				Argv: []string{"docker", "exec", "-it", "mirabilis", "claude"},
+				Env:  []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + fakeToken},
+			}
 			<-in
 			return nil
 		},
@@ -516,10 +526,28 @@ func TestStateAttachExecDonePipelineOwnsMenuReturn(t *testing.T) {
 	a = driveUntilWaiting(t, a)
 
 	mu.Lock()
+	cmd := capturedCmd
 	cb := capturedCb
 	mu.Unlock()
 	if cb == nil {
 		t.Fatal("execRunner was not invoked for the attach argv")
+	}
+
+	if tty, ok := cmd.(*exec.TTY); ok {
+		for _, e := range tty.Env {
+			if strings.Contains(e, fakeToken) {
+				goto envOK
+			}
+		}
+		t.Errorf("token not found in TTY.Env: %v", tty.Env)
+		for _, a := range tty.Argv {
+			if strings.Contains(a, fakeToken) {
+				t.Errorf("token leaked into argv element: %q", a)
+			}
+		}
+	envOK:
+	} else {
+		t.Errorf("captured exec command type = %T, want *exec.TTY", cmd)
 	}
 
 	a, _ = step(t, a, cb(nil))

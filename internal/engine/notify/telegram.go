@@ -82,7 +82,10 @@ func (t *Telegram) postForm(ctx context.Context, token, method string, params ur
 		return nil, redact(fmt.Errorf("notify telegram: http: %w", err), token)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, redact(fmt.Errorf("notify telegram: read body: %w", err), token)
+	}
 	return body, nil
 }
 

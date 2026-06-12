@@ -14,10 +14,10 @@ nm="$HOME/.neuro-matrix/CLAUDE.md"
 if [ -f "$nm" ]; then cat "$sbx" "$nm" >"$out" && { printf %s "$out"; exit 0; }; fi
 printf %s "$sbx"`
 
-func BuildAttachArgv(systemPromptFile, ghToken string) []string {
+func BuildAttachArgv(systemPromptFile string) []string {
 	return []string{
 		"docker", "exec", "-it",
-		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN=" + ghToken,
+		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
 		"-e", "COLORTERM=truecolor",
 		"-e", "TERM=xterm-256color",
 		ContainerName,

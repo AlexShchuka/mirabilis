@@ -4,6 +4,7 @@ package exec
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -105,6 +106,7 @@ func TestPTYTeeGrandchildHoldingSlaveCantHang(t *testing.T) {
 	cmd := NewPTYTee([]string{"/bin/sh", "-c", "sleep 30 & echo done"}, nil)
 	cmd.SetStdout(&out)
 	done := make(chan error, 1)
+	start := time.Now()
 	go func() { done <- cmd.Run() }()
 	select {
 	case err := <-done:
@@ -114,9 +116,55 @@ func TestPTYTeeGrandchildHoldingSlaveCantHang(t *testing.T) {
 	case <-time.After(ptyTestDeadline):
 		t.Fatal("PTYTee.Run timed out — regression: grandchild holding slave fd blocked master close")
 	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Errorf("PTYTee.Run took %v, want under 3s", elapsed)
+	}
 	if !strings.Contains(out.String(), "done") {
 		t.Fatalf("stdout missing expected output: %q", out.String())
 	}
+}
+
+func TestPTYTeeNonFileStdinPumpLifetime(t *testing.T) {
+	release := make(chan struct{})
+	readObservedRelease := make(chan struct{})
+
+	r := &blockingReader{release: release, done: readObservedRelease}
+
+	var out syncBuffer
+	cmd := NewPTYTee([]string{"/bin/sh", "-c", "echo hi"}, nil)
+	cmd.SetStdin(r)
+	cmd.SetStdout(&out)
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- cmd.Run() }()
+
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(ptyTestDeadline):
+		t.Fatal("PTYTee.Run timed out before child exited")
+	}
+
+	close(release)
+
+	select {
+	case <-readObservedRelease:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stdin copy goroutine did not observe release within 3s")
+	}
+}
+
+type blockingReader struct {
+	release <-chan struct{}
+	done    chan<- struct{}
+}
+
+func (r *blockingReader) Read(_ []byte) (int, error) {
+	<-r.release
+	close(r.done)
+	return 0, io.EOF
 }
 
 func TestPTYTeeStdinReachesChild(t *testing.T) {

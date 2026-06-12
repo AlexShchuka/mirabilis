@@ -146,6 +146,7 @@ func (a *App) handleTerminal(ev pipeline.Event) tea.Cmd {
 	if step == "claude-auth" {
 		tee, getToken := a.facade.NewTokenTee()
 		cmd := exec.NewPTYTee(argv, tee)
+		cmd.Env = ev.Env
 		return execRunner(cmd, func(err error) tea.Msg {
 			if err == nil {
 				if token, ok := getToken(); ok {
@@ -155,7 +156,7 @@ func (a *App) handleTerminal(ev pipeline.Event) tea.Cmd {
 			return execDoneMsg{step: step, err: err}
 		})
 	}
-	cmd := &exec.TTY{Argv: argv}
+	cmd := &exec.TTY{Argv: argv, Env: ev.Env}
 	return execRunner(cmd, func(err error) tea.Msg {
 		return execDoneMsg{step: step, err: err}
 	})

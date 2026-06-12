@@ -2,7 +2,9 @@ package secrets
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -22,12 +24,16 @@ func findOldArgv(acct, key string) []string {
 	return []string{"security", "find-generic-password", "-a", acct, "-s", "mirabilis-" + key + "-token", "-w"}
 }
 
-func addNewArgv(acct, key string) []string {
-	return []string{"security", "add-generic-password", "-U", "-a", acct, "-s", "mirabilis-" + key, "-w"}
+func setArgv() []string {
+	return []string{"security", "-i"}
 }
 
 func deleteOldArgv(acct, key string) []string {
 	return []string{"security", "delete-generic-password", "-a", acct, "-s", "mirabilis-" + key + "-token"}
+}
+
+func b64Stored(v string) string {
+	return b64Prefix + base64.StdEncoding.EncodeToString([]byte(v))
 }
 
 func TestKeychainStoreGet(t *testing.T) {
@@ -49,7 +55,7 @@ func TestKeychainStoreGet(t *testing.T) {
 		{
 			name: "new name hit no extra calls",
 			stub: func(f *exec.Fake) {
-				f.Expect(findNewArgv(acct, key), "tok-new\n", nil)
+				f.Expect(findNewArgv(acct, key), b64Stored("tok-new")+"\n", nil)
 			},
 			want:      "tok-new",
 			wantCalls: [][]string{findNewArgv(acct, key)},
@@ -60,14 +66,16 @@ func TestKeychainStoreGet(t *testing.T) {
 			stub: func(f *exec.Fake) {
 				f.Expect(findNewArgv(acct, key), "", exitErr)
 				f.Expect(findOldArgv(acct, key), "tok-old\n", nil)
-				f.Expect(addNewArgv(acct, key), "", nil)
+				f.Expect(setArgv(), "", nil)
+				f.Expect(findNewArgv(acct, key), b64Stored("tok-old")+"\n", nil)
 				f.Expect(deleteOldArgv(acct, key), "", nil)
 			},
 			want: "tok-old",
 			wantCalls: [][]string{
 				findNewArgv(acct, key),
 				findOldArgv(acct, key),
-				addNewArgv(acct, key),
+				setArgv(),
+				findNewArgv(acct, key),
 				deleteOldArgv(acct, key),
 			},
 			wantFileGone: true,
@@ -78,13 +86,15 @@ func TestKeychainStoreGet(t *testing.T) {
 			stub: func(f *exec.Fake) {
 				f.Expect(findNewArgv(acct, key), "", exitErr)
 				f.Expect(findOldArgv(acct, key), "", exitErr)
-				f.Expect(addNewArgv(acct, key), "", nil)
+				f.Expect(setArgv(), "", nil)
+				f.Expect(findNewArgv(acct, key), b64Stored("tok-file")+"\n", nil)
 			},
 			want: "tok-file",
 			wantCalls: [][]string{
 				findNewArgv(acct, key),
 				findOldArgv(acct, key),
-				addNewArgv(acct, key),
+				setArgv(),
+				findNewArgv(acct, key),
 			},
 			wantFileGone: true,
 		},
@@ -146,11 +156,12 @@ func TestKeychainStoreGet(t *testing.T) {
 	}
 }
 
-func TestKeychainStoreSetValueNotInArgv(t *testing.T) {
+func TestKeychainStoreSetUsesSecurityInteractive(t *testing.T) {
 	t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", "tester")
 	const secret = "s3cr3t-value"
 	fake := exec.NewFake()
-	fake.Expect([]string{"security", "add-generic-password"}, "", nil)
+	fake.Expect(setArgv(), "", nil)
+	fake.Expect(findNewArgv("tester", "telegram-token"), b64Stored(secret)+"\n", nil)
 	store := NewKeychainStore(fake, t.TempDir())
 
 	if err := store.Set(context.Background(), "telegram-token", secret); err != nil {
@@ -158,22 +169,124 @@ func TestKeychainStoreSetValueNotInArgv(t *testing.T) {
 	}
 
 	calls := fake.Calls()
-	if len(calls) != 1 {
-		t.Fatalf("calls = %d, want 1", len(calls))
+	if len(calls) != 2 {
+		t.Fatalf("calls = %d, want 2 (set + readback)", len(calls))
 	}
-	argv := calls[0].Argv
-	if !slices.Equal(argv, addNewArgv("tester", "telegram-token")) {
-		t.Errorf("argv = %v, want %v", argv, addNewArgv("tester", "telegram-token"))
+	if !slices.Equal(calls[0].Argv, setArgv()) {
+		t.Errorf("set argv = %v, want %v", calls[0].Argv, setArgv())
 	}
-	if argv[len(argv)-1] != "-w" {
-		t.Errorf("last argv = %q, want -w", argv[len(argv)-1])
-	}
-	for _, call := range calls {
-		for _, a := range call.Argv {
-			if strings.Contains(a, secret) {
-				t.Errorf("secret value leaked into argv: %v", call.Argv)
-			}
+	for _, a := range calls[0].Argv {
+		if strings.Contains(a, secret) {
+			t.Errorf("secret value leaked into argv: %v", calls[0].Argv)
 		}
+	}
+	stdinBytes, err := io.ReadAll(calls[0].Stdin)
+	if err != nil {
+		t.Fatalf("read stdin: %v", err)
+	}
+	stdin := string(stdinBytes)
+	if !strings.Contains(stdin, "add-generic-password") {
+		t.Errorf("stdin missing add-generic-password command: %q", stdin)
+	}
+	if strings.Contains(stdin, secret) {
+		t.Errorf("raw secret visible in stdin command (should be base64): %q", stdin)
+	}
+	if !strings.Contains(stdin, b64Prefix) {
+		t.Errorf("stdin missing b64 prefix %q: %q", b64Prefix, stdin)
+	}
+}
+
+func TestKeychainStoreSetVerifiesRoundtrip(t *testing.T) {
+	t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", "tester")
+	const secret = "my-secret"
+
+	t.Run("readback matches returns nil", func(t *testing.T) {
+		fake := exec.NewFake()
+		fake.Expect(setArgv(), "", nil)
+		fake.Expect(findNewArgv("tester", "test-key"), b64Stored(secret)+"\n", nil)
+		store := NewKeychainStore(fake, t.TempDir())
+		if err := store.Set(context.Background(), "test-key", secret); err != nil {
+			t.Fatalf("Set: %v", err)
+		}
+	})
+
+	t.Run("readback empty returns error", func(t *testing.T) {
+		fake := exec.NewFake()
+		fake.Expect(setArgv(), "", nil)
+		fake.Expect(findNewArgv("tester", "test-key"), "\n", nil)
+		store := NewKeychainStore(fake, t.TempDir())
+		if err := store.Set(context.Background(), "test-key", secret); err == nil {
+			t.Fatal("Set returned nil on empty readback, want error")
+		}
+	})
+
+	t.Run("readback mismatch returns error", func(t *testing.T) {
+		fake := exec.NewFake()
+		fake.Expect(setArgv(), "", nil)
+		fake.Expect(findNewArgv("tester", "test-key"), b64Stored("different-value")+"\n", nil)
+		store := NewKeychainStore(fake, t.TempDir())
+		if err := store.Set(context.Background(), "test-key", secret); err == nil {
+			t.Fatal("Set returned nil on mismatch readback, want error")
+		}
+	})
+}
+
+func TestKeychainStoreGetDecodesB64(t *testing.T) {
+	t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", "tester")
+	const want = "decoded-secret"
+	fake := exec.NewFake()
+	fake.Expect(findNewArgv("tester", "mykey"), b64Stored(want)+"\n", nil)
+	store := NewKeychainStore(fake, t.TempDir())
+	got, err := store.Get(context.Background(), "mykey")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != want {
+		t.Errorf("Get = %q, want %q", got, want)
+	}
+}
+
+func TestKeychainStoreGetRawLegacyPassthrough(t *testing.T) {
+	t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", "tester")
+	const rawValue = "raw-legacy-token"
+	fake := exec.NewFake()
+	fake.Expect(findNewArgv("tester", "mykey"), rawValue+"\n", nil)
+	store := NewKeychainStore(fake, t.TempDir())
+	got, err := store.Get(context.Background(), "mykey")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != rawValue {
+		t.Errorf("Get = %q, want %q", got, rawValue)
+	}
+}
+
+func TestKeychainStoreMigrateNoDeleteOnFailedSet(t *testing.T) {
+	t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", "tester")
+	const key = "claude-token"
+	const acct = "tester"
+	exitErr := errors.New("exit status 44")
+
+	fake := exec.NewFake()
+	fake.Expect(findNewArgv(acct, key), "", exitErr)
+	fake.Expect(findOldArgv(acct, key), "tok-old\n", nil)
+	fake.Expect(setArgv(), "", nil)
+	fake.Expect(findNewArgv(acct, key), "\n", nil)
+
+	dir := t.TempDir()
+	legacyPath := filepath.Join(dir, ".mirabilis-"+key)
+	if err := os.WriteFile(legacyPath, []byte("tok-old\n"), 0o600); err != nil {
+		t.Fatalf("seed legacy file: %v", err)
+	}
+
+	store := NewKeychainStore(fake, dir)
+	_, err := store.Get(context.Background(), key)
+	if err == nil {
+		t.Fatal("Get returned nil on failed migration Set, want error")
+	}
+
+	if _, serr := os.Stat(legacyPath); errors.Is(serr, os.ErrNotExist) {
+		t.Error("legacy file was deleted after failed Set, want it preserved")
 	}
 }
 
@@ -218,7 +331,7 @@ func TestKeychainAccountResolution(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("MIRABILIS_KEYCHAIN_ACCOUNT", tt.envAcct)
 			fake := exec.NewFake()
-			fake.Expect(findNewArgv(tt.want, "claude-token"), "tok\n", nil)
+			fake.Expect(findNewArgv(tt.want, "claude-token"), b64Stored("tok")+"\n", nil)
 			store := NewKeychainStore(fake, t.TempDir())
 
 			got, err := store.Get(context.Background(), "claude-token")

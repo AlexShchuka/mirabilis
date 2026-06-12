@@ -2,7 +2,9 @@ package secrets
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/user"
@@ -13,7 +15,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
 
-const defaultKeychainTimeout = 5 * time.Second
+const (
+	defaultKeychainTimeout = 5 * time.Second
+	b64Prefix              = "mirabilis-b64:"
+)
 
 type KeychainStore struct {
 	runner        exec.Runner
@@ -33,9 +38,9 @@ func NewKeychainStore(r exec.Runner, legacyFileDir string) *KeychainStore {
 
 func (s *KeychainStore) Get(ctx context.Context, key string) (string, error) {
 	acct := keychainAccount()
-	out, err := s.security(ctx, nil, "find-generic-password", "-a", acct, "-s", entryName(key), "-w")
+	raw, err := s.securityFind(ctx, acct, entryName(key))
 	if err == nil {
-		return strings.TrimSpace(out), nil
+		return decodeValue(raw), nil
 	}
 	if isCtxErr(err) {
 		return "", err
@@ -44,18 +49,39 @@ func (s *KeychainStore) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (s *KeychainStore) Set(ctx context.Context, key, value string) error {
-	_, err := s.security(ctx, strings.NewReader(value),
-		"add-generic-password", "-U", "-a", keychainAccount(), "-s", entryName(key), "-w")
-	return err
+	acct := keychainAccount()
+	entry := entryName(key)
+	if strings.ContainsRune(acct, '\'') {
+		return fmt.Errorf("keychain: account %q contains single quote", acct)
+	}
+	if strings.ContainsRune(entry, '\'') {
+		return fmt.Errorf("keychain: entry %q contains single quote", entry)
+	}
+	stored := b64Prefix + base64.StdEncoding.EncodeToString([]byte(value))
+	cmdline := "add-generic-password -U -a '" + acct + "' -s '" + entry + "' -w '" + stored + "'\n"
+	if _, err := s.security(ctx, strings.NewReader(cmdline), "-i"); err != nil {
+		return fmt.Errorf("keychain: set %q: %w", key, err)
+	}
+	got, err := s.securityFind(ctx, acct, entry)
+	if err != nil {
+		return fmt.Errorf("keychain: set %q: readback failed: %w", key, err)
+	}
+	if got == "" {
+		return fmt.Errorf("keychain: set %q: readback returned empty", key)
+	}
+	if decodeValue(got) != value {
+		return fmt.Errorf("keychain: set %q: readback mismatch", key)
+	}
+	return nil
 }
 
 func (s *KeychainStore) migrate(ctx context.Context, acct, key string) (string, error) {
 	legacyEntry := entryName(key) + "-token"
-	out, err := s.security(ctx, nil, "find-generic-password", "-a", acct, "-s", legacyEntry, "-w")
+	raw, err := s.securityFind(ctx, acct, legacyEntry)
 	if err == nil {
-		value := strings.TrimSpace(out)
-		if err := s.Set(ctx, key, value); err != nil {
-			return "", err
+		value := decodeValue(raw)
+		if serr := s.Set(ctx, key, value); serr != nil {
+			return "", serr
 		}
 		_, _ = s.security(ctx, nil, "delete-generic-password", "-a", acct, "-s", legacyEntry)
 		_ = os.Remove(s.legacyFilePath(key))
@@ -69,11 +95,19 @@ func (s *KeychainStore) migrate(ctx context.Context, acct, key string) (string, 
 		return "", ErrNotFound
 	}
 	value := strings.TrimSpace(string(b))
-	if err := s.Set(ctx, key, value); err != nil {
-		return "", err
+	if serr := s.Set(ctx, key, value); serr != nil {
+		return "", serr
 	}
 	_ = os.Remove(s.legacyFilePath(key))
 	return value, nil
+}
+
+func (s *KeychainStore) securityFind(ctx context.Context, acct, entry string) (string, error) {
+	out, err := s.security(ctx, nil, "find-generic-password", "-a", acct, "-s", entry, "-w")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
 }
 
 func (s *KeychainStore) security(ctx context.Context, stdin io.Reader, args ...string) (string, error) {
@@ -109,6 +143,17 @@ func keychainAccount() string {
 		return u.Username
 	}
 	return "mirabilis"
+}
+
+func decodeValue(raw string) string {
+	if !strings.HasPrefix(raw, b64Prefix) {
+		return raw
+	}
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(raw, b64Prefix))
+	if err != nil {
+		return raw
+	}
+	return string(decoded)
 }
 
 func isCtxErr(err error) bool {

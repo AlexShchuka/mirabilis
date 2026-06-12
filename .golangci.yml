@@ -25,8 +25,8 @@ linters:
         - pattern: "^http\\.(Get|Post|Head|Do|NewRequest|NewRequestWithContext|DefaultClient|DefaultTransport)$"
           pkg: "^net/http$"
           msg: "net/http forbidden in the tui layer; use engine ports"
-        - pattern: "fmt\\.Fprint(f|ln)?\\(os\\.Stderr"
-          msg: "write via the obs logger; stray stderr forbidden outside internal/obs and cmd/mirabilis"
+        - pattern: "^os\\.Stderr$"
+          msg: "write via the obs logger; stray stderr forbidden outside internal/obs, cmd/mirabilis and internal/hooks"
         - pattern: "^log\\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln|Default|New)$"
           pkg: "^log$"
           msg: "use internal/obs logger; stray log calls forbidden outside internal/obs"
@@ -80,11 +80,19 @@ linters:
       - path: "cmd/mirabilis/"
         linters:
           - forbidigo
-        text: "log\\.|fmt\\.Fprint"
+        text: "log\\.|fmt\\.Fprint|os\\.Stderr"
+      - path: "internal/hooks/"
+        linters:
+          - forbidigo
+        text: "os\\.Stderr"
       - path: "internal/engine/provision/provision\\.go"
         linters:
           - errcheck
         text: "fmt\\.Fprint"
+      - path: "_test\\.go"
+        linters:
+          - forbidigo
+        text: "os\\.Stderr"
       - path: "_test\\.go"
         linters:
           - errcheck

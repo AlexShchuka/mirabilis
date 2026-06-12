@@ -120,7 +120,7 @@ Prose here only identifies the home; the home is what actually enforces it.
 | I10 | docker.sock absent by default; enabling changes fingerprint | fingerprint unit + e2e inspect mounts |
 | I11 | Every package has one responsibility; no dead code after switch | PR diff review |
 | I12 | A single node's failure never blocks the menu; status shows `degraded` | unit (fault-injected adapter) + user-scenario test |
-| I13 | One observability sink: every node logs via `obs`; nothing writes elsewhere | **forbidigo** (stray `log.*`, `fmt.Fprint(os.Stderr`); review |
+| I13 | One observability sink: every node logs via `obs`; nothing writes elsewhere | **forbidigo** (`^os\.Stderr$` — excluded for `cmd/mirabilis`, `internal/hooks`, `internal/obs`, `_test.go`; stray `log.*`); review |
 | D2/G2 | `internal/engine/**` never imports `internal/tui`, `internal/bus`, or bubbletea/charmbracelet | **depguard** rule `engine-no-tui` |
 | §4.2 | `tui/{screens,components,frame,router}` never import `internal/engine` | **depguard** rule `tui-leaves-no-engine` |
 | D10 | No comments in code or non-workflow config | **errcheck** excludes are curated (no real errors hidden); CI `no-config-comments` job; pre-commit hook |
@@ -135,7 +135,7 @@ These are not style preferences — violating them is a defect.
 
 **No-hang / no-race.** Every wait has a deadline and an escape path. Long-lived resources (the auth proxy, the docker-events watcher, the notify watcher) are owned for the session and stopped on context cancellation — they are never re-started mid-session, which avoids double-subscription races. Every goroutine launched must have a defined lifetime. `go test -race` is the gate.
 
-**Code-is-truth.** "Not green = not done." No PR ships without all three gates passing: `go test -race ./...`, `golangci-lint run ./...`, `bats`. A claim about system behaviour must be backed by a passing test, not reasoning.
+**Code-is-truth.** "Not green = not done." No PR ships without all three gates passing: `go test -race ./...`, `golangci-lint run ./...`, `bats`. A claim about system behaviour must be backed by a passing test, not reasoning. The CI coverage floor (`floor=` in `ci.yml`) is a ratchet: raise it alongside real coverage gains, never lower it to make a PR pass; the current value of 86 was set in PR#126 with owner sign-off.
 
 **TUI test determinism.** Bubble Tea v2 renders cell-level diffs, so substring waits on intermediate teatest frames are non-deterministic by construction (a string sharing a prefix or screen position with prior text may never appear contiguously, or may match a stale repaint). State-machine semantics are tested by driving `App.Update` synchronously in package-internal tests (`state_test.go`): pipeline events are consumed from `Events()` directly, assertions read model state (`pipe`, `busy`, `menuAction`, router depth, `Menu.Notice()`). teatest/pty harnesses are reserved for whole-program integration (exec handoff, golden frames, latency) and assert only final or probed state (`FinalOutput`, quit-probe), never intermediate frame substrings.
 

@@ -12,10 +12,10 @@ import (
 
 func TestBuildAttachArgv(t *testing.T) {
 	t.Parallel()
-	got := BuildAttachArgv("/tmp/mirabilis-system-prompt.md", "ghp_token123")
+	got := BuildAttachArgv("/tmp/mirabilis-system-prompt.md")
 	want := []string{
 		"docker", "exec", "-it",
-		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_token123",
+		"-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
 		"-e", "COLORTERM=truecolor",
 		"-e", "TERM=xterm-256color",
 		"mirabilis",
@@ -26,29 +26,25 @@ func TestBuildAttachArgv(t *testing.T) {
 	}
 }
 
-func TestBuildAttachArgvTokenPlacement(t *testing.T) {
+func TestBuildAttachArgvTokenAbsentFromArgv(t *testing.T) {
 	t.Parallel()
-	argv := BuildAttachArgv("/tmp/spf.md", "ghp_token123")
-	hits := 0
-	for i, arg := range argv {
-		if !strings.Contains(arg, "ghp_token123") {
-			continue
-		}
-		hits++
-		if arg != "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_token123" {
-			t.Fatalf("token in unexpected form: %q", arg)
-		}
-		if i == 0 || argv[i-1] != "-e" {
-			t.Fatalf("token entry not preceded by -e: %v", argv)
-		}
-	}
-	if hits != 1 {
-		t.Fatalf("token appears %d times in argv, want 1", hits)
-	}
+	argv := BuildAttachArgv("/tmp/spf.md")
 	for _, arg := range argv {
+		if strings.Contains(arg, "=") && strings.HasPrefix(arg, "GITHUB_PERSONAL_ACCESS_TOKEN=") {
+			t.Fatalf("token value leaked into argv element: %q", arg)
+		}
 		if strings.Contains(arg, "ANTHROPIC") {
 			t.Fatalf("argv injects %q", arg)
 		}
+	}
+	found := false
+	for i, arg := range argv {
+		if arg == "GITHUB_PERSONAL_ACCESS_TOKEN" && i > 0 && argv[i-1] == "-e" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("GITHUB_PERSONAL_ACCESS_TOKEN passthrough entry missing from argv: %v", argv)
 	}
 }
 

@@ -33,8 +33,13 @@ func (s *attachStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-ch
 	if err != nil || token == "" {
 		return errors.New("GitHub token is not available — sign in with gh auth login first")
 	}
-	argv := sandbox.BuildAttachArgv(s.d.Sandbox.SystemPromptFile(ctx), token)
-	out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: "attach", Argv: argv}
+	argv := sandbox.BuildAttachArgv(s.d.Sandbox.SystemPromptFile(ctx))
+	out <- pipeline.Event{
+		Kind: pipeline.EvWaiting,
+		Step: "attach",
+		Argv: argv,
+		Env:  []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + token},
+	}
 	_, err = awaitResume(ctx, in)
 	return err
 }

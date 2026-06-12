@@ -3,6 +3,7 @@ package steps
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
@@ -26,9 +27,24 @@ func TestAttachRunEmitsAttachArgv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	want := sandbox.BuildAttachArgv("/tmp/mirabilis-system-prompt.md", "gho_secret")
-	if got := waitingEvent(t, evs).Argv; !slices.Equal(got, want) {
-		t.Fatalf("waiting argv = %v, want %v", got, want)
+	wantArgv := sandbox.BuildAttachArgv("/tmp/mirabilis-system-prompt.md")
+	ev := waitingEvent(t, evs)
+	if got := ev.Argv; !slices.Equal(got, wantArgv) {
+		t.Fatalf("waiting argv = %v, want %v", got, wantArgv)
+	}
+	for _, a := range ev.Argv {
+		if strings.Contains(a, "gho_secret") {
+			t.Errorf("token leaked into argv element: %q", a)
+		}
+	}
+	found := false
+	for _, e := range ev.Env {
+		if e == "GITHUB_PERSONAL_ACCESS_TOKEN=gho_secret" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("GITHUB_PERSONAL_ACCESS_TOKEN not found in Event.Env: %v", ev.Env)
 	}
 }
 

@@ -50,8 +50,11 @@ boundary, and the Claude and Telegram tokens never entering the container.
   but it grants no access once the host proxy exits. `claude setup-token` on the host
   is the only setup path; in-container `/login` and `CLAUDE_CODE_OAUTH_TOKEN` injection
   are both replaced by this chain. The proxy listens on `127.0.0.1` on macOS; on Linux it
-  binds the Docker bridge gateway IP when the daemon can resolve it and falls back to
-  `0.0.0.0` otherwise — the 256-bit session key remains the auth gate in both cases.
+  deliberately binds `0.0.0.0` because the in-container dial target (`host.docker.internal`
+  via `host-gateway`) resolves to a daemon-config-dependent IP that cannot be introspected
+  before the container exists, so single-interface binding would break non-default
+  `--host-gateway-ip`, custom `bip`, or rootless daemons — the 256-bit per-session key,
+  compared in constant time, is the auth gate.
   Note: `~/.claude/.credentials.json` in the `claude-home` volume has higher precedence
   than `ANTHROPIC_AUTH_TOKEN` — if that file existed it would silently win. The provision
   `start` phase therefore hard-removes it on every launch (`claude-credentials` step, a
@@ -70,12 +73,16 @@ boundary, and the Claude and Telegram tokens never entering the container.
   on success or failure it writes a `.status` file and `PendingJobs` never re-queues that
   job. The only duplicate path is a watcher crash after send but before `WriteStatus`
   completes — the job stays pending and is re-sent on the next start.
+- The **GitHub PAT** for `docker exec` attach reaches the container via the process environment (docker `-e KEY` passthrough form — no value in argv, never visible in host `ps`).
 - The GitHub MCP token is derived from your `gh` login (`gh auth token`); the
   GitHub MCP server receives it as a request header, so it also lands in the container's
   per-user config on the `claude-home` volume — inside the container, never in the repo.
   Anyone with access to the Docker socket (or host root) can read container secrets via
   `docker inspect mirabilis` or `/proc/1/environ` — the Docker socket is part of the
   secret trust boundary.
+- **Vendor install scripts** (claude apt-repo bootstrap, uv, docker) are fetched over TLS
+  from official endpoints without additional checksum pinning — accepted risk to keep
+  vendor auto-update working.
 - **Never commit a secret.** If a token appears in a diff, a log, or a chat,
   treat it as compromised and rotate it immediately.
 

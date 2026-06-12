@@ -1,4 +1,4 @@
-FROM node:26-trixie-slim
+FROM node:26-trixie-slim@sha256:95a34da32a840bd9b3b09a5b773591c16923e350174b1c50e1200c75bf15eaa9
 
 ARG TZ=Etc/UTC
 ENV TZ="$TZ" \
