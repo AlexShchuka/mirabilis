@@ -18,10 +18,6 @@ tmp/
 docs/
 .github/
 src/
-internal/
-cmd/
-go.mod
-go.sum
 bin/
 .gotmp/
 config/memory/
