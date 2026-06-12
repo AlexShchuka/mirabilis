@@ -8,6 +8,7 @@ require (
 	charm.land/huh/v2 v2.0.3
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
+	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/client v0.4.0
 	github.com/testcontainers/testcontainers-go v0.42.0
