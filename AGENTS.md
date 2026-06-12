@@ -77,20 +77,72 @@ docker-ce-cli baked into the Dockerfile; docker.sock absent by default, enabled 
 
 ## Development principles
 
-Operating agreement for working **on this repo** (complements the harness's general HOW):
+Operating agreement for working **on this repo**:
 
 1. **Code is truth.** Back every claim about state with tool output — a concrete run with concrete output, no plausible-sounding excuses.
 2. **Minimal diff / YAGNI.** Touch only what's broken or what the task needs; don't refactor unrelated code or add layers "just in case".
-3. **Anti-neuroslop.** Plausible shape ≠ needed code; don't grow files/abstractions detached from what the repo needs (the removed `tinyproxy` — "a pipe, not a filter" — was the example).
+3. **Anti-neuroslop.** Plausible shape ≠ needed code; don't grow files/abstractions detached from what the repo needs.
 4. **Discuss → plan → code only on an explicit go.** Don't write code on unsettled requirements.
-5. **Not green means not done.** Cover changes with tests.
+5. **Not green means not done.** Cover changes with tests; `go test -race`, golangci-lint, and bats must all pass.
 6. **No churn.** One coherent landing, not a sequence of rewrites.
 7. **Human-readable without AI.** An AI-generated artifact enters shared state only if a human can read and verify it without an AI.
-8. **Human gate before protocol-level shared state.** Protocol artifacts (invariant table, glossary) need the non-producing human's sign-off, paired to Common Code v3 `signed_by` (neuro-matrix#29).
+8. **Human gate before protocol-level shared state.** Protocol artifacts (invariant table, glossary) need the non-producing human's sign-off.
 9. **BLUF.** Lead with the conclusion.
 
-The mechanical toolchain (`go test`, bats, golangci-lint — see `.github/workflows/ci.yml`) is
-the source of mechanical rules; don't duplicate them in prose. Go code follows the
-[Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md), [Effective Go](https://go.dev/doc/effective_go), and [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments); formatting and static analysis are CI-enforced. **How** to work in general lives in the
-neuro-matrix harness; this file says **what** the repo is, plus the repo-specific principles
-above.
+## Meta-goals (owner directives — outrank node-level convenience)
+
+- **G0 System over nodes.** Architecture soundness is the primary goal; every decision is judged by what it does to the whole graph first. Patching nodes and hoping architecture emerges is what produced the original mess.
+- **G1 Dense, readable graph.** Coherent, contradiction-free; no invented abstractions, no dangling leaves, no code-for-code's-sake. Fewer, more precise nodes beat more code.
+- **G2 Sandbox ≠ harness.** The container provisions and runs tools; mirabilis owns provisioning, autonomy, reproducibility, thread-safety, speed. Behavioural logic must not leak into sandbox nodes.
+- **G3 SRP.** One responsibility per node; a bug localizes to one directory. Logic in `engine`, rendering in `tui`, never mixed.
+- **G4 Config separate from logic.** All tunables live in `config/`; code only reads them. Behaviour changes without editing code.
+- **G5 Single observability sink.** Every node's logs and status converge on one destination: the slog file + TUI status header, both fed by the same event stream. Nothing writes into the void.
+- **G6 Graceful degradation.** A node's failure degrades its own function, not the system. Optional steps cascade-skip; every external call has a timeout; the menu keeps working when notify/proxy/status fails.
+- **G7 Idempotency everywhere.** Every operation is safe to repeat: `Check→Run→Check` is the step contract; same input → same result; a repeat launch on a healthy system = zero questions, zero changes.
+- **G8 Replaceable nodes.** Ports & adapters: swapping an adapter means one new file + one registration line, zero edits elsewhere.
+
+## Invariants
+
+Every invariant has a **mechanical home** — a linter rule, a contract test, or a CI check.
+Prose here only identifies the home; the home is what actually enforces it.
+
+| ID | Invariant | Mechanical enforcement |
+|----|-----------|------------------------|
+| I1 | Real Anthropic token never in the container (not env, not fs, not image, not `settings.json`) | e2e: `docker inspect` + exec env dump + grep token in container |
+| I2 | UI thread does no I/O | **forbidigo** (`os/exec`, fs, `net/http`) in `tui/**` except `tui/app` Cmd ctors; latency golden |
+| I3 | Every non-terminal step idempotent: Run ⇒ Check=true | pipeline contract test (§8.2) |
+| I4 | Every command visible: spawn only via Runner; Runner always emits `started{Argv}` to cmdlog + obs log | **forbidigo** (raw `os/exec` banned); bus unit test |
+| I5 | Host process leaves no children after exit | e2e: `ps` after quit |
+| I6 | Port adapter swap = new file + registration; zero edits elsewhere | structure review; demo adapter test |
+| I7 | A secret lives in exactly one backend per platform; old locations migrated then deleted | secrets unit + migration unit |
+| I8 | All UI strings in `tui/strings`, English | grep test |
+| I9 | Repeat launch on a healthy system: zero questions, zero changes | e2e checklist |
+| I10 | docker.sock absent by default; enabling changes fingerprint | fingerprint unit + e2e inspect mounts |
+| I11 | Every package has one responsibility; no dead code after switch | PR diff review |
+| I12 | A single node's failure never blocks the menu; status shows `degraded` | unit (fault-injected adapter) + user-scenario test |
+| I13 | One observability sink: every node logs via `obs`; nothing writes elsewhere | **forbidigo** (stray `log.*`, `fmt.Fprint(os.Stderr`); review |
+| D2/G2 | `internal/engine/**` never imports `internal/tui`, `internal/bus`, or bubbletea/charmbracelet | **depguard** rule `engine-no-tui` |
+| §4.2 | `tui/{screens,components,frame,router}` never import `internal/engine` | **depguard** rule `tui-leaves-no-engine` |
+| D10 | No comments in code or non-workflow config | **errcheck** excludes are curated (no real errors hidden); CI `no-config-comments` job; pre-commit hook |
+| BAR | No swallowed errors | **errcheck** (excludes cover only: best-effort Close in defers, fmt.Print* to stdout in CLI, test ResponseWriter writes) |
+| I1/secrets | gitleaks catches committed secrets | **gitleaks** CI job; pre-commit gitleaks hook (no-op if not installed) |
+
+## Engineering bar
+
+These are not style preferences — violating them is a defect.
+
+**Fail-fast / error-as-data.** A process emits its outcome including failure; the global handler owns error handling and decides what to show. Never swallow an error or return false success — false success is a security defect (a step that silently claims completion when it failed leaves the system in an undefined state). Errors flow as values to the single obs sink.
+
+**No-hang / no-race.** Every wait has a deadline and an escape path. Long-lived resources (the auth proxy, the docker-events watcher, the notify watcher) are owned for the session and stopped on context cancellation — they are never re-started mid-session, which avoids double-subscription races. Every goroutine launched must have a defined lifetime. `go test -race` is the gate.
+
+**Code-is-truth.** "Not green = not done." No PR ships without all three gates passing: `go test -race ./...`, `golangci-lint run ./...`, `bats`. A claim about system behaviour must be backed by a passing test, not reasoning.
+
+## References
+
+Style and idioms are CI-enforced by golangci-lint (govet, staticcheck, gofmt, forbidigo, depguard, errcheck, unused). The following are the upstream sources those rules derive from — they are pointers, not the operating contract:
+
+- [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
+- [Effective Go](https://go.dev/doc/effective_go)
+- [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments)
+
+**How** to work in general lives in the neuro-matrix harness; this file says **what** the repo is, plus the repo-specific principles above.

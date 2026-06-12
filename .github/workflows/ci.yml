@@ -92,6 +92,18 @@ jobs:
         shell: wsl-bash {0}
         run: bats --print-output-on-failure --recursive test
 
+  no-config-comments:
+    name: no comments in non-code config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: check
+        run: |
+          files=$(git ls-files | grep -vE '\.(md|go)$' | grep -vE '^go\.(mod|sum)$' | grep -vE '^\.github/workflows/')
+          if [ -z "$files" ]; then exit 0; fi
+          hits=$(echo "$files" | xargs grep -HnE '(^|[[:space:]])(//|#)[[:space:]]' 2>/dev/null || true)
+          if [ -n "$hits" ]; then printf '%s\n' "$hits"; exit 1; fi
+
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest

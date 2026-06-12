@@ -11,6 +11,8 @@ linters:
     - staticcheck
     - unused
     - forbidigo
+    - depguard
+    - errcheck
   settings:
     forbidigo:
       analyze-types: true
@@ -28,6 +30,42 @@ linters:
         - pattern: "^log\\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln|Default|New)$"
           pkg: "^log$"
           msg: "use internal/obs logger; stray log calls forbidden outside internal/obs"
+    depguard:
+      rules:
+        engine-no-tui:
+          files:
+            - "**/internal/engine/**"
+          deny:
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/tui"
+              desc: "engine must not import tui (D2/G2: engine is TUI-free and testable without a terminal)"
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/bus"
+              desc: "engine must not import bus (D2/G2: engine emits its own event types over channels; tui/app converts to bus)"
+            - pkg: "charm.land/bubbletea"
+              desc: "engine must not import bubbletea (D2/G2)"
+            - pkg: "github.com/charmbracelet"
+              desc: "engine must not import charmbracelet packages (D2/G2)"
+        tui-leaves-no-engine:
+          files:
+            - "**/internal/tui/screens/**"
+            - "**/internal/tui/components/**"
+            - "**/internal/tui/frame/**"
+            - "**/internal/tui/router/**"
+          deny:
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/engine"
+              desc: "tui leaves are pure render+bus; only tui/app may touch engine ports (§4.2)"
+    errcheck:
+      exclude-functions:
+        - (*os.File).Close
+        - (io.ReadCloser).Close
+        - (net/http.Response.Body).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - os.Remove
+        - os.Unsetenv
+        - (*github.com/AlexShchuka/mirabilis/internal/obs.Obs).Close
+        - (*encoding/json.Encoder).Encode
+        - (net/http.ResponseWriter).Write
   exclusions:
     rules:
       - path: "internal/engine/exec/"

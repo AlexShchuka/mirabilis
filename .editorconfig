@@ -14,5 +14,21 @@ indent_style = tab
 [*.go]
 indent_style = tab
 
+[*.sh]
+indent_style = space
+indent_size = 2
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.json]
+indent_style = space
+indent_size = 2
+
+[Dockerfile]
+indent_style = space
+indent_size = 4
+
 [*.md]
 trim_trailing_whitespace = false
