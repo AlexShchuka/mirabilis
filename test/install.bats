@@ -69,7 +69,8 @@ is_wsl() {
   mkdir -p "$dest/.git"
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"claude setup-token"* ]]
+  [[ "$output" == *"run: mirabilis"* ]]
+  [[ "$output" != *"claude setup-token"* ]]
 }
 
 @test "WSL: prints the Docker Desktop integration note" {
@@ -97,7 +98,8 @@ is_wsl() {
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *"gitleaks not found"* ]]
-  [[ "$output" == *"claude setup-token"* ]]
+  [[ "$output" == *"run: mirabilis"* ]]
+  [[ "$output" != *"claude setup-token"* ]]
 }
 
 @test "darwin missing brew: refuses with a Homebrew hint" {
@@ -120,7 +122,8 @@ is_wsl() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"make bootstrap"* ]]
   [[ "$output" == *"make install"* ]]
-  [[ "$output" == *"claude setup-token"* ]]
+  [[ "$output" == *"run: mirabilis"* ]]
+  [[ "$output" != *"claude setup-token"* ]]
 }
 
 @test "darwin claude present via npm: installer no-ops claude, bootstrap runs" {
@@ -137,7 +140,8 @@ is_wsl() {
   [[ "$output" == *"make bootstrap"* ]]
   [[ "$output" == *"claude CLI already installed"* ]]
   [[ "$output" != *"curl-claude-install-ran"* ]]
-  [[ "$output" == *"claude setup-token"* ]]
+  [[ "$output" == *"run: mirabilis"* ]]
+  [[ "$output" != *"claude setup-token"* ]]
 }
 
 @test "darwin claude absent: bootstrap then host claude install" {
