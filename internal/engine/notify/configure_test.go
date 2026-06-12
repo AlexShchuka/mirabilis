@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
 )
@@ -64,15 +65,41 @@ func TestConfigureEndToEnd(t *testing.T) {
 	}
 }
 
+type blockingStore struct {
+	release chan struct{}
+	done    chan struct{}
+}
+
+func (s *blockingStore) Get(context.Context, string) (string, error) {
+	return "", errors.New("blocking store: no value")
+}
+
+func (s *blockingStore) Set(ctx context.Context, _, _ string) error {
+	defer close(s.done)
+	select {
+	case <-s.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func TestConfigureCtxCancel(t *testing.T) {
 	t.Parallel()
-	store := secrets.NewFileStore(t.TempDir())
+	store := &blockingStore{release: make(chan struct{}), done: make(chan struct{})}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	err := Configure(ctx, store, "http://127.0.0.1:1", t.TempDir(), "tok-cancel")
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Configure with canceled ctx = %v, want context.Canceled", err)
+	}
+
+	close(store.release)
+	select {
+	case <-store.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("detached token write did not finish after release")
 	}
 }
 
