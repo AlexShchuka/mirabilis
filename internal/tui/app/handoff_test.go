@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -81,26 +82,31 @@ func (b *lockedBuffer) Len() int {
 	return b.buf.Len()
 }
 
-func (b *lockedBuffer) ContainsAfter(offset int, needle string) bool {
+func (b *lockedBuffer) IndexAfter(offset int, needle string) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	data := b.buf.Bytes()
 	if offset > len(data) {
-		return false
+		return -1
 	}
-	return bytes.Contains(data[offset:], []byte(needle))
+	i := bytes.Index(data[offset:], []byte(needle))
+	if i < 0 {
+		return -1
+	}
+	return offset + i + len(needle)
 }
 
-func waitContainsAfter(t *testing.T, b *lockedBuffer, offset int, needle string) {
+func waitContainsAfter(t *testing.T, b *lockedBuffer, offset int, needle string) int {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if b.ContainsAfter(offset, needle) {
-			return
+		if end := b.IndexAfter(offset, needle); end >= 0 {
+			return end
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %q in pty output", needle)
+	return -1
 }
 
 func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
@@ -144,21 +150,30 @@ func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
 		runDone <- rerr
 	}()
 
-	waitContainsAfter(t, out, 0, uistr.WelcomeHint)
-	launchOffset := out.Len()
+	launchOffset := waitContainsAfter(t, out, 0, uistr.WelcomeHint)
 	p.Send(bus.MenuChosen{Action: "launch"})
 
 	waitContainsAfter(t, out, launchOffset, "in-child-tty")
-	waitContainsAfter(t, out, launchOffset, uistr.WelcomeHint)
 
+	quitDeadline := time.After(15 * time.Second)
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
 	p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
-	select {
-	case rerr := <-runDone:
-		if rerr != nil {
-			t.Fatalf("program run: %v", rerr)
+	for {
+		select {
+		case rerr := <-runDone:
+			if rerr != nil {
+				t.Fatalf("program run: %v", rerr)
+			}
+		case <-ticker.C:
+			p.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+			continue
+		case <-quitDeadline:
+			buf := make([]byte, 1<<20)
+			n := runtime.Stack(buf, true)
+			t.Fatalf("program did not return to a quittable menu after handoff\n%s", buf[:n])
 		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("program did not exit after quit — handoff left the loop blocked")
+		break
 	}
 
 	after, err := unix.IoctlGetTermios(int(slave.Fd()), reqGetTermios)

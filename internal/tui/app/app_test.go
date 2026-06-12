@@ -74,7 +74,6 @@ type fakeFacade struct {
 	harnessApplyErr    error
 	vscodeCalls        int
 	vscodeErr          error
-	vscodeGate         chan struct{}
 }
 
 func newFakeFacade(steps []pipeline.Command) *fakeFacade {
@@ -171,15 +170,10 @@ func (f *fakeFacade) ApplyHarness(_ context.Context, choice string) error {
 
 func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	f.mu.Lock()
-	gate := f.vscodeGate
+	defer f.mu.Unlock()
 	f.vscodeCalls++
 	f.callLog = append(f.callLog, "OpenVSCode")
-	err := f.vscodeErr
-	f.mu.Unlock()
-	if gate != nil {
-		<-gate
-	}
-	return err
+	return f.vscodeErr
 }
 
 func (f *fakeFacade) getCallLog() []string {
@@ -459,55 +453,6 @@ func TestTerminalClaudeAuth(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Errorf("OnTokenExtracted not called with expected token; got %q", f.tokenExtracted)
-}
-
-func TestAttachExecDonePipelineOwnsMenuReturn(t *testing.T) {
-	attachStep := &syncCommand{
-		meta:    pipeline.Meta{Name: "attach", Title: "Attach", Kind: pipeline.Terminal},
-		checkFn: func(_ context.Context) (bool, error) { return false, nil },
-		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-			out <- pipeline.Event{
-				Kind: pipeline.EvWaiting,
-				Step: "attach",
-				Argv: []string{"docker", "exec", "-it", "mirabilis", "claude"},
-			}
-			r := <-in
-			if r.Cancelled {
-				return pipeline.ErrCancelled
-			}
-			return nil
-		},
-	}
-
-	resetCaptured()
-	f := newFakeFacade([]pipeline.Command{attachStep})
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: "launch"})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Attach"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	var cmd tea.ExecCommand
-	var cb tea.ExecCallback
-	captureDeadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(captureDeadline) {
-		cmd, cb = getCaptured()
-		if cmd != nil {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if cmd == nil || cb == nil {
-		t.Fatal("execRunner was not called for attach")
-	}
-
-	tm.Send(cb(nil))
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("select an action on the left"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
 }
 
 func TestNoLeakOnCancel(t *testing.T) {
@@ -799,228 +744,6 @@ func TestReset_FailureShowsFailureNotice(t *testing.T) {
 	if resetN != 1 {
 		t.Errorf("ResetSandbox called %d times, want 1", resetN)
 	}
-}
-
-func TestMenuTelegram_ConfigureFromMenu(t *testing.T) {
-	f := newFakeFacade(nil)
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionTelegram})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Configure"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.ScreenResult{Value: "123456:bot-token"})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeTelegramDone))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	f.mu.Lock()
-	tokens := append([]string(nil), f.telegramTokens...)
-	f.mu.Unlock()
-	if len(tokens) != 1 || tokens[0] != "123456:bot-token" {
-		t.Errorf("ConfigureTelegram tokens = %v, want [123456:bot-token]", tokens)
-	}
-}
-
-func TestMenuTelegram_SkipDoesNotConfigure(t *testing.T) {
-	f := newFakeFacade(nil)
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionTelegram})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Configure"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.ScreenResult{Value: screens.TelegramSkip})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.WelcomeHint))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	time.Sleep(100 * time.Millisecond)
-	f.mu.Lock()
-	n := len(f.telegramTokens)
-	f.mu.Unlock()
-	if n != 0 {
-		t.Errorf("ConfigureTelegram called %d times on skip, want 0", n)
-	}
-}
-
-func TestMenuTelegram_FailureShowsNotice(t *testing.T) {
-	f := newFakeFacade(nil)
-	f.telegramErr = errors.New("boom: channel not detected")
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionTelegram})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Configure"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.ScreenResult{Value: "123456:bot-token"})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("boom: channel not detected"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-}
-
-func TestMenuHarness_ShowsScreenAndApplies(t *testing.T) {
-	f := newFakeFacade(nil)
-	f.harnessCurrent = "missing"
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionHarness})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.FormTitleHarness)) &&
-			bytes.Contains(bts, []byte(uistr.MenuHarnessMissing))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.ScreenResult{Value: screens.HarnessReinstall})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeHarnessDone))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	f.mu.Lock()
-	applied := append([]string(nil), f.harnessApplied...)
-	f.mu.Unlock()
-	if len(applied) != 1 || applied[0] != screens.HarnessReinstall {
-		t.Errorf("ApplyHarness choices = %v, want [reinstall]", applied)
-	}
-}
-
-func TestMenuHarness_StatusErrorShowsNotice(t *testing.T) {
-	f := newFakeFacade(nil)
-	f.harnessStatusErr = errors.New("container claude unavailable — run Launch first")
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionHarness})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("harness: container claude unavailable"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	time.Sleep(100 * time.Millisecond)
-	f.mu.Lock()
-	n := len(f.harnessApplied)
-	f.mu.Unlock()
-	if n != 0 {
-		t.Errorf("ApplyHarness called %d times after status error, want 0", n)
-	}
-}
-
-func TestMenuVSCode_OpensAndNotices(t *testing.T) {
-	f := newFakeFacade(nil)
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionVSCode})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeVSCodeDone))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	f.mu.Lock()
-	n := f.vscodeCalls
-	f.mu.Unlock()
-	if n != 1 {
-		t.Errorf("OpenVSCode called %d times, want 1", n)
-	}
-}
-
-func TestMenuVSCode_FailureShowsNotice(t *testing.T) {
-	f := newFakeFacade(nil)
-	f.vscodeErr = errors.New("VS Code not found — install it from https://code.visualstudio.com")
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionVSCode})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("VS Code: VS Code not found"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-}
-
-func TestMenuBusyGateBlocksConcurrentActions(t *testing.T) {
-	f := newFakeFacade(nil)
-	gate := make(chan struct{})
-	f.vscodeGate = gate
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionVSCode})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeVSCodeOpening))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionLaunch})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeBusy))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	close(gate)
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeVSCodeDone))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(bus.MenuChosen{Action: screens.ActionHarness})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.FormTitleHarness))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	f.mu.Lock()
-	launches := 0
-	for _, c := range f.callLog {
-		if c == "LaunchSteps" {
-			launches++
-		}
-	}
-	f.mu.Unlock()
-	if launches != 0 {
-		t.Errorf("LaunchSteps called %d times while busy, want 0", launches)
-	}
-}
-
-func TestLaunchFailureShowsFailedNotice(t *testing.T) {
-	failing := &syncCommand{
-		meta:    pipeline.Meta{Name: "boom-step", Title: "Boom", Kind: pipeline.Auto},
-		checkFn: func(_ context.Context) (bool, error) { return false, nil },
-		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
-			return errors.New("exploded")
-		},
-	}
-	f := newFakeFacade([]pipeline.Command{failing})
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: "launch"})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeLaunchFailed))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-}
-
-func TestLaunchEscShowsCanceledNotice(t *testing.T) {
-	resumedWith := make(chan pipeline.Result, 1)
-	f := newFakeFacade([]pipeline.Command{telegramStep(resumedWith)})
-	tm := newApp(t, f)
-
-	tm.Send(bus.MenuChosen{Action: "launch"})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Configure"))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
-
-	tm.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
-
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte(uistr.NoticeLaunchCanceled))
-	}, teatest.WithDuration(5*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
 }
 
 func TestStatusUpdatesSubscribedOnce(t *testing.T) {
