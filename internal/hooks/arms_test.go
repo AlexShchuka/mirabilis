@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
 
 func stdinClosed(t *testing.T) {
@@ -22,8 +24,9 @@ func stdinClosed(t *testing.T) {
 }
 
 func TestTelegram_StdinReadError_NoError(t *testing.T) {
-	t.Setenv("TELEGRAM_BOT_TOKEN", "tok")
-	t.Setenv("TELEGRAM_CHAT_ID", "chat")
+	repoDir := t.TempDir()
+	t.Setenv("MIRABILIS_REPO", repoDir)
+	writeChatID(t, repoDir, "chat")
 	stdinClosed(t)
 	if err := Telegram(); err != nil {
 		t.Errorf("Telegram = %v, want nil when stdin read fails", err)
@@ -73,6 +76,8 @@ func TestParseFrontmatter_PreambleBeforeDelimiter(t *testing.T) {
 
 func TestSessionStart_HomeUnsetTakesFallbackBranch(t *testing.T) {
 	t.Setenv("HOME", "")
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
+	setRunner(t, exec.NewFake())
 	replaceStdin(t, "")
 	getOut := captureStdout(t)
 	err := SessionStart()
@@ -99,6 +104,7 @@ func TestSessionStart_WriteMemoryWarns_StillEmitsContext(t *testing.T) {
 	}
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	memDir := filepath.Join(tmp, ".claude", "memory")
 	if err := os.MkdirAll(memDir, 0o755); err != nil {
 		t.Fatal(err)

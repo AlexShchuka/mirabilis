@@ -54,23 +54,22 @@ is_wsl() {
   [[ "$output" == *"git is required"* ]]
   [[ "$output" == *"make is required"* ]]
   [[ "$output" == *"go is required"* ]]
-  [[ "$output" == *"node is required"* ]]
-  [[ "$output" == *"npm is required"* ]]
   [[ "$output" == *"docker"* ]]
 }
 
 @test "linux all present: proceeds past checks" {
   [ "$OS" = Linux ] || skip "linux-only path"
   is_wsl && skip "covered by the WSL note test"
-  for c in git make go node; do shim "$c" 'exit 0'; done
+  for c in git make go; do shim "$c" 'exit 0'; done
   shim docker 'case "$1" in compose) exit 0;; *) exit 0;; esac'
-  shim npm 'exit 0'
+  shim curl 'exit 0'
+  shim claude 'exit 0'
   shim make 'exit 0'
   dest="$WORKDIR/home"
   mkdir -p "$dest/.git"
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"done — run: mirabilis"* ]]
+  [[ "$output" == *"claude setup-token"* ]]
 }
 
 @test "WSL: prints the Docker Desktop integration note" {
@@ -88,16 +87,17 @@ is_wsl() {
 @test "linux gitleaks absent: warns but still succeeds" {
   [ "$OS" = Linux ] || skip "linux-only path"
   is_wsl && skip "covered by the WSL note test"
-  for c in git make go node; do shim "$c" 'exit 0'; done
+  for c in git make go; do shim "$c" 'exit 0'; done
   shim docker 'case "$1" in compose) exit 0;; *) exit 0;; esac'
-  shim npm 'exit 0'
+  shim curl 'exit 0'
+  shim claude 'exit 0'
   shim make 'exit 0'
   dest="$WORKDIR/home"
   mkdir -p "$dest/.git"
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *"gitleaks not found"* ]]
-  [[ "$output" == *"done — run: mirabilis"* ]]
+  [[ "$output" == *"claude setup-token"* ]]
 }
 
 @test "darwin missing brew: refuses with a Homebrew hint" {
@@ -117,5 +117,5 @@ is_wsl() {
   mkdir -p "$dest/.git"
   run env -i PATH="$BASEDIR" HOME="$dest" MIRABILIS_HOME="$dest" bash "$REPO_ROOT/install.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"done — run: mirabilis"* ]]
+  [[ "$output" == *"claude setup-token"* ]]
 }

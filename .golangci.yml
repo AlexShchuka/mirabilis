@@ -10,6 +10,93 @@ linters:
     - govet
     - staticcheck
     - unused
+    - forbidigo
+    - depguard
+    - errcheck
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: "^exec\\.Command(Context)?$"
+          pkg: "^os/exec$"
+          msg: "use engine/exec Runner port; raw os/exec is forbidden outside internal/engine/exec"
+        - pattern: "^os\\.(ReadFile|WriteFile)$"
+          msg: "fs I/O forbidden in the tui layer; use engine ports"
+        - pattern: "^http\\.(Get|Post|Head|Do|NewRequest|NewRequestWithContext|DefaultClient|DefaultTransport)$"
+          pkg: "^net/http$"
+          msg: "net/http forbidden in the tui layer; use engine ports"
+        - pattern: "^os\\.Stderr$"
+          msg: "write via the obs logger; stray stderr forbidden outside internal/obs, cmd/mirabilis and internal/hooks"
+        - pattern: "^log\\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln|Default|New)$"
+          pkg: "^log$"
+          msg: "use internal/obs logger; stray log calls forbidden outside internal/obs"
+    depguard:
+      rules:
+        engine-no-tui:
+          files:
+            - "**/internal/engine/**"
+          deny:
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/tui"
+              desc: "engine must not import tui (D2/G2: engine is TUI-free and testable without a terminal)"
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/bus"
+              desc: "engine must not import bus (D2/G2: engine emits its own event types over channels; tui/app converts to bus)"
+            - pkg: "charm.land/bubbletea"
+              desc: "engine must not import bubbletea (D2/G2)"
+            - pkg: "github.com/charmbracelet"
+              desc: "engine must not import charmbracelet packages (D2/G2)"
+        tui-leaves-no-engine:
+          files:
+            - "**/internal/tui/screens/**"
+            - "**/internal/tui/components/**"
+            - "**/internal/tui/frame/**"
+            - "**/internal/tui/router/**"
+          deny:
+            - pkg: "github.com/AlexShchuka/mirabilis/internal/engine"
+              desc: "tui leaves are pure render+bus; only tui/app may touch engine ports (§4.2)"
+    errcheck:
+      exclude-functions:
+        - (*os.File).Close
+        - (io.ReadCloser).Close
+        - (net/http.Response.Body).Close
+        - (*github.com/AlexShchuka/mirabilis/internal/obs.Obs).Close
+  exclusions:
+    rules:
+      - path: "internal/engine/exec/"
+        linters:
+          - forbidigo
+        text: "os/exec|exec\\.Command"
+      - path-except: "internal/tui/"
+        linters:
+          - forbidigo
+        text: "os\\.(ReadFile|WriteFile)|net/http|http\\."
+      - path: "internal/tui/app/"
+        linters:
+          - forbidigo
+        text: "os\\.(ReadFile|WriteFile)|net/http|http\\."
+      - path: "internal/obs/"
+        linters:
+          - forbidigo
+        text: "log\\."
+      - path: "cmd/mirabilis/"
+        linters:
+          - forbidigo
+        text: "log\\.|fmt\\.Fprint|os\\.Stderr"
+      - path: "internal/hooks/"
+        linters:
+          - forbidigo
+        text: "os\\.Stderr"
+      - path: "internal/engine/provision/provision\\.go"
+        linters:
+          - errcheck
+        text: "fmt\\.Fprint"
+      - path: "_test\\.go"
+        linters:
+          - forbidigo
+        text: "os\\.Stderr"
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+        text: "fmt\\.Fprint|Encoder\\)\\.Encode|w\\.Write"
 
 formatters:
   enable:

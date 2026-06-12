@@ -1,5 +1,5 @@
 cask "docker-desktop"
+cask "claude-code"
 brew "bash"
 brew "gitleaks"
 brew "go"
-brew "node"

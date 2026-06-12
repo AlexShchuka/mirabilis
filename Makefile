@@ -18,7 +18,7 @@ export STACKS
 
 help:
 	@printf 'mirabilis — daily use is the `mirabilis` command (after `make install`)\n\n'
-	@printf '  bootstrap   install Docker Desktop + the devcontainer CLI\n'
+	@printf '  bootstrap   install Docker Desktop + host claude CLI + Go (macOS only)\n'
 	@printf '  install     build the menu binary + put the mirabilis command on PATH\n'
 	@printf '  menu        build the host binary to bin/mirabilis\n'
 	@printf '  linux       cross-compile Linux binary to .build/mirabilis-linux\n'
@@ -31,7 +31,6 @@ help:
 bootstrap:
 	@test "$(UNAME_S)" = Darwin || { printf 'mirabilis: bootstrap is macOS-only (Homebrew); on Linux install prerequisites via install.sh or your package manager\n' >&2; exit 1; }
 	brew bundle --file=Brewfile
-	npm install -g @devcontainers/cli
 	git config core.hooksPath .githooks
 
 menu:
@@ -54,7 +53,7 @@ uninstall:
 	@rm -f $(BINDIR)/mirabilis $(BIN) && printf 'removed %s/mirabilis\n' "$(BINDIR)"
 
 up: linux
-	devcontainer up --workspace-folder .
+	docker compose up -d --build
 
 down:
 	docker compose -p mirabilis -f docker-compose.yml down

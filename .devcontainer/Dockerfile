@@ -1,4 +1,4 @@
-FROM node:26-trixie-slim
+FROM node:26-trixie-slim@sha256:95a34da32a840bd9b3b09a5b773591c16923e350174b1c50e1200c75bf15eaa9
 
 ARG TZ=Etc/UTC
 ENV TZ="$TZ" \
@@ -81,7 +81,40 @@ RUN go install golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION} \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build
 
-RUN npm install -g bats @devcontainers/cli \
+ARG CLAUDE_CODE_VERSION=2.1.153-1
+ARG GH_VERSION=2.94.0
+ARG DOCKER_CE_CLI_VERSION=5:28.1.1-1~debian.13~trixie
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://downloads.claude.ai/keys/claude-code.asc \
+       -o /etc/apt/keyrings/claude-code.asc \
+    && chmod a+r /etc/apt/keyrings/claude-code.asc \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main" \
+       > /etc/apt/sources.list.d/claude-code.list \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+       -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+       > /etc/apt/sources.list.d/github-cli.list \
+    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://download.docker.com/linux/debian/gpg \
+       -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian trixie stable" \
+       > /etc/apt/sources.list.d/docker.list
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+         "claude-code=${CLAUDE_CODE_VERSION}" \
+         "gh=${GH_VERSION}" \
+         "docker-ce-cli=${DOCKER_CE_CLI_VERSION}" \
+    && rm -f /etc/apt/sources.list.d/claude-code.list \
+             /etc/apt/sources.list.d/github-cli.list \
+             /etc/apt/sources.list.d/docker.list \
+             /etc/apt/keyrings/claude-code.asc \
+             /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+             /etc/apt/keyrings/docker.gpg
+
+RUN npm install -g bats \
     && rm -rf /root/.npm
 
 ENV GOTMPDIR=/home/node/.cache/go-tmp

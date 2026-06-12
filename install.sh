@@ -24,6 +24,18 @@ pm_hint() {
   fi
 }
 
+install_claude_cli() {
+  if command -v claude >/dev/null 2>&1; then
+    say "claude CLI already installed"
+    return 0
+  fi
+  say "installing host claude CLI…"
+  curl -fsSL https://claude.ai/install.sh | bash
+  if ! command -v claude >/dev/null 2>&1; then
+    say "warning: claude CLI not found on PATH after install — add ~/.local/bin to PATH, then run: claude setup-token"
+  fi
+}
+
 clone_and_finish() {
   if [ -d "$DEST/.git" ]; then
     say "updating the existing checkout at $DEST"
@@ -32,12 +44,11 @@ clone_and_finish() {
     say "cloning mirabilis to $DEST"
     git clone "$REPO_URL" "$DEST"
   fi
-  say "installing the devcontainer CLI…"
-  npm install -g @devcontainers/cli
+  install_claude_cli
   say "putting the 'mirabilis' command on your PATH…"
   git -C "$DEST" config core.hooksPath .githooks
   make -C "$DEST" install
-  say "done — run: mirabilis"
+  say "done — run: claude setup-token, then: mirabilis"
 }
 
 install_darwin() {
@@ -52,11 +63,11 @@ install_darwin() {
     git clone "$REPO_URL" "$DEST"
   fi
 
-  say "installing prerequisites (Docker Desktop, devcontainer CLI, Go)…"
+  say "installing prerequisites (Docker Desktop, host claude CLI, Go)…"
   make -C "$DEST" bootstrap
   say "putting the 'mirabilis' command on your PATH…"
   make -C "$DEST" install
-  say "done — run: mirabilis"
+  say "done — run: claude setup-token, then: mirabilis"
 }
 
 install_linux() {
@@ -69,8 +80,6 @@ install_linux() {
   command -v git >/dev/null 2>&1 || add_missing git "$(pm_hint git)"
   command -v make >/dev/null 2>&1 || add_missing make "$(pm_hint make)"
   command -v go >/dev/null 2>&1 || add_missing go "$(pm_hint golang)"
-  command -v node >/dev/null 2>&1 || add_missing node "$(pm_hint nodejs)"
-  command -v npm >/dev/null 2>&1 || add_missing npm "$(pm_hint npm)"
   if ! command -v docker >/dev/null 2>&1; then
     add_missing docker "curl -fsSL https://get.docker.com | sh"
   elif ! docker compose version >/dev/null 2>&1; then

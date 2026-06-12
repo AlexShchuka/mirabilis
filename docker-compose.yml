@@ -27,7 +27,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TZ: ${TZ:-Etc/UTC}
       XDG_DATA_HOME: /home/node/.claude/xdg-data
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
