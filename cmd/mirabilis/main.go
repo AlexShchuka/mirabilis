@@ -3,15 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
-	"github.com/AlexShchuka/mirabilis/internal/app"
-	"github.com/AlexShchuka/mirabilis/internal/config"
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
+	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
+	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
+	"github.com/AlexShchuka/mirabilis/internal/engine/status"
 	"github.com/AlexShchuka/mirabilis/internal/hooks"
-	"github.com/AlexShchuka/mirabilis/internal/provision"
-	"github.com/AlexShchuka/mirabilis/internal/runner"
-	"github.com/AlexShchuka/mirabilis/internal/runtime"
-	"github.com/AlexShchuka/mirabilis/internal/telegram"
+	"github.com/AlexShchuka/mirabilis/internal/obs"
+	"github.com/AlexShchuka/mirabilis/internal/tui/app"
 )
 
 var version = "unknown"
@@ -34,74 +38,141 @@ func effectiveVersion() string {
 }
 
 func run(args []string) error {
-	ctx := context.Background()
 	if len(args) == 0 {
-		return app.Run(ctx)
+		return runTUI()
 	}
 	switch args[0] {
 	case "-version", "--version", "version":
 		fmt.Println(effectiveVersion())
 		return nil
 	case "-h", "-help", "--help", "help":
-		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  tg-outbox   run the host-side Telegram outbox watcher\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
+		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  notify      host-side notification commands\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
 		return nil
 	case "provision":
-		return runProvision(ctx, runtime.NewLocalRunner(), args[1:])
+		return runProvision(context.Background(), args[1:])
 	case "hook":
 		if len(args) < 2 {
 			return fmt.Errorf("hook: missing name argument")
 		}
 		return hooks.Dispatch(args[1])
-	case "tg-outbox":
-		return runTgOutbox(ctx, args[1:])
+	case "notify":
+		return runNotify(context.Background(), args[1:])
 	default:
 		return fmt.Errorf("unknown argument %q — run 'mirabilis --help' for usage", args[0])
 	}
 }
 
-func runTgOutbox(ctx context.Context, _ []string) error {
-	r := runtime.NewExecRunner()
-	repo := r.Repo()
-
-	tokenPath := provision.TelegramTokenPath()
-	if _, err := os.Stat(tokenPath); err != nil {
-		return fmt.Errorf("tg-outbox: bot token not found at %s — run the provision step first", tokenPath)
+func runTUI() error {
+	repo := resolveRepo()
+	if err := acquireFlock(repo); err != nil {
+		fmt.Fprintln(os.Stderr, "mirabilis: already running")
+		return nil
 	}
 
-	allowedChatID := runtime.KeychainGetTelegramChat()
-	if allowedChatID == "" {
-		return fmt.Errorf("tg-outbox: telegram-chat not configured — run provisioning")
+	f, err := newFacade(repo)
+	if err != nil {
+		return fmt.Errorf("init: %w", err)
 	}
 
-	queueDir := telegram.OutboxDir(repo)
-	fmt.Fprintf(os.Stderr, "mirabilis tg-outbox: watching %s (chat %s)\n", queueDir, allowedChatID)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	cfg := telegram.WatcherConfig{
-		QueueDir:      queueDir,
-		TokenPath:     tokenPath,
-		AllowedChatID: allowedChatID,
+	go func() { _ = f.proxy.Start(ctx) }()
+	status.New(f.docker, f.obs).Start(ctx)
+
+	chatID, cerr := notify.ReadChatID(repo)
+	if cerr == nil && chatID != "" {
+		n := notify.NewTelegram(f.store, "")
+		go notify.Watch(ctx, notify.OutboxDir(repo), n, f.obs, 0)
 	}
-	return telegram.RunWatcher(ctx, cfg)
+
+	a := app.New(ctx, f)
+	_, err = tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx)).Run()
+	return err
 }
 
-func runProvision(ctx context.Context, r runner.Runner, args []string) error {
+func runProvision(ctx context.Context, args []string) error {
 	phase := ""
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == "--phase" {
-			phase = args[i+1]
+	proxyAddr := ""
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--phase":
+			if i+1 < len(args) {
+				i++
+				phase = args[i]
+			}
+		case "--proxy-addr":
+			if i+1 < len(args) {
+				i++
+				proxyAddr = args[i]
+			}
 		}
 	}
-	cfg := config.New("/opt/mirabilis/config")
-	switch phase {
-	case "create":
-		return provision.Create(ctx, r, cfg)
-	case "start":
-		return provision.Start(ctx, r, cfg)
-	case "plugins":
-		return provision.EnsurePlugins(ctx, r, cfg)
-	case "skills":
-		return provision.EnsureSkills(ctx, r, cfg)
-	default:
-		return fmt.Errorf("provision: unknown --phase %q (want create, start, plugins, or skills)", phase)
+
+	raw, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("provision: read stdin: %w", err)
 	}
+	sessionKey := strings.TrimSpace(string(raw))
+
+	home, _ := os.UserHomeDir()
+	repo := resolveRepo()
+
+	o, oerr := obs.New(logPathFor(repo))
+	if oerr != nil {
+		return fmt.Errorf("provision: obs: %w", oerr)
+	}
+
+	deps := provision.Deps{
+		Runner:     newHost(),
+		Cfg:        configFor(repo),
+		Log:        o.Logger("provision"),
+		Repo:       repo,
+		Home:       home,
+		ProxyAddr:  proxyAddr,
+		SessionKey: sessionKey,
+	}
+	return provision.RunPhase(ctx, deps, phase)
+}
+
+func runNotify(ctx context.Context, args []string) error {
+	if len(args) == 0 || args[0] != "send" {
+		return fmt.Errorf("notify: unknown subcommand — use 'notify send'")
+	}
+	args = args[1:]
+
+	repo := resolveRepo()
+
+	chatID, _ := notify.ReadChatID(repo)
+	var text string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--chat":
+			if i+1 < len(args) {
+				i++
+				chatID = args[i]
+			}
+		default:
+			text = strings.Join(args[i:], " ")
+			i = len(args)
+		}
+	}
+	if text == "" {
+		raw, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("notify send: read stdin: %w", err)
+		}
+		text = strings.TrimSpace(string(raw))
+	}
+	if chatID == "" {
+		return fmt.Errorf("notify send: chat-id not found — configure telegram first")
+	}
+
+	home, _ := os.UserHomeDir()
+	store := newPlatformStore(repo, home)
+	return notify.SendDirect(ctx, store, "", chatID, text)
+}
+
+func newPlatformStore(repo, home string) secrets.Store {
+	return platformStore(repo, home)
 }
