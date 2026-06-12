@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/AlexShchuka/mirabilis/internal/provision"
 )
 
 func startFakeProxy8787(t *testing.T) (stop func(), ok bool) {
@@ -63,7 +65,7 @@ func TestSessionStartBaseURL_SetsKey(t *testing.T) {
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set; env = %v", env)
 	}
 	if m["theme"] != "dark" {
@@ -79,14 +81,14 @@ func TestSessionRemoveBaseURL_RemovesKey(t *testing.T) {
 	tmp := t.TempDir()
 	sp := filepath.Join(tmp, "settings.json")
 	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787", "OTHER": "val"},
+		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL, "OTHER": "val"},
 	})
 
 	sessionRemoveBaseURL(sp)
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env != nil && env["ANTHROPIC_BASE_URL"] != nil {
+	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
 		t.Errorf("ANTHROPIC_BASE_URL should be removed; env = %v", env)
 	}
 	if env == nil || env["OTHER"] != "val" {
@@ -128,14 +130,14 @@ func TestEnsureProxyForSession_BinaryAbsent_StaleKeyRemoved(t *testing.T) {
 	t.Setenv("HOME", tmp)
 	sp := filepath.Join(tmp, ".claude", "settings.json")
 	writeHooksSettings(t, sp, map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
+		"env": map[string]any{provision.HeadroomBaseURLKey: provision.HeadroomProxyURL},
 	})
 
 	ensureProxyForSession()
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env != nil && env["ANTHROPIC_BASE_URL"] != nil {
+	if env != nil && env[provision.HeadroomBaseURLKey] != nil {
 		t.Errorf("stale ANTHROPIC_BASE_URL not removed when binary absent; env = %v", env)
 	}
 }
@@ -156,7 +158,7 @@ func TestEnsureProxyForSession_ProxyAlive_SetsBaseURL(t *testing.T) {
 
 	m := readHooksSettings(t, sp)
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[provision.HeadroomBaseURLKey] != provision.HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set when proxy alive; env = %v", env)
 	}
 }

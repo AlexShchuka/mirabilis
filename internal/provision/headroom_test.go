@@ -229,7 +229,7 @@ func TestEnsureHeadroomProxy_AlreadyReachable_SetsBaseURL(t *testing.T) {
 	if len(called) != 1 {
 		t.Fatalf("expected 1 call (probe), got %d: %v", len(called), called)
 	}
-	if !strings.Contains(called[0], "curl -fsS http://127.0.0.1:8787/stats") {
+	if !strings.Contains(called[0], "curl -fsS "+HeadroomProxyURL+"/stats") {
 		t.Errorf("call[0] = %q, want curl probe", called[0])
 	}
 	m, err := readJSON(filepath.Join(tmp, ".claude", "settings.json"))
@@ -237,7 +237,7 @@ func TestEnsureHeadroomProxy_AlreadyReachable_SetsBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[HeadroomBaseURLKey] != HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set; env = %v", env)
 	}
 }
@@ -279,7 +279,7 @@ func TestEnsureHeadroomProxy_Down_StartsAndPollSucceeds_SetsBaseURL(t *testing.T
 		t.Fatal(err)
 	}
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[HeadroomBaseURLKey] != HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL not set after successful start; env = %v", env)
 	}
 }
@@ -288,7 +288,7 @@ func TestEnsureHeadroomProxy_Down_PollFails_RemovesBaseURL(t *testing.T) {
 	tmp := setupProxySettingsHome(t)
 	cd := filepath.Join(tmp, ".claude")
 	if err := WriteJSON(filepath.Join(cd, "settings.json"), map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
+		"env": map[string]any{HeadroomBaseURLKey: HeadroomProxyURL},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestEnsureHeadroomProxy_Down_PollFails_RemovesBaseURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	env, _ := m["env"].(map[string]any)
-	if env != nil && env["ANTHROPIC_BASE_URL"] != nil {
+	if env != nil && env[HeadroomBaseURLKey] != nil {
 		t.Errorf("ANTHROPIC_BASE_URL should be removed on poll failure; env = %v", env)
 	}
 }
@@ -320,7 +320,7 @@ func TestEnsureHeadroomProxy_SetBaseURL_Idempotent(t *testing.T) {
 	cd := filepath.Join(tmp, ".claude")
 	sp := filepath.Join(cd, "settings.json")
 	if err := WriteJSON(sp, map[string]any{
-		"env": map[string]any{"ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"},
+		"env": map[string]any{HeadroomBaseURLKey: HeadroomProxyURL},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +337,7 @@ func TestEnsureHeadroomProxy_SetBaseURL_Idempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] != "http://127.0.0.1:8787" {
+	if env == nil || env[HeadroomBaseURLKey] != HeadroomProxyURL {
 		t.Errorf("ANTHROPIC_BASE_URL should remain set; env = %v", env)
 	}
 }

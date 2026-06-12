@@ -258,7 +258,7 @@ func memoryIndex(dir string) (string, error) {
 }
 
 func proxyAlive() bool {
-	resp, err := http.Get("http://127.0.0.1:8787/stats")
+	resp, err := http.Get(provision.HeadroomProxyURL + "/stats")
 	if err != nil {
 		return false
 	}
@@ -281,7 +281,7 @@ func sessionStartBaseURL(path string) {
 	if env == nil {
 		env = make(map[string]any)
 	}
-	env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:8787"
+	env[provision.HeadroomBaseURLKey] = provision.HeadroomProxyURL
 	m["env"] = env
 	if err := provision.WriteJSON(path, m); err != nil {
 		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
@@ -300,10 +300,10 @@ func sessionRemoveBaseURL(path string) {
 		return
 	}
 	env, _ := m["env"].(map[string]any)
-	if env == nil || env["ANTHROPIC_BASE_URL"] == nil {
+	if env == nil || env[provision.HeadroomBaseURLKey] == nil {
 		return
 	}
-	delete(env, "ANTHROPIC_BASE_URL")
+	delete(env, provision.HeadroomBaseURLKey)
 	m["env"] = env
 	if err := provision.WriteJSON(path, m); err != nil {
 		fmt.Fprintf(os.Stderr, "[hook] WARN: write settings: %v\n", err)
@@ -356,11 +356,8 @@ func telegramChannelCachePath() string {
 // The token is read from the secret file — it never appears in logs, output,
 // or error messages.
 func detectAndCacheTelegramChannel(tokenPath, cachePath, apiBaseURL string) {
-	// TODO: token source: pending isolation design (issue #115) — this read
-	// will move to a broker/keychain call once the isolation model is decided.
 	raw, err := os.ReadFile(tokenPath)
 	if err != nil {
-		// No token file — silently skip.
 		return
 	}
 	token := strings.TrimRight(string(raw), "\r\n")
@@ -480,13 +477,6 @@ func SessionStart() error {
 	return nil
 }
 
-// telegramTokenSecretPath is the single token-source seam for hooks.
-// TODO: token source: pending isolation design (issue #115) — replace with a
-// broker/keychain call once the isolation model is decided.
-//
-// telegramTokenSecretPath returns the default path for the bot token secret
-// file as expected inside the container. This is the path the container mounts
-// via the compose secrets mechanism.
 func telegramTokenSecretPath() string {
 	const defaultPath = "/run/secrets/telegram_bot_token"
 	return defaultPath
