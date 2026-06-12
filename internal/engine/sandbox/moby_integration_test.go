@@ -267,38 +267,29 @@ func TestMobyEventsIntegration(t *testing.T) {
 	unpauseCancel()
 
 	var received []string
+	foundPause := false
+	foundUnpause := false
 	eventDeadline := time.After(15 * time.Second)
-	for len(received) < 2 {
+	for !foundPause || !foundUnpause {
 		select {
 		case ev, ok := <-events:
 			if !ok {
 				t.Fatalf("events channel closed unexpectedly; got %v so far", received)
 			}
 			received = append(received, ev.Action)
+			switch ev.Action {
+			case "pause":
+				foundPause = true
+			case "unpause":
+				foundUnpause = true
+			}
 		case e := <-errs:
 			if e != nil {
 				t.Fatalf("Events error: %v", e)
 			}
 		case <-eventDeadline:
-			t.Fatalf("did not receive 2 events within deadline; got %v", received)
+			t.Fatalf("pause+unpause not observed within deadline; got %v", received)
 		}
-	}
-
-	foundPause := false
-	foundUnpause := false
-	for _, a := range received {
-		if a == "pause" {
-			foundPause = true
-		}
-		if a == "unpause" {
-			foundUnpause = true
-		}
-	}
-	if !foundPause {
-		t.Errorf("Events: no pause action; got %v", received)
-	}
-	if !foundUnpause {
-		t.Errorf("Events: no unpause action; got %v", received)
 	}
 
 	eventsCancel()
