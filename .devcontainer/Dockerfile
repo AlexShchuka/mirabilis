@@ -96,15 +96,10 @@ RUN go install golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION} \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build
 
-ARG CLAUDE_CODE_VERSION=2.1.153-1
+ARG CLAUDE_CODE_VERSION=latest
 ARG GH_VERSION=2.94.0
 ARG DOCKER_CE_CLI_VERSION=5:28.1.1-1~debian.13~trixie
 RUN install -m 0755 -d /etc/apt/keyrings \
-    && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://downloads.claude.ai/keys/claude-code.asc \
-       -o /etc/apt/keyrings/claude-code.asc \
-    && chmod a+r /etc/apt/keyrings/claude-code.asc \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main" \
-       > /etc/apt/sources.list.d/claude-code.list \
     && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
     && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -119,15 +114,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update \
     && apt-get install -y --no-install-recommends \
-         "claude-code=${CLAUDE_CODE_VERSION}" \
          "gh=${GH_VERSION}" \
          "docker-ce-cli=${DOCKER_CE_CLI_VERSION}" \
-    && rm -f /etc/apt/sources.list.d/claude-code.list \
-             /etc/apt/sources.list.d/github-cli.list \
+    && rm -f /etc/apt/sources.list.d/github-cli.list \
              /etc/apt/sources.list.d/docker.list \
-             /etc/apt/keyrings/claude-code.asc \
              /etc/apt/keyrings/githubcli-archive-keyring.gpg \
              /etc/apt/keyrings/docker.gpg
+
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
+    && rm -rf /root/.npm
 
 RUN npm install -g bats \
     && rm -rf /root/.npm
