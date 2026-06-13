@@ -7,6 +7,8 @@ import (
 	huh "charm.land/huh/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
+	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
 type Group struct {
@@ -41,7 +43,7 @@ func NewWizard(groups []Group) Model {
 				Value(ptr),
 		))
 	}
-	f := huh.NewForm(hg...).WithShowHelp(true)
+	f := huh.NewForm(hg...).WithShowHelp(true).WithTheme(styles.HuhTheme()).WithAccessible(a11y.Accessible())
 	f.SubmitCmd = func() tea.Msg {
 		values := make(map[string][]string, len(chosen))
 		for key, ptr := range chosen {

@@ -255,7 +255,7 @@ func (a App) handleTelegramDone(msg telegramDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogTelegramFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeTelegramErr + msg.err.Error())
+		return a.failToMenu(uistr.NoticeTelegramErr + msg.err.Error())
 	}
 	m, _ := a.backToMenu(uistr.NoticeTelegramDone)
 	return m, a.rememberTelegram()
@@ -266,7 +266,7 @@ func (a App) handleHarnessStatus(msg harnessStatusMsg) (tea.Model, tea.Cmd) {
 	a.frame.SetBusy("")
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogHarnessFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeHarnessErr + msg.err.Error())
+		return a.failToMenu(uistr.NoticeHarnessErr + msg.err.Error())
 	}
 	a.menuAction = "harness"
 	scr := screens.NewHarness("app/harness", msg.current, a.facade.LastHarnessChoice())
@@ -279,7 +279,7 @@ func (a App) handleHarnessDone(msg harnessDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogHarnessFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeHarnessErr + msg.err.Error())
+		return a.failToMenu(uistr.NoticeHarnessErr + msg.err.Error())
 	}
 	choice := a.harnessChoice
 	m, _ := a.backToMenu(uistr.NoticeHarnessDone)
@@ -290,7 +290,7 @@ func (a App) handleVSCodeDone(msg vscodeDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogVSCodeFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeVSCodeErr + msg.err.Error())
+		return a.failToMenu(uistr.NoticeVSCodeErr + msg.err.Error())
 	}
 	return a.backToMenu(uistr.NoticeVSCodeDone)
 }
@@ -311,7 +311,7 @@ func (a App) handleAttachReady(msg attachReadyMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogAttachFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeAttachErr + msg.err.Error())
+		return a.failToMenu(uistr.NoticeAttachErr + msg.err.Error())
 	}
 	m, _ := a.backToMenu("")
 	cmd := &exec.TTY{Argv: msg.argv, Env: msg.env}
@@ -332,7 +332,7 @@ func (a App) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogResetFailed, "err", msg.err)
-		return a.backToMenu(uistr.NoticeResetFailed)
+		return a.failToMenu(uistr.NoticeResetFailed)
 	}
 	return a.backToMenu(uistr.NoticeResetDone)
 }
@@ -358,15 +358,16 @@ func (a App) handlePipelineDone(msg pipelineDoneMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	a.pipe = nil
-	notice := ""
 	switch {
 	case a.launchCancelled:
-		notice = uistr.NoticeLaunchCanceled
+		a.launchCancelled = false
+		return a.backToMenu(uistr.NoticeLaunchCanceled)
 	case msg.failed:
-		notice = uistr.NoticeLaunchFailed
+		a.launchCancelled = false
+		return a.failToMenu(uistr.NoticeLaunchFailed)
 	}
 	a.launchCancelled = false
-	return a.backToMenu(notice)
+	return a.backToMenu("")
 }
 
 func (a App) rememberHarness(choice string) tea.Cmd {
@@ -402,8 +403,16 @@ func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 	if notice != "" {
 		menu = menu.WithNotice(notice)
 	}
+	if a.errNotice != "" {
+		menu = menu.WithError(a.errNotice)
+	}
 	a.router = router.New(menu)
 	return a, nil
+}
+
+func (a App) failToMenu(notice string) (tea.Model, tea.Cmd) {
+	a.errNotice = notice
+	return a.backToMenu(notice)
 }
 
 func stepsToRows(cmds []pipeline.Command) []steplist.StepRow {
@@ -481,7 +490,7 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 	pipeCmds := a.facade.LaunchSteps()
 	p, err := pipeline.New(a.facade.Logger(), pipeCmds...)
 	if err != nil {
-		return a.backToMenu(uistr.NoticeLaunchErrPrefix + err.Error())
+		return a.failToMenu(uistr.NoticeLaunchErrPrefix + err.Error())
 	}
 	a.pipe = p
 
@@ -491,7 +500,8 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 
 	if a.winW > 0 || a.winH > 0 {
-		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: a.winW, Height: a.winH})
+		mw, mh := a.frame.MainSize()
+		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
 	}
 
 	ic := scr.Init()
@@ -507,6 +517,11 @@ func (a App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if a.router.Depth() == 1 {
 			a.cancel()
 			return a, tea.Quit
+		}
+	case "x":
+		if a.router.Depth() == 1 && a.errNotice != "" {
+			a.errNotice = ""
+			return a.backToMenu("")
 		}
 	case "esc":
 		if a.router.Depth() > 1 {

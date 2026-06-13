@@ -34,7 +34,10 @@ func (s launchScr) Update(msg tea.Msg) (router.Screen, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		mw := msg.Width
 		mh := msg.Height
-		s.cmdlog.SetSize(mw, mh/3)
+		cmdlogH := max(mh/3, 0)
+		stepsH := max(mh-cmdlogH-1, 0)
+		s.steps.SetSize(mw, stepsH)
+		s.cmdlog.SetSize(mw, cmdlogH)
 		return s, nil
 	case toggleCmdlogMsg:
 		if s.tabFocus {

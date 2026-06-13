@@ -389,6 +389,35 @@ func wizardOf(title string, options []string) steps.Wizard {
 	}}
 }
 
+func TestLaunchScreenSizedToMainAreaNotFullTerminal(t *testing.T) {
+	longLine := strings.Repeat("x", 200)
+	streamer := &stateStep{meta: pipeline.Meta{Name: "stream", Title: "Stream", Kind: pipeline.Auto},
+		runFn: func(_ context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+			out <- pipeline.Event{Kind: pipeline.EvStepStarted, Step: "stream"}
+			out <- pipeline.Event{Kind: pipeline.EvLine, Step: "stream", Line: longLine}
+			<-make(chan struct{})
+			return nil
+		}}
+	f := &stubFacade{steps: []pipeline.Command{streamer}}
+	a := newStateApp(t, f)
+
+	const w, h = 120, 40
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: w, Height: h})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntil(t, a, func(_ App, ev pipeline.Event) bool { return ev.Kind == pipeline.EvLine })
+
+	mw, _ := a.frame.MainSize()
+	if mw >= w {
+		t.Fatalf("main-area width %d not narrower than terminal %d; menu chrome not subtracted", mw, w)
+	}
+	view := plainState(a.router.Top().View())
+	for i, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > mw {
+			t.Errorf("launch line %d width = %d, want <= main-area %d (screen got raw terminal size, not main area)", i, got, mw)
+		}
+	}
+}
+
 func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 	resumed := make(chan pipeline.Result, 1)
 	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
@@ -555,6 +584,62 @@ func TestStateResetCancelMakesNoCalls(t *testing.T) {
 	}
 	if a.router.Depth() != 1 {
 		t.Errorf("router depth = %d after pop, want 1 (menu only)", a.router.Depth())
+	}
+}
+
+func menuErrText(t *testing.T, a App) string {
+	t.Helper()
+	m, ok := a.router.Top().(screens.Menu)
+	if !ok {
+		t.Fatalf("top screen is %T, want screens.Menu", a.router.Top())
+	}
+	return m.ErrText()
+}
+
+func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
+	f := &stubFacade{resetErr: errors.New("disk busy")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	wantErr := uistr.NoticeResetFailed
+	if got := menuErrText(t, a); got != wantErr {
+		t.Fatalf("error surface = %q, want %q right after failure", got, wantErr)
+	}
+
+	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuNotice(t, a); got != uistr.NoticeVSCodeDone {
+		t.Errorf("benign notice = %q, want %q", got, uistr.NoticeVSCodeDone)
+	}
+	if got := menuErrText(t, a); got != wantErr {
+		t.Errorf("error surface = %q after a benign success, want it to persist as %q", got, wantErr)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if got := menuErrText(t, a); got != "" {
+		t.Errorf("error surface = %q after dismiss key, want empty", got)
+	}
+}
+
+func TestStateErrorSurfaceReplacedByNextError(t *testing.T) {
+	f := &stubFacade{resetErr: errors.New("disk busy"), vscodeErr: errors.New("code missing")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuErrText(t, a); got != uistr.NoticeResetFailed {
+		t.Fatalf("first error = %q, want %q", got, uistr.NoticeResetFailed)
+	}
+
+	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	want := uistr.NoticeVSCodeErr + "code missing"
+	if got := menuErrText(t, a); got != want {
+		t.Errorf("error surface = %q, want it replaced by the newer error %q", got, want)
 	}
 }
 
@@ -800,7 +885,15 @@ func busyGlyphPresent(header string) bool {
 	return false
 }
 
+func enableMotion(t *testing.T) {
+	t.Helper()
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("NO_ANIMATE", "")
+	t.Setenv("ACCESSIBLE", "")
+}
+
 func TestBusyNoticeTicksElapsed(t *testing.T) {
+	enableMotion(t)
 	f := &stubFacade{}
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -846,7 +939,27 @@ func TestBusyNoticeTicksElapsed(t *testing.T) {
 	}
 }
 
+func TestBusyStaticUnderReducedMotion(t *testing.T) {
+	t.Setenv("NO_ANIMATE", "1")
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	a.busy = true
+	if cmd := a.startBusy(); cmd != nil {
+		t.Error("startBusy returned a tick cmd under NO_ANIMATE, want nil (no animation; WCAG 2.3.3)")
+	}
+	h := strings.Split(plainState(a.frame.View("")), "\n")[0]
+	if busyGlyphPresent(h) {
+		t.Errorf("busy header shows an animated spinner frame under reduced motion:\n%s", h)
+	}
+	if !strings.Contains(h, busyStaticGlyph) {
+		t.Errorf("busy header missing the static glyph under reduced motion:\n%s", h)
+	}
+}
+
 func TestBusyTickStaleGenIgnored(t *testing.T) {
+	enableMotion(t)
 	f := &stubFacade{}
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})

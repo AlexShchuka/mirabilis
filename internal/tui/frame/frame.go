@@ -175,6 +175,10 @@ func (m Model) MainSize() (int, int) {
 	return max(m.width-m.MenuWidth()-1, 0), max(m.height-2, 0)
 }
 
+func (m Model) MainOrigin() (int, int) {
+	return m.MenuWidth() + 1, 1
+}
+
 func (m Model) View(main string) string {
 	if m.breakpoint() == bpTiny {
 		return m.tooSmallView()

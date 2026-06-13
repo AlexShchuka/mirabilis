@@ -6,10 +6,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
 const busyTickInterval = 120 * time.Millisecond
+
+const busyStaticGlyph = "…"
 
 var busyFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
@@ -25,7 +28,10 @@ func busyTick(gen int) tea.Cmd {
 }
 
 func (a App) busyText() string {
-	glyph := busyFrames[a.busyFrame%len(busyFrames)]
+	glyph := busyStaticGlyph
+	if !a11y.ReducedMotion() {
+		glyph = busyFrames[a.busyFrame%len(busyFrames)]
+	}
 	elapsed := int(time.Since(a.busyStarted).Seconds())
 	return fmt.Sprintf("%s%s%ds", glyph, uistr.BusyElapsedSep, elapsed)
 }
@@ -35,6 +41,9 @@ func (a *App) startBusy() tea.Cmd {
 	a.busyStarted = time.Now()
 	a.busyFrame = 0
 	a.frame.SetBusy(a.busyText())
+	if a11y.ReducedMotion() {
+		return nil
+	}
 	return busyTick(a.busyGen)
 }
 
@@ -48,5 +57,8 @@ func (a App) handleBusyTick(msg busyTickMsg) (tea.Model, tea.Cmd) {
 	}
 	a.busyFrame++
 	a.frame.SetBusy(a.busyText())
+	if a11y.ReducedMotion() {
+		return a, nil
+	}
 	return a, busyTick(a.busyGen)
 }

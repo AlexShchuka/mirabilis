@@ -5,8 +5,10 @@ import (
 	huh "charm.land/huh/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
+	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
 const (
@@ -42,7 +44,7 @@ func NewHarness(id bus.NodeID, current, last string) Harness {
 				).
 				Value(val),
 		),
-	)
+	).WithTheme(styles.HuhTheme()).WithAccessible(a11y.Accessible())
 	f.SubmitCmd = func() tea.Msg {
 		return bus.ScreenResult{Value: *val}
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
+	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -28,7 +29,7 @@ func TestViewOK(t *testing.T) {
 		"proxy":     {State: obs.StateOK, Detail: "on"},
 	}})
 	got := plain(m.View())
-	want := "container up · harness on · proxy on"
+	want := "● container up · ● harness on · ● proxy on"
 	if got != want {
 		t.Errorf("View() = %q, want %q", got, want)
 	}
@@ -44,7 +45,7 @@ func TestViewDegraded(t *testing.T) {
 	if !strings.Contains(got, "degraded: notify, proxy") {
 		t.Errorf("View() = %q, want degraded segment with notify, proxy", got)
 	}
-	if !strings.HasPrefix(got, "container up") {
+	if !strings.HasPrefix(got, "● container up") {
 		t.Errorf("View() = %q, want ok segment first", got)
 	}
 }
@@ -53,8 +54,8 @@ func TestViewDetailFallback(t *testing.T) {
 	m := New().Update(bus.StatusChanged{Snapshot: obs.Snapshot{
 		"harness": {State: obs.StateOff},
 	}})
-	if got := plain(m.View()); got != "harness off" {
-		t.Errorf("View() = %q, want %q", got, "harness off")
+	if got := plain(m.View()); got != "○ harness off" {
+		t.Errorf("View() = %q, want %q", got, "○ harness off")
 	}
 }
 
@@ -63,7 +64,22 @@ func TestUpdateIgnoresOtherMsgs(t *testing.T) {
 		"container": {State: obs.StateOK, Detail: "up"},
 	}})
 	m = m.Update(bus.ScreenPop{})
-	if got := plain(m.View()); got != "container up" {
+	if got := plain(m.View()); got != "● container up" {
 		t.Errorf("View() = %q, want snapshot kept", got)
+	}
+}
+
+func TestStatusGlyphsSurviveNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	m := New().Update(bus.StatusChanged{Snapshot: obs.Snapshot{
+		"container": {State: obs.StateOK, Detail: "up"},
+		"harness":   {State: obs.StateOff},
+		"proxy":     {State: obs.StateDegraded},
+	}})
+	got := plain(m.View())
+	for _, glyph := range []string{uistr.GlyphStatusOK, uistr.GlyphStatusOff, uistr.GlyphStatusDegraded} {
+		if !strings.Contains(got, glyph) {
+			t.Errorf("status view %q lacks glyph %q; state must not be color-only (WCAG 1.4.1)", got, glyph)
+		}
 	}
 }
