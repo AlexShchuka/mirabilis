@@ -56,7 +56,8 @@ type ScreenPush struct {
 type ScreenPop struct{}
 
 type ScreenResult struct {
-	Value any
+	Value  any
+	Values map[string][]string
 }
 
 type StatusChanged struct {

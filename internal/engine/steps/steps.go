@@ -22,11 +22,20 @@ type Deps struct {
 }
 
 type Catalog struct {
+	Key         string
 	Title       string
 	Description string
 	Options     []string
 	Selected    []string
 	MultiSelect bool
+}
+
+type Wizard struct {
+	Groups []Catalog
+}
+
+type WizardResult struct {
+	Choices map[string][]string
 }
 
 type TelegramSetup struct{}
@@ -40,9 +49,7 @@ func Launch(d Deps) []pipeline.Command {
 	return []pipeline.Command{
 		newPreflight(d),
 		&claudeAuthStep{d: d},
-		newStacksForm(d),
-		newPluginsForm(d),
-		newSkillsForm(d),
+		newConfig(d),
 		newTelegram(d),
 		&imageStep{d: d},
 		newContainer(d),

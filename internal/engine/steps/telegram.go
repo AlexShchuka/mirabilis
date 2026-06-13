@@ -26,7 +26,7 @@ func (s *telegramStep) Meta() pipeline.Meta {
 	return pipeline.Meta{
 		Name:     "telegram",
 		Title:    "Telegram",
-		Deps:     []string{"stacks"},
+		Deps:     []string{configStepName},
 		Kind:     pipeline.Interactive,
 		Optional: true,
 	}

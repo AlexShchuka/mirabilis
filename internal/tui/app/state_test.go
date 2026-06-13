@@ -301,11 +301,11 @@ func waitingStep(name string, payload any, resumed chan pipeline.Result) *stateS
 	}
 }
 
-func catalogStep(title string, payload steps.Catalog, resumed chan pipeline.Result) *stateStep {
+func wizardStep(name string, payload steps.Wizard, resumed chan pipeline.Result) *stateStep {
 	return &stateStep{
-		meta: pipeline.Meta{Name: title, Title: title, Kind: pipeline.Interactive},
+		meta: pipeline.Meta{Name: name, Title: name, Kind: pipeline.Interactive},
 		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-			out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: title, Payload: payload}
+			out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: name, Payload: payload}
 			r := <-in
 			if resumed != nil {
 				resumed <- r
@@ -370,10 +370,16 @@ func driveUntilFormUp(t *testing.T, a App) App {
 	}
 }
 
+func wizardOf(title string, options []string) steps.Wizard {
+	return steps.Wizard{Groups: []steps.Catalog{
+		{Key: "stacks", Title: title, Description: title, Options: options, MultiSelect: true},
+	}}
+}
+
 func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 	resumed := make(chan pipeline.Result, 1)
-	payload := steps.Catalog{Title: "choose-stacks", Options: []string{"alpha", "beta"}}
-	f := &stubFacade{steps: []pipeline.Command{catalogStep("Stacks", payload, resumed)}}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, resumed)}}
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -385,11 +391,11 @@ func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 	}
 
 	view := plainState(a.View().Content)
-	if !strings.Contains(view, "Stacks") {
+	if !strings.Contains(view, "config") {
 		t.Errorf("composited view missing the launch steplist token (background):\n%s", view)
 	}
 	if !strings.Contains(view, "choose-stacks") {
-		t.Errorf("composited view missing the catalog form token (overlay):\n%s", view)
+		t.Errorf("composited view missing the wizard form token (overlay):\n%s", view)
 	}
 	if strings.Contains(view, uistr.WelcomeHint) {
 		t.Errorf("background is the root menu, not the immediate parent launch screen:\n%s", view)
@@ -398,8 +404,8 @@ func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 
 func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
 	resumed := make(chan pipeline.Result, 1)
-	payload := steps.Catalog{Title: "choose-stacks", Options: []string{"alpha", "beta"}}
-	f := &stubFacade{steps: []pipeline.Command{catalogStep("Stacks", payload, resumed)}}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, resumed)}}
 	a := newStateApp(t, f)
 
 	const w, h = 50, 20
@@ -409,7 +415,7 @@ func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
 
 	view := a.View().Content
 	plain := plainState(view)
-	if !strings.Contains(plain, "Stacks") {
+	if !strings.Contains(plain, "config") {
 		t.Errorf("small composited view missing steplist token (background):\n%s", plain)
 	}
 	if !strings.Contains(plain, "choose-stacks") {

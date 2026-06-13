@@ -22,11 +22,9 @@ func TestLaunchRegistry(t *testing.T) {
 	}{
 		{name: "preflight", kind: pipeline.Auto, timeout: 90 * time.Second},
 		{name: "claude-auth", deps: []string{"preflight"}, kind: pipeline.Terminal},
-		{name: "stacks", kind: pipeline.Interactive},
-		{name: "plugins-form", kind: pipeline.Interactive},
-		{name: "skills-form", kind: pipeline.Interactive},
-		{name: "telegram", deps: []string{"stacks"}, kind: pipeline.Interactive, optional: true},
-		{name: "image", deps: []string{"preflight", "stacks"}, kind: pipeline.Auto, timeout: 15 * time.Minute},
+		{name: "config", kind: pipeline.Interactive},
+		{name: "telegram", deps: []string{"config"}, kind: pipeline.Interactive, optional: true},
+		{name: "image", deps: []string{"preflight", "config"}, kind: pipeline.Auto, timeout: 15 * time.Minute},
 		{
 			name: "container", deps: []string{"image"}, kind: pipeline.Auto, timeout: 3 * time.Minute,
 			retry: pipeline.RetryPolicy{Attempts: 2, Delay: 2 * time.Second},
@@ -41,11 +39,11 @@ func TestLaunchRegistry(t *testing.T) {
 		},
 		{name: "gh-auth", deps: []string{"container"}, kind: pipeline.Interactive},
 		{
-			name: "plugins", deps: []string{"provision-start", "plugins-form"}, kind: pipeline.Auto,
+			name: "plugins", deps: []string{"provision-start", "config"}, kind: pipeline.Auto,
 			timeout: 5 * time.Minute, optional: true,
 		},
 		{
-			name: "skills", deps: []string{"provision-start", "skills-form"}, kind: pipeline.Auto,
+			name: "skills", deps: []string{"provision-start", "config"}, kind: pipeline.Auto,
 			timeout: 5 * time.Minute, optional: true,
 		},
 		{

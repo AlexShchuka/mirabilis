@@ -2,51 +2,96 @@ package steps
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
-const pluginsDisabledKey = "PLUGINS_DISABLED"
+const (
+	pluginsDisabledKey = "PLUGINS_DISABLED"
 
-type formStep struct {
+	configStepName = "config"
+	keyStacks      = "stacks"
+	keyPlugins     = "plugins"
+	keySkills      = "skills"
+)
+
+type formGroup struct {
 	persisted func() bool
 	load      func() Catalog
 	save      func(choice []string) error
-	name      string
-	title     string
+	key       string
 }
 
-func (s *formStep) Meta() pipeline.Meta {
-	return pipeline.Meta{Name: s.name, Title: s.title, Kind: pipeline.Interactive}
+type configStep struct {
+	groups []formGroup
 }
 
-func (s *formStep) Check(context.Context) (bool, error) {
-	return s.persisted(), nil
+func newConfig(d Deps) *configStep {
+	return &configStep{groups: []formGroup{
+		stacksGroup(d),
+		pluginsGroup(d),
+		skillsGroup(d),
+	}}
 }
 
-func (s *formStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-	cat := s.load()
-	if len(cat.Options) == 0 {
-		return s.save(nil)
+func (s *configStep) Meta() pipeline.Meta {
+	return pipeline.Meta{Name: configStepName, Title: "Config", Kind: pipeline.Interactive}
+}
+
+func (s *configStep) Check(context.Context) (bool, error) {
+	for _, g := range s.groups {
+		if !g.persisted() {
+			return false, nil
+		}
 	}
-	out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: s.name, Payload: cat}
+	return true, nil
+}
+
+func (s *configStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+	cats := make([]Catalog, 0, len(s.groups))
+	saves := make(map[string]func([]string) error, len(s.groups))
+	for _, g := range s.groups {
+		cat := g.load()
+		if len(cat.Options) == 0 {
+			if err := g.save(nil); err != nil {
+				return err
+			}
+			continue
+		}
+		cat.Key = g.key
+		cats = append(cats, cat)
+		saves[g.key] = g.save
+	}
+	if len(cats) == 0 {
+		return nil
+	}
+	out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: configStepName, Payload: Wizard{Groups: cats}}
 	r, err := awaitResume(ctx, in)
 	if err != nil {
 		return err
 	}
-	choice, err := asStrings(s.name, r.Value)
-	if err != nil {
-		return err
+	res, ok := r.Value.(WizardResult)
+	if !ok {
+		return fmt.Errorf("steps: %s: expected WizardResult, got %T", configStepName, r.Value)
 	}
-	return s.save(choice)
+	for _, cat := range cats {
+		choice, present := res.Choices[cat.Key]
+		if !present {
+			return fmt.Errorf("steps: %s: result missing group %q", configStepName, cat.Key)
+		}
+		if err := saves[cat.Key](choice); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func newStacksForm(d Deps) *formStep {
-	return &formStep{
-		name:  "stacks",
-		title: "Stacks",
+func stacksGroup(d Deps) formGroup {
+	return formGroup{
+		key: keyStacks,
 		persisted: func() bool {
 			_, ok := config.ReadStacks(d.Repo)
 			return ok
@@ -67,10 +112,9 @@ func newStacksForm(d Deps) *formStep {
 	}
 }
 
-func newPluginsForm(d Deps) *formStep {
-	return &formStep{
-		name:  "plugins-form",
-		title: "Plugins choice",
+func pluginsGroup(d Deps) formGroup {
+	return formGroup{
+		key: keyPlugins,
 		persisted: func() bool {
 			_, ok := dotenvRead(d.Repo, pluginsDisabledKey)
 			return ok
@@ -91,10 +135,9 @@ func newPluginsForm(d Deps) *formStep {
 	}
 }
 
-func newSkillsForm(d Deps) *formStep {
-	return &formStep{
-		name:  "skills-form",
-		title: "Skills choice",
+func skillsGroup(d Deps) formGroup {
+	return formGroup{
+		key: keySkills,
 		persisted: func() bool {
 			_, ok := config.ReadSkills(d.Repo)
 			return ok
