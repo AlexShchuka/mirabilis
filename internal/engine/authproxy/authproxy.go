@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/AlexShchuka/mirabilis/internal/engine/claudeauth"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 )
 
@@ -30,7 +29,7 @@ const (
 )
 
 type Proxy struct {
-	ts       claudeauth.TokenSource
+	ts       TokenSource
 	obs      *obs.Obs
 	log      *slog.Logger
 	upstream *url.URL
@@ -40,7 +39,7 @@ type Proxy struct {
 	port     int
 }
 
-func New(ts claudeauth.TokenSource, o *obs.Obs, port int, key string) *Proxy {
+func New(ts TokenSource, o *obs.Obs, port int, key string) *Proxy {
 	if key == "" {
 		buf := make([]byte, 32)
 		if _, err := rand.Read(buf); err != nil {

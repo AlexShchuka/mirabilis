@@ -26,6 +26,7 @@ services:
       - SETUID
     security_opt:
       - no-new-privileges:true
+      - apparmor:docker-default
     mem_limit: 8g
     cpus: "4.0"
     pids_limit: 4096

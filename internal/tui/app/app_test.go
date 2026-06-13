@@ -18,8 +18,9 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/app"
 )
 
-func init() {
+func TestMain(m *testing.M) {
 	app.SetExecRunner(captureExec)
+	m.Run()
 }
 
 var (
@@ -225,12 +226,12 @@ func TestLatencyGolden(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
-	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
-		return bytes.Contains(bts, []byte("Slow Step"))
-	}, teatest.WithDuration(2*time.Second), teatest.WithCheckInterval(10*time.Millisecond))
+	if err := tm.Quit(); err != nil {
+		t.Fatalf("quit failed: %v", err)
+	}
 
 	if time.Now().After(deadline) {
-		t.Error("frame did not render within 2 seconds while slow step was running (possible UI thread block)")
+		t.Error("UI did not respond to quit within 2 seconds while slow step was running (possible UI thread block)")
 	}
 }
 

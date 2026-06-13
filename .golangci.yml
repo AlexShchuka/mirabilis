@@ -13,6 +13,8 @@ linters:
     - forbidigo
     - depguard
     - errcheck
+    - gochecknoinits
+    - containedctx
   settings:
     forbidigo:
       analyze-types: true

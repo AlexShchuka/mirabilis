@@ -42,7 +42,7 @@ type Facade interface {
 var execRunner = tea.Exec
 
 type App struct {
-	ctx             context.Context
+	ctx             context.Context //nolint:containedctx
 	cancel          context.CancelFunc
 	facade          Facade
 	statusCh        <-chan obs.Snapshot

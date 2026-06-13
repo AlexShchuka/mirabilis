@@ -20,12 +20,6 @@ const (
 	defaultBaseURL = "https://api.telegram.org"
 )
 
-func init() {
-	Register("telegram", func(store secrets.Store) (Notifier, error) {
-		return NewTelegram(store, ""), nil
-	})
-}
-
 type Telegram struct {
 	store   secrets.Store
 	baseURL string

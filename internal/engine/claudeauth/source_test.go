@@ -180,7 +180,7 @@ func TestSourceInvalidateRefetches(t *testing.T) {
 	if gets := store.getCount(); gets != 1 {
 		t.Fatalf("store gets = %d, want 1", gets)
 	}
-	src.(interface{ Invalidate() }).Invalidate()
+	src.Invalidate()
 	if _, err := src.Token(ctx); err != nil {
 		t.Fatalf("Token() after invalidate = %v", err)
 	}

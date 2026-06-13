@@ -16,20 +16,18 @@ const (
 
 var errNotOATToken = errors.New("stored claude token is not an oat token")
 
-type cachedSource struct {
+type CachedSource struct {
 	store secrets.Store
 
 	mu    sync.Mutex
 	token string
 }
 
-var _ TokenSource = (*cachedSource)(nil)
-
-func NewSource(store secrets.Store) TokenSource {
-	return &cachedSource{store: store}
+func NewSource(store secrets.Store) *CachedSource {
+	return &CachedSource{store: store}
 }
 
-func (s *cachedSource) Token(ctx context.Context) (string, error) {
+func (s *CachedSource) Token(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	if s.token != "" {
 		v := s.token
@@ -55,7 +53,7 @@ func (s *cachedSource) Token(ctx context.Context) (string, error) {
 	return value, nil
 }
 
-func (s *cachedSource) Invalidate() {
+func (s *CachedSource) Invalidate() {
 	s.mu.Lock()
 	s.token = ""
 	s.mu.Unlock()

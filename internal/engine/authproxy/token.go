@@ -1,0 +1,7 @@
+package authproxy
+
+import "context"
+
+type TokenSource interface {
+	Token(ctx context.Context) (string, error)
+}
