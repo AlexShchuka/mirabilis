@@ -151,3 +151,21 @@ func TestViewGlyphs(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitingGlyphDistinct(t *testing.T) {
+	m := New([]StepRow{
+		{Name: "a", Title: "Pending step"},
+		{Name: "b", Title: "Waiting step", State: StateWaiting},
+	})
+	view := plain(m.View())
+	lines := strings.Split(view, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("view has %d lines, want at least 2", len(lines))
+	}
+	if strings.HasPrefix(lines[1], " · ") {
+		t.Error("waiting row uses pending glyph '·'; expected a distinct waiting glyph")
+	}
+	if !strings.HasPrefix(lines[1], " ? ") {
+		t.Errorf("waiting row = %q, want prefix \" ? \"", lines[1])
+	}
+}

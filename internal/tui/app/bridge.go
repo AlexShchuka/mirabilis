@@ -131,11 +131,18 @@ func (a *App) handleWaiting(ev pipeline.Event) tea.Cmd {
 		return a.handleTerminal(ev)
 	}
 	switch p := ev.Payload.(type) {
-	case steps.Catalog:
-		scr := formScreen{
-			id:   "app/launch/form",
-			form: form.NewMultiSelect(p.Title, p.Options, p.Selected),
+	case steps.Wizard:
+		groups := make([]form.Group, 0, len(p.Groups))
+		for _, c := range p.Groups {
+			groups = append(groups, form.Group{
+				Key:         c.Key,
+				Title:       c.Title,
+				Description: c.Description,
+				Options:     c.Options,
+				Selected:    c.Selected,
+			})
 		}
+		scr := formScreen{id: "app/launch/form", form: form.NewWizard(groups)}
 		return func() tea.Msg { return bus.ScreenPush{Model: scr} }
 	case steps.GHAuth:
 		scr := screens.NewGHAuth("app/launch/ghauth", p.Code, p.URL)
@@ -189,9 +196,16 @@ func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 	step := a.waiting
 	a.waiting = ""
 	if a.pipe != nil && step != "" {
-		_ = a.pipe.Resume(step, pipeline.Result{Value: msg.Value})
+		_ = a.pipe.Resume(step, pipeline.Result{Value: screenResultValue(msg)})
 	}
 	return a, rc
+}
+
+func screenResultValue(msg bus.ScreenResult) any {
+	if msg.Values != nil {
+		return steps.WizardResult{Choices: msg.Values}
+	}
+	return msg.Value
 }
 
 func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd tea.Cmd) (tea.Model, tea.Cmd) {

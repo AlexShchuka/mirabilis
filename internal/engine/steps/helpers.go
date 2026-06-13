@@ -54,14 +54,6 @@ func awaitResume(ctx context.Context, in <-chan pipeline.Result) (pipeline.Resul
 	}
 }
 
-func asStrings(step string, v any) ([]string, error) {
-	s, ok := v.([]string)
-	if !ok {
-		return nil, fmt.Errorf("steps: %s: expected []string result, got %T", step, v)
-	}
-	return s, nil
-}
-
 func splitLines(s string) []string {
 	var out []string
 	for _, line := range strings.Split(s, "\n") {

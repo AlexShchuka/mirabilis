@@ -9,26 +9,45 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 )
 
-type Model struct {
-	form   *huh.Form
-	chosen *[]string
+type Group struct {
+	Key         string
+	Title       string
+	Description string
+	Options     []string
+	Selected    []string
 }
 
-func NewMultiSelect(title string, options, selected []string) Model {
-	chosen := new([]string)
-	opts := make([]huh.Option[string], 0, len(options))
-	for _, o := range options {
-		opts = append(opts, huh.NewOption(o, o).Selected(slices.Contains(selected, o)))
+type Model struct {
+	form   *huh.Form
+	chosen map[string]*[]string
+}
+
+func NewWizard(groups []Group) Model {
+	chosen := make(map[string]*[]string, len(groups))
+	hg := make([]*huh.Group, 0, len(groups))
+	for _, g := range groups {
+		ptr := new([]string)
+		chosen[g.Key] = ptr
+		opts := make([]huh.Option[string], 0, len(g.Options))
+		for _, o := range g.Options {
+			opts = append(opts, huh.NewOption(o, o).Selected(slices.Contains(g.Selected, o)))
+		}
+		hg = append(hg, huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title(g.Title).
+				Description(g.Description).
+				Options(opts...).
+				Filterable(false).
+				Value(ptr),
+		))
 	}
-	f := huh.NewForm(huh.NewGroup(
-		huh.NewMultiSelect[string]().
-			Title(title).
-			Options(opts...).
-			Filterable(false).
-			Value(chosen),
-	))
+	f := huh.NewForm(hg...).WithShowHelp(true)
 	f.SubmitCmd = func() tea.Msg {
-		return bus.ScreenResult{Value: append([]string(nil), *chosen...)}
+		values := make(map[string][]string, len(chosen))
+		for key, ptr := range chosen {
+			values[key] = append([]string(nil), *ptr...)
+		}
+		return bus.ScreenResult{Values: values}
 	}
 	f.CancelCmd = popCmd
 	return Model{form: f, chosen: chosen}

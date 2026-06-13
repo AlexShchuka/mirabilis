@@ -32,14 +32,14 @@ func TestLaunchContract(t *testing.T) {
 			},
 		},
 		"claude-auth": {},
-		"stacks": {
-			resolve: func(any) pipeline.Result { return pipeline.Result{Value: []string{"rust"}} },
-		},
-		"plugins-form": {
-			resolve: func(any) pipeline.Result { return pipeline.Result{Value: []string{}} },
-		},
-		"skills-form": {
-			resolve: func(any) pipeline.Result { return pipeline.Result{Value: []string{"writer"}} },
+		"config": {
+			resolve: func(any) pipeline.Result {
+				return pipeline.Result{Value: WizardResult{Choices: map[string][]string{
+					keyStacks:  {"rust"},
+					keyPlugins: {},
+					keySkills:  {"writer"},
+				}}}
+			},
 		},
 		"telegram": {
 			resolve: func(any) pipeline.Result { return pipeline.Result{Value: "skip"} },

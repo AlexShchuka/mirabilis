@@ -335,12 +335,13 @@ func TestInboundInteractiveCatalog(t *testing.T) {
 }
 
 func catalogPayload() interface{} {
-	return steps.Catalog{
+	return steps.Wizard{Groups: []steps.Catalog{{
+		Key:         "stacks",
 		Title:       "Pick one",
 		Options:     []string{"alpha", "beta"},
 		Selected:    nil,
 		MultiSelect: true,
-	}
+	}}}
 }
 
 func TestInboundCancelled(t *testing.T) {
