@@ -77,6 +77,7 @@ func TestCatalogReaders(t *testing.T) {
 		{"ReadStackCatalog", "stacks.txt", ReadStackCatalog},
 		{"ReadPluginCatalog", "plugins.txt", ReadPluginCatalog},
 		{"ReadSkillCatalog", "skills.txt", ReadSkillCatalog},
+		{"ReadMarketplaces", "marketplaces.txt", ReadMarketplaces},
 	}
 	cases := []struct {
 		name    string
@@ -105,6 +106,44 @@ func TestCatalogReaders(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestReadMCPCatalog(t *testing.T) {
+	t.Run("missing file returns nil", func(t *testing.T) {
+		if got := ReadMCPCatalog(t.TempDir()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+	t.Run("invalid json returns nil", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
+		if got := ReadMCPCatalog(dir); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+	t.Run("parses entries", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"),
+			`[{"name":"context7","transport":"http","url":"https://example/mcp"},`+
+				`{"name":"st","transport":"stdio","args":["npx","-y","pkg"]}]`)
+		got := ReadMCPCatalog(dir)
+		want := []MCPEntry{
+			{Name: "context7", Transport: "http", URL: "https://example/mcp"},
+			{Name: "st", Transport: "stdio", Args: []string{"npx", "-y", "pkg"}},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestHeadroomURLs(t *testing.T) {
+	if got := HeadroomBaseURL(); got != "http://127.0.0.1:8787" {
+		t.Errorf("HeadroomBaseURL = %q", got)
+	}
+	if got := HeadroomStatsURL(); got != "http://127.0.0.1:8787/stats" {
+		t.Errorf("HeadroomStatsURL = %q", got)
 	}
 }
 

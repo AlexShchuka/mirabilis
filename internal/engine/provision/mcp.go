@@ -6,15 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
-
-type mcpEntry struct {
-	name      string
-	transport string
-	url       string
-	args      []string
-}
 
 func parseMCPList(out string) map[string]bool {
 	registered := make(map[string]bool)
@@ -37,29 +31,27 @@ type mcpStep struct {
 
 func (s *mcpStep) Meta() pipeline.Meta { return carryMeta("mcp", "MCP servers") }
 
-func (s *mcpStep) entries(ctx context.Context) []mcpEntry {
-	entries := []mcpEntry{
-		{name: "context7", transport: "http", url: "https://mcp.context7.com/mcp"},
-		{name: "sequential-thinking", transport: "stdio", args: []string{"npx", "-y", "@modelcontextprotocol/server-sequential-thinking"}},
-	}
-	if s.d.scriptOK(ctx, "command -v uvx") {
-		entries = append(entries,
-			mcpEntry{name: "arxiv-mcp-server", transport: "stdio", args: []string{"uvx", "arxiv-mcp-server"}},
-			mcpEntry{name: "docling", transport: "stdio", args: []string{"uvx", "--from", "docling-mcp[local]", "docling-mcp-server", "--transport", "stdio"}},
-		)
+func (s *mcpStep) entries(ctx context.Context) []config.MCPEntry {
+	hasUvx := s.d.cmd().scriptOK(ctx, "command -v uvx")
+	var entries []config.MCPEntry
+	for _, e := range config.ReadMCPCatalog(s.d.Repo) {
+		if len(e.Args) > 0 && e.Args[0] == "uvx" && !hasUvx {
+			continue
+		}
+		entries = append(entries, e)
 	}
 	return entries
 }
 
 func (s *mcpStep) Check(ctx context.Context) (bool, error) {
-	if !s.d.scriptOK(ctx, "command -v claude") {
+	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
 		return true, nil
 	}
 	entries := s.entries(ctx)
-	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
+	listOut, _ := s.d.cmd().output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	for _, e := range entries {
-		if !registered[e.name] {
+		if !registered[e.Name] {
 			return false, nil
 		}
 	}
@@ -67,27 +59,27 @@ func (s *mcpStep) Check(ctx context.Context) (bool, error) {
 }
 
 func (s *mcpStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	if !s.d.scriptOK(ctx, "command -v claude") {
+	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
 		return nil
 	}
 	entries := s.entries(ctx)
-	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
+	listOut, _ := s.d.cmd().output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	var errs []error
 	for _, e := range entries {
-		if registered[e.name] {
+		if registered[e.Name] {
 			continue
 		}
-		argv := []string{"claude", "mcp", "add", "--scope", "user", "--transport", e.transport}
-		switch e.transport {
+		argv := []string{"claude", "mcp", "add", "--scope", "user", "--transport", e.Transport}
+		switch e.Transport {
 		case "http":
-			argv = append(argv, e.name, e.url)
+			argv = append(argv, e.Name, e.URL)
 		case "stdio":
-			argv = append(argv, e.name, "--")
-			argv = append(argv, e.args...)
+			argv = append(argv, e.Name, "--")
+			argv = append(argv, e.Args...)
 		}
-		if err := s.d.stream(ctx, "mcp", out, argv...); err != nil {
-			errs = append(errs, fmt.Errorf("register %s: %w", e.name, err))
+		if err := s.d.cmd().stream(ctx, "mcp", out, argv...); err != nil {
+			errs = append(errs, fmt.Errorf("register %s: %w", e.Name, err))
 		}
 	}
 	return errors.Join(errs...)

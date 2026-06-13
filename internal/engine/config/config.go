@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -94,6 +95,37 @@ func ReadPluginCatalog(repo string) []string {
 
 func ReadSkillCatalog(repo string) []string {
 	return readList(filepath.Join(repo, "config", "skills.txt"))
+}
+
+func ReadMarketplaces(repo string) []string {
+	return readList(filepath.Join(repo, "config", "marketplaces.txt"))
+}
+
+type MCPEntry struct {
+	Name      string   `json:"name"`
+	Transport string   `json:"transport"`
+	URL       string   `json:"url,omitempty"`
+	Args      []string `json:"args,omitempty"`
+}
+
+func ReadMCPCatalog(repo string) []MCPEntry {
+	data, err := os.ReadFile(filepath.Join(repo, "config", "mcp.json"))
+	if err != nil {
+		return nil
+	}
+	var entries []MCPEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil
+	}
+	return entries
+}
+
+func HeadroomBaseURL() string {
+	return "http://127.0.0.1:" + strconv.Itoa(HeadroomPort)
+}
+
+func HeadroomStatsURL() string {
+	return HeadroomBaseURL() + "/stats"
 }
 
 func AuthProxyPort(repo string) int {

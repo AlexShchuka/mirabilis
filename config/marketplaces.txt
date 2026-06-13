@@ -1,0 +1,2 @@
+anthropics/claude-plugins-official
+jarrodwatts/claude-hud

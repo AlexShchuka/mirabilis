@@ -7,6 +7,7 @@ import (
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
@@ -73,7 +74,7 @@ func TestLaunchContract(t *testing.T) {
 		},
 		"provision-start": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
-				hash := startMarkerHash("abc-", testSessionKey)
+				hash := harness.StartMarkerHash("abc-", testSessionKey)
 				f.Expect([]string{"docker", "exec", "mirabilis", "cat"}, "", errors.New("no such file")).
 					Expect([]string{"docker", "exec", "-i", "mirabilis"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "cat"}, hash+"\n", nil).
@@ -112,15 +113,15 @@ func TestLaunchContract(t *testing.T) {
 		"harness": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
 				f.Expect(harnessBash(harnessPrefScript), "", nil).
-					Expect(harnessBash(harnessProbeScript), "", errors.New("not installed")).
+					Expect(harnessBash(harness.ProbeScript), "", errors.New("not installed")).
 					Expect(harnessBash("command -v claude"), "/usr/bin/claude", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "marketplace", "add"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "install"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "update"}, "", nil).
-					Expect(harnessBash(harnessProbeScript), "", nil).
-					Expect(harnessBash(harnessRelinkScript), "", nil).
+					Expect(harnessBash(harness.ProbeScript), "", nil).
+					Expect(harnessBash(harness.RelinkScript), "", nil).
 					Expect(harnessBash(harnessPrefScript), "", nil).
-					Expect(harnessBash(harnessProbeScript), "", nil)
+					Expect(harnessBash(harness.ProbeScript), "", nil)
 			},
 		},
 		"attach": {},

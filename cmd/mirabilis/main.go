@@ -167,13 +167,14 @@ func runProvision(ctx context.Context, args []string) error {
 	defer o.Close()
 
 	deps := provision.Deps{
-		Runner:     newHost(),
-		Cfg:        configFor(repo),
-		Log:        o.Logger("provision"),
-		Repo:       repo,
-		Home:       home,
-		ProxyAddr:  proxyAddr,
-		SessionKey: sessionKey,
+		Runner:      newHost(),
+		Cfg:         configFor(repo),
+		Log:         o.Logger("provision"),
+		Repo:        repo,
+		Home:        home,
+		ProxyAddr:   proxyAddr,
+		SessionKey:  sessionKey,
+		Fingerprint: os.Getenv("MIRABILIS_VERSION"),
 	}
 	return provision.RunPhase(ctx, deps, phase)
 }

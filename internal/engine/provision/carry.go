@@ -63,21 +63,27 @@ func installMeta(name, title string) pipeline.Meta {
 	return m
 }
 
-func (d Deps) output(ctx context.Context, argv ...string) (string, error) {
-	return exec.Run(ctx, d.Runner, exec.Spec{Argv: argv})
+type cmdRunner struct {
+	r exec.Runner
 }
 
-func (d Deps) argvOK(ctx context.Context, argv ...string) bool {
-	_, err := d.output(ctx, argv...)
+func (d Deps) cmd() cmdRunner { return cmdRunner{r: d.Runner} }
+
+func (c cmdRunner) output(ctx context.Context, argv ...string) (string, error) {
+	return exec.Run(ctx, c.r, exec.Spec{Argv: argv})
+}
+
+func (c cmdRunner) argvOK(ctx context.Context, argv ...string) bool {
+	_, err := c.output(ctx, argv...)
 	return err == nil
 }
 
-func (d Deps) scriptOK(ctx context.Context, script string) bool {
-	return d.argvOK(ctx, "bash", "-lc", script)
+func (c cmdRunner) scriptOK(ctx context.Context, script string) bool {
+	return c.argvOK(ctx, "bash", "-lc", script)
 }
 
-func (d Deps) stream(ctx context.Context, step string, out chan<- pipeline.Event, argv ...string) error {
-	for ev := range d.Runner.Stream(ctx, exec.Spec{Argv: argv}) {
+func (c cmdRunner) stream(ctx context.Context, step string, out chan<- pipeline.Event, argv ...string) error {
+	for ev := range c.r.Stream(ctx, exec.Spec{Argv: argv}) {
 		pipeline.Forward(step, out, ev)
 		if ev.Kind == exec.KindExited {
 			return ev.Err
@@ -86,8 +92,8 @@ func (d Deps) stream(ctx context.Context, step string, out chan<- pipeline.Event
 	return nil
 }
 
-func (d Deps) streamScript(ctx context.Context, step string, out chan<- pipeline.Event, script string) error {
-	return d.stream(ctx, step, out, "bash", "-lc", script)
+func (c cmdRunner) streamScript(ctx context.Context, step string, out chan<- pipeline.Event, script string) error {
+	return c.stream(ctx, step, out, "bash", "-lc", script)
 }
 
 func (d Deps) harnessChoice() string {

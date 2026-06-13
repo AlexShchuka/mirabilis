@@ -1,0 +1,22 @@
+[
+  {
+    "name": "context7",
+    "transport": "http",
+    "url": "https://mcp.context7.com/mcp"
+  },
+  {
+    "name": "sequential-thinking",
+    "transport": "stdio",
+    "args": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
+  },
+  {
+    "name": "arxiv-mcp-server",
+    "transport": "stdio",
+    "args": ["uvx", "arxiv-mcp-server"]
+  },
+  {
+    "name": "docling",
+    "transport": "stdio",
+    "args": ["uvx", "--from", "docling-mcp[local]", "docling-mcp-server", "--transport", "stdio"]
+  }
+]

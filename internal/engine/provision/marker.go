@@ -2,20 +2,14 @@ package provision
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
-
-func StartMarkerHash(fingerprint, sessionKey string) string {
-	sum := sha256.Sum256([]byte(fingerprint + sessionKey))
-	return hex.EncodeToString(sum[:])
-}
 
 type createMarkerStep struct {
 	d Deps
@@ -31,18 +25,18 @@ func (s *createMarkerStep) Meta() pipeline.Meta {
 }
 
 func (s *createMarkerStep) Check(_ context.Context) (bool, error) {
-	data, err := os.ReadFile(filepath.Join(s.d.claudeDir(), CreateMarkerName))
+	data, err := os.ReadFile(filepath.Join(s.d.claudeDir(), harness.CreateMarkerName))
 	if err != nil {
 		return false, nil
 	}
-	return strings.TrimSpace(string(data)) == createMarkerOK, nil
+	return strings.TrimSpace(string(data)) == harness.MarkerOK, nil
 }
 
 func (s *createMarkerStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
 	if err := os.MkdirAll(s.d.claudeDir(), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(s.d.claudeDir(), CreateMarkerName), []byte(createMarkerOK+"\n"), 0o644)
+	return os.WriteFile(filepath.Join(s.d.claudeDir(), harness.CreateMarkerName), []byte(harness.MarkerOK+"\n"), 0o644)
 }
 
 type startMarkerStep struct {
@@ -60,11 +54,11 @@ func (s *startMarkerStep) Meta() pipeline.Meta {
 }
 
 func (s *startMarkerStep) hash() string {
-	return StartMarkerHash(os.Getenv("MIRABILIS_VERSION"), s.d.SessionKey)
+	return harness.StartMarkerHash(s.d.Fingerprint, s.d.SessionKey)
 }
 
 func (s *startMarkerStep) Check(_ context.Context) (bool, error) {
-	data, err := os.ReadFile(filepath.Join(s.d.claudeDir(), StartMarkerName))
+	data, err := os.ReadFile(filepath.Join(s.d.claudeDir(), harness.StartMarkerName))
 	if err != nil {
 		return false, nil
 	}
@@ -75,5 +69,5 @@ func (s *startMarkerStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-ch
 	if err := os.MkdirAll(s.d.claudeDir(), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(s.d.claudeDir(), StartMarkerName), []byte(s.hash()+"\n"), 0o644)
+	return os.WriteFile(filepath.Join(s.d.claudeDir(), harness.StartMarkerName), []byte(s.hash()+"\n"), 0o644)
 }

@@ -2,8 +2,6 @@ package steps
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"slices"
@@ -12,16 +10,9 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
-
-func TestStartMarkerHash(t *testing.T) {
-	t.Parallel()
-	sum := sha256.Sum256([]byte("fp-1" + "key-1"))
-	if got := startMarkerHash("fp-1", "key-1"); got != hex.EncodeToString(sum[:]) {
-		t.Fatalf("hash = %q", got)
-	}
-}
 
 func TestProvisionCreateCheck(t *testing.T) {
 	t.Parallel()
@@ -51,7 +42,7 @@ func TestProvisionCreateCheck(t *testing.T) {
 
 func TestProvisionStartCheck(t *testing.T) {
 	t.Parallel()
-	hash := startMarkerHash("abc-", testSessionKey)
+	hash := harness.StartMarkerHash("abc-", testSessionKey)
 	cases := []struct {
 		name string
 		out  string
@@ -59,7 +50,7 @@ func TestProvisionStartCheck(t *testing.T) {
 		want bool
 	}{
 		{name: "hash matches", out: hash + "\n", want: true},
-		{name: "hash stale", out: startMarkerHash("old-", testSessionKey), want: false},
+		{name: "hash stale", out: harness.StartMarkerHash("old-", testSessionKey), want: false},
 		{name: "marker missing", err: errors.New("no such file"), want: false},
 	}
 	for _, tc := range cases {
