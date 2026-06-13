@@ -52,6 +52,14 @@ type vscodeDoneMsg struct {
 	err error
 }
 
+type attachReadyMsg struct {
+	argv []string
+	env  []string
+	err  error
+}
+
+type promotedMsg struct{}
+
 func watchStatus(ch <-chan obs.Snapshot) tea.Cmd {
 	return func() tea.Msg {
 		snap, ok := <-ch
@@ -273,6 +281,39 @@ func (a App) handleVSCodeDone(msg vscodeDoneMsg) (tea.Model, tea.Cmd) {
 	return a.backToMenu(uistr.NoticeVSCodeDone)
 }
 
+func (a App) startAttach() (tea.Model, tea.Cmd) {
+	ctx := a.ctx
+	f := a.facade
+	a.busy = true
+	tick := a.startBusy()
+	m, _ := a.backToMenu(uistr.NoticeAttachOpening)
+	return m, tea.Batch(tick, func() tea.Msg {
+		argv, env, err := f.AttachExec(ctx)
+		return attachReadyMsg{argv: argv, env: env, err: err}
+	})
+}
+
+func (a App) handleAttachReady(msg attachReadyMsg) (tea.Model, tea.Cmd) {
+	a.busy = false
+	if msg.err != nil {
+		a.facade.Logger().Error(uistr.LogAttachFailed, "err", msg.err)
+		return a.backToMenu(uistr.NoticeAttachErr + msg.err.Error())
+	}
+	m, _ := a.backToMenu("")
+	cmd := &exec.TTY{Argv: msg.argv, Env: msg.env}
+	return m, execRunner(cmd, func(err error) tea.Msg {
+		return execDoneMsg{step: "", err: err}
+	})
+}
+
+func (a App) handlePromoted() (tea.Model, tea.Cmd) {
+	if !a.secondary {
+		return a, nil
+	}
+	a.promote()
+	return a.backToMenu("")
+}
+
 func (a App) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
@@ -340,6 +381,9 @@ func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 	if !a.busy {
 		a.frame.SetBusy("")
 	}
+	if notice == "" {
+		notice = a.baseNotice
+	}
 	menu := screens.NewMenu("app/menu")
 	if notice != "" {
 		menu = menu.WithNotice(notice)
@@ -375,6 +419,8 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 	switch msg.Action {
 	case screens.ActionLaunch:
 		return a.startLaunch()
+	case screens.ActionAttach:
+		return a.startAttach()
 	case screens.ActionQuit:
 		a.cancel()
 		return a, tea.Quit

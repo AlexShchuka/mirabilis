@@ -17,13 +17,27 @@ func containerArgv(args ...string) []string {
 	return append([]string{"docker", "exec", sandbox.ContainerName}, args...)
 }
 
+const streamTailLines = 10
+
 func stream(step string, out chan<- pipeline.Event, events <-chan exec.Event) error {
 	var exitErr error
+	var tail []string
 	for ev := range events {
-		if ev.Kind == exec.KindExited {
+		switch ev.Kind {
+		case exec.KindExited:
 			exitErr = ev.Err
+		case exec.KindStdout, exec.KindStderr:
+			if line := strings.TrimSpace(ev.Line); line != "" {
+				tail = append(tail, line)
+				if len(tail) > streamTailLines {
+					tail = tail[len(tail)-streamTailLines:]
+				}
+			}
 		}
 		pipeline.Forward(step, out, ev)
+	}
+	if exitErr != nil && len(tail) > 0 {
+		return fmt.Errorf("%w: %s", exitErr, strings.Join(tail, "; "))
 	}
 	return exitErr
 }

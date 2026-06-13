@@ -40,10 +40,13 @@ type Proxy struct {
 	port     int
 }
 
-func New(ts claudeauth.TokenSource, o *obs.Obs, port int) *Proxy {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		panic(fmt.Sprintf("authproxy: session key: %v", err))
+func New(ts claudeauth.TokenSource, o *obs.Obs, port int, key string) *Proxy {
+	if key == "" {
+		buf := make([]byte, 32)
+		if _, err := rand.Read(buf); err != nil {
+			panic(fmt.Sprintf("authproxy: session key: %v", err))
+		}
+		key = hex.EncodeToString(buf)
 	}
 	return &Proxy{
 		ts:       ts,
@@ -51,7 +54,7 @@ func New(ts claudeauth.TokenSource, o *obs.Obs, port int) *Proxy {
 		log:      o.Logger("authproxy"),
 		upstream: &url.URL{Scheme: "https", Host: "api.anthropic.com"},
 		done:     make(chan struct{}),
-		key:      hex.EncodeToString(buf),
+		key:      key,
 		port:     port,
 	}
 }

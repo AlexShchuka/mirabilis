@@ -14,6 +14,7 @@ import (
 
 const (
 	ActionLaunch   = "launch"
+	ActionAttach   = "attach"
 	ActionHarness  = "harness"
 	ActionTelegram = "telegram"
 	ActionVSCode   = "vscode"
@@ -24,6 +25,7 @@ const (
 func MenuItems() []frame.Item {
 	return []frame.Item{
 		{Title: uistr.MenuActionLaunch, Desc: uistr.MenuDescLaunch, Action: ActionLaunch, Enabled: true},
+		{Title: uistr.MenuActionAttach, Desc: uistr.MenuDescAttach, Action: ActionAttach, Enabled: false},
 		{Title: uistr.MenuActionHarness, Desc: uistr.MenuDescHarness, Action: ActionHarness, Enabled: true},
 		{Title: uistr.MenuActionTelegram, Desc: uistr.MenuDescTelegram, Action: ActionTelegram, Enabled: true},
 		{Title: uistr.MenuActionVSCode, Desc: uistr.MenuDescVSCode, Action: ActionVSCode, Enabled: true},

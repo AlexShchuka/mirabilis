@@ -182,6 +182,13 @@ func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	return f.vscodeErr
 }
 
+func (f *fakeFacade) AttachExec(_ context.Context) ([]string, []string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.callLog = append(f.callLog, "AttachExec")
+	return nil, nil, nil
+}
+
 func (f *fakeFacade) LastHarnessChoice() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -242,7 +249,7 @@ func newApp(t *testing.T, f *fakeFacade) *teatest.TestModel {
 	t.Helper()
 	t.Setenv("NO_COLOR", "1")
 	t.Setenv("TERM", "dumb")
-	a := app.New(context.Background(), f)
+	a := app.New(context.Background(), f, false)
 	tm := teatest.NewTestModel(t, a, teatest.WithInitialTermSize(120, 40))
 	t.Cleanup(func() { _ = tm.Quit() })
 	return tm
@@ -505,7 +512,7 @@ func TestNoLeakOnCancel(t *testing.T) {
 	}
 
 	f := newFakeFacade([]pipeline.Command{longStep})
-	a := app.New(ctx, f)
+	a := app.New(ctx, f, false)
 	tm := teatest.NewTestModel(t, a, teatest.WithInitialTermSize(80, 24))
 	t.Cleanup(func() { _ = tm.Quit() })
 

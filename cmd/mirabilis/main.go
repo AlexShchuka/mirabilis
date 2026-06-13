@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -64,9 +67,13 @@ func run(args []string) error {
 
 func runTUI() error {
 	repo := resolveRepo()
+
+	owner := true
 	if err := acquireFlock(repo); err != nil {
-		fmt.Fprintln(os.Stderr, "mirabilis: already running")
-		return nil
+		if !errors.Is(err, errFlockHeld) {
+			return fmt.Errorf("init: %w", err)
+		}
+		owner = false
 	}
 	defer releaseFlock()
 
@@ -76,21 +83,54 @@ func runTUI() error {
 	}
 	defer f.obs.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	defer stop()
 	go func() {
-		if err := f.proxy.Start(ctx); err != nil {
+		<-ctx.Done()
+		stop()
+	}()
+
+	status.New(f.docker, f.obs).Start(ctx)
+
+	if owner {
+		startSession(ctx, f, repo, "")
+	}
+
+	a := app.New(ctx, f, !owner)
+	p := tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx))
+
+	if !owner {
+		go promoteLoop(ctx, lockPathFor(repo), promoteInterval, f.obs.Logger("promote"), func(lock *os.File) {
+			setFlock(lock)
+			startSession(ctx, f, repo, promotedKey(f, repo))
+			p.Send(app.PromotedMsg())
+		})
+	}
+
+	_, err = p.Run()
+	return err
+}
+
+func startSession(ctx context.Context, f *facade, repo, key string) {
+	proxy := f.newProxy(key)
+	if err := writeSessionKey(repo, proxy.Key()); err != nil {
+		f.obs.Logger("authproxy").Error("session-key persist failed", "err", err)
+	}
+	go func() {
+		if err := proxy.Start(ctx); err != nil {
 			f.obs.Logger("authproxy").Error("listen failed", "err", err)
 		}
 	}()
-	status.New(f.docker, f.obs).Start(ctx)
-
 	go notify.Watch(ctx, notify.OutboxDir(repo), notify.NewTelegram(f.store, ""), f.obs, 0)
+}
 
-	a := app.New(ctx, f)
-	_, err = tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx)).Run()
-	return err
+func promotedKey(f *facade, repo string) string {
+	key, err := readSessionKey(repo)
+	if err != nil || key == "" {
+		f.obs.Logger("authproxy").Error("session-key missing on promotion; generating fresh", "err", err)
+		return ""
+	}
+	return key
 }
 
 func runProvision(ctx context.Context, args []string) error {
