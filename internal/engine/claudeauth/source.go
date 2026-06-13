@@ -31,16 +31,25 @@ func NewSource(store secrets.Store) TokenSource {
 
 func (s *cachedSource) Token(ctx context.Context) (string, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.token != "" {
-		return s.token, nil
+		v := s.token
+		s.mu.Unlock()
+		return v, nil
 	}
+	s.mu.Unlock()
+
 	value, err := s.store.Get(ctx, tokenKey)
 	if err != nil {
 		return "", err
 	}
 	if !strings.HasPrefix(value, tokenPrefix) {
 		return "", errNotOATToken
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.token != "" {
+		return s.token, nil
 	}
 	s.token = value
 	return value, nil

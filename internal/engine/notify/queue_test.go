@@ -230,3 +230,50 @@ func TestReadStatusErrors(t *testing.T) {
 		t.Error("ReadStatus bad JSON = nil, want error")
 	}
 }
+
+func TestPruneDelivered(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteJob(dir, Job{ID: "old", ChatID: "-1", Text: "x", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteStatus(dir, JobStatus{ID: "old", OK: true, CompletedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	stale := time.Now().Add(-time.Hour)
+	for _, name := range []string{"old.job", "old.status"} {
+		if err := os.Chtimes(filepath.Join(dir, name), stale, stale); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := WriteJob(dir, Job{ID: "fresh", ChatID: "-1", Text: "y", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteStatus(dir, JobStatus{ID: "fresh", OK: true, CompletedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	pendingOnly := "pending"
+	if err := WriteJob(dir, Job{ID: pendingOnly, ChatID: "-1", Text: "z", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PruneDelivered(dir, 10*time.Minute); err != nil {
+		t.Fatalf("PruneDelivered: %v", err)
+	}
+
+	for _, name := range []string{"old.job", "old.status"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("%s still present after prune, want removed", name)
+		}
+	}
+	for _, name := range []string{"fresh.job", "fresh.status", "pending.job"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("%s missing after prune, want kept: %v", name, err)
+		}
+	}
+}
+
+func TestPruneDeliveredMissingDir(t *testing.T) {
+	if err := PruneDelivered(filepath.Join(t.TempDir(), "nope"), time.Minute); err != nil {
+		t.Errorf("PruneDelivered(missing) = %v, want nil", err)
+	}
+}

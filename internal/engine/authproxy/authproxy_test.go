@@ -352,6 +352,51 @@ func TestAuthorizationInjection(t *testing.T) {
 	}
 }
 
+func TestStripsInboundForwardedAndApiKeyHeaders(t *testing.T) {
+	var got atomic.Value
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got.Store(map[string]string{
+			"X-Api-Key":         r.Header.Get("X-Api-Key"),
+			"X-Forwarded-For":   r.Header.Get("X-Forwarded-For"),
+			"X-Forwarded-Host":  r.Header.Get("X-Forwarded-Host"),
+			"X-Forwarded-Proto": r.Header.Get("X-Forwarded-Proto"),
+			"Authorization":     r.Header.Get("Authorization"),
+		})
+		fmt.Fprint(w, "upstream-ok")
+	}))
+	t.Cleanup(upstream.Close)
+	o, _ := newTestObs(t)
+	p, _ := startProxy(t, o, upstream.URL)
+
+	req, err := http.NewRequest(http.MethodPost, "http://"+p.Addr()+"/v1/messages", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.Key())
+	req.Header.Set("X-Api-Key", "sk-ant-injected")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1")
+	req.Header.Set("X-Forwarded-Host", "evil.example")
+	req.Header.Set("X-Forwarded-Proto", "http")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	seen, _ := got.Load().(map[string]string)
+	for _, h := range []string{"X-Api-Key", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
+		if seen[h] != "" {
+			t.Errorf("upstream saw inbound %s = %q, want stripped", h, seen[h])
+		}
+	}
+	if seen["Authorization"] != "Bearer "+testToken {
+		t.Errorf("upstream Authorization = %q, want injected token", seen["Authorization"])
+	}
+}
+
 func TestRejectsBadSessionKey(t *testing.T) {
 	var hits atomic.Int64
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

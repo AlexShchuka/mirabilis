@@ -110,6 +110,34 @@ func PendingJobs(dir string) ([]string, error) {
 	return pending, nil
 }
 
+func PruneDelivered(dir string, retention time.Duration) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("notify queue: read dir %q: %w", dir, err)
+	}
+	cutoff := time.Now().Add(-retention)
+	var errs []error
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != statusSuffix {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		id := e.Name()[:len(e.Name())-len(statusSuffix)]
+		for _, name := range []string{id + jobSuffix, id + statusSuffix} {
+			if rmErr := os.Remove(filepath.Join(dir, name)); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+				errs = append(errs, rmErr)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func writeAtomic(dir, name, tmpPattern string, data []byte) error {
 	dest := filepath.Join(dir, name)
 	tmp, err := os.CreateTemp(dir, tmpPattern)

@@ -724,6 +724,39 @@ func TestCtxCancelMidWait(t *testing.T) {
 	}
 }
 
+func TestRunReturnsWhenConsumerStopsDrainingAndCtxCancels(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	flooding := &fakeStep{
+		meta: pipeline.Meta{Name: "flood"},
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+			for i := 0; i < 1000; i++ {
+				select {
+				case out <- pipeline.Event{Kind: pipeline.EvLine, Line: "x"}:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, flooding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- p.Run(ctx) }()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-errCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run hung after ctx cancel with consumer not draining events")
+	}
+}
+
 func TestRunTwice(t *testing.T) {
 	rec := &recorder{}
 	p, err := pipeline.New(nil, autoStep("a", rec))

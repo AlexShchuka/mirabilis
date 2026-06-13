@@ -112,6 +112,10 @@ func (p *Proxy) handler() http.Handler {
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(p.upstream)
 			pr.Out.Host = p.upstream.Host
+			pr.Out.Header.Del("X-Api-Key")
+			pr.Out.Header.Del("X-Forwarded-For")
+			pr.Out.Header.Del("X-Forwarded-Host")
+			pr.Out.Header.Del("X-Forwarded-Proto")
 			if tok, ok := pr.In.Context().Value(tokenKey{}).(string); ok {
 				pr.Out.Header.Set("Authorization", "Bearer "+tok)
 			}
