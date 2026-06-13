@@ -15,6 +15,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
+	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
@@ -31,6 +32,7 @@ type Facade interface {
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
+	AttachExec(ctx context.Context) (argv, env []string, err error)
 	LastHarnessChoice() string
 	RememberHarnessChoice(choice string) error
 	TelegramConfigured() bool
@@ -57,9 +59,12 @@ type App struct {
 	busyFrame       int
 	busyGen         int
 	harnessChoice   string
+	secondary       bool
+	baseNotice      string
+	attachReady     bool
 }
 
-func New(ctx context.Context, f Facade) App {
+func New(ctx context.Context, f Facade, secondary bool) App {
 	ctx, cancel := context.WithCancel(ctx)
 	menu := screens.NewMenu("app/menu")
 	a := App{
@@ -70,7 +75,35 @@ func New(ctx context.Context, f Facade) App {
 		frame:    frame.New("mirabilis", f.Version(), screens.MenuItems()),
 		router:   router.New(menu),
 	}
+	if secondary {
+		a.secondary = true
+		a.baseNotice = uistr.NoticeSecondary
+		a.applySecondary()
+		a.router = router.New(menu.WithNotice(a.baseNotice))
+	}
 	return a
+}
+
+func (a *App) applySecondary() {
+	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
+		a.frame.SetEnabled(action, false)
+	}
+}
+
+func (a *App) promote() {
+	a.secondary = false
+	a.baseNotice = ""
+	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
+		a.frame.SetEnabled(action, true)
+	}
+}
+
+func (a *App) applyContainerState(snap obs.Snapshot) {
+	running := snap["container"].State == obs.StateOK
+	if running != a.attachReady {
+		a.attachReady = running
+		a.frame.SetEnabled(screens.ActionAttach, running)
+	}
 }
 
 func (a App) Init() tea.Cmd {
@@ -91,9 +124,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusMsg:
 		var fc tea.Cmd
-		sc := bus.StatusChanged{Snapshot: obs.Snapshot(msg)}
+		snap := obs.Snapshot(msg)
+		a.applyContainerState(snap)
+		sc := bus.StatusChanged{Snapshot: snap}
 		a.frame, fc = a.frame.Update(sc)
 		return a, tea.Batch(fc, watchStatus(a.statusCh))
+
+	case promotedMsg:
+		return a.handlePromoted()
 
 	case tea.KeyPressMsg:
 		return a.handleKey(msg)
@@ -133,6 +171,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
+
+	case attachReadyMsg:
+		return a.handleAttachReady(msg)
 	}
 
 	var cmd tea.Cmd

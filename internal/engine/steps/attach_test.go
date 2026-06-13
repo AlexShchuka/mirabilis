@@ -58,6 +58,40 @@ func TestAttachRunWithoutGHToken(t *testing.T) {
 	}
 }
 
+func TestAttachExecSharedHelper(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret\n", nil).
+		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "/tmp/p.md", nil)
+	d := newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())
+	argv, env, err := AttachExec(t.Context(), d)
+	if err != nil {
+		t.Fatalf("AttachExec: %v", err)
+	}
+	want := sandbox.BuildAttachArgv("/tmp/p.md")
+	if !slices.Equal(argv, want) {
+		t.Fatalf("argv = %v, want %v", argv, want)
+	}
+	for _, a := range argv {
+		if strings.Contains(a, "gho_secret") {
+			t.Errorf("token leaked into argv: %q", a)
+		}
+	}
+	if len(env) != 1 || env[0] != "GITHUB_PERSONAL_ACCESS_TOKEN=gho_secret" {
+		t.Fatalf("env = %v, want single GITHUB_PERSONAL_ACCESS_TOKEN entry", env)
+	}
+}
+
+func TestAttachExecNoToken(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "", errors.New("not logged in"))
+	d := newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())
+	if _, _, err := AttachExec(t.Context(), d); err == nil {
+		t.Fatal("AttachExec without token = nil error, want error")
+	}
+}
+
 func TestAttachRunCancelled(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().

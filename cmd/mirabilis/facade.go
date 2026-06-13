@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/authproxy"
 	"github.com/AlexShchuka/mirabilis/internal/engine/claudeauth"
@@ -30,9 +31,11 @@ type facade struct {
 	sb     *sandbox.Sandbox
 	store  secrets.Store
 	tokens claudeauth.TokenSource
-	proxy  *authproxy.Proxy
 	deps   steps.Deps
 	repo   string
+	port   int
+	mu     sync.RWMutex
+	key    string
 }
 
 var _ app.Facade = (*facade)(nil)
@@ -62,13 +65,23 @@ func newFacade(repo string) (*facade, error) {
 	tokens := claudeauth.NewSource(store)
 
 	port := config.AuthProxyPort(repo)
-	proxy := authproxy.New(tokens, o, port)
 
 	proxyAddrFn := func() string {
 		return "http://host.docker.internal:" + strconv.Itoa(port)
 	}
 
-	d := steps.Deps{
+	f := &facade{
+		obs:    o,
+		runner: runner,
+		docker: docker,
+		sb:     sb,
+		store:  store,
+		tokens: tokens,
+		repo:   repo,
+		port:   port,
+	}
+
+	f.deps = steps.Deps{
 		Runner:     runner,
 		Docker:     docker,
 		Sandbox:    sb,
@@ -76,21 +89,25 @@ func newFacade(repo string) (*facade, error) {
 		Tokens:     tokens,
 		Obs:        o,
 		ProxyAddr:  proxyAddrFn,
-		SessionKey: proxy.Key,
+		SessionKey: f.sessionKey,
 		Repo:       repo,
 	}
 
-	return &facade{
-		obs:    o,
-		runner: runner,
-		docker: docker,
-		sb:     sb,
-		store:  store,
-		tokens: tokens,
-		proxy:  proxy,
-		deps:   d,
-		repo:   repo,
-	}, nil
+	return f, nil
+}
+
+func (f *facade) sessionKey() string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.key
+}
+
+func (f *facade) newProxy(key string) *authproxy.Proxy {
+	p := authproxy.New(f.tokens, f.obs, f.port, key)
+	f.mu.Lock()
+	f.key = p.Key()
+	f.mu.Unlock()
+	return p
 }
 
 func (f *facade) LaunchSteps() []pipeline.Command {
@@ -140,6 +157,10 @@ func (f *facade) ApplyHarness(ctx context.Context, choice string) error {
 
 func (f *facade) OpenVSCode(ctx context.Context) error {
 	return f.sb.OpenVSCode(ctx)
+}
+
+func (f *facade) AttachExec(ctx context.Context) ([]string, []string, error) {
+	return steps.AttachExec(ctx, f.deps)
 }
 
 func (f *facade) LastHarnessChoice() string {

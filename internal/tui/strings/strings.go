@@ -23,6 +23,7 @@ const (
 	StepDetailWaiting = "waiting"
 
 	MenuActionLaunch   = "Launch"
+	MenuActionAttach   = "Attach"
 	MenuActionHarness  = "Harness"
 	MenuActionTelegram = "Telegram"
 	MenuActionVSCode   = "VS Code"
@@ -30,10 +31,13 @@ const (
 	MenuActionQuit     = "Quit"
 
 	MenuDescLaunch   = "setup pipeline + Claude in container"
+	MenuDescAttach   = "spawn a new Claude in the container"
 	MenuDescHarness  = "neuro-matrix: on / off / reinstall"
 	MenuDescTelegram = "bot notifications: token, optional"
 	MenuDescVSCode   = "attach /workspace in VS Code"
 	MenuDescReset    = "container, image and volumes — permanent"
+
+	NoticeSecondary = "secondary — sandbox owned by another tab"
 
 	MenuHarnessOn      = "neuro-matrix: on"
 	MenuHarnessOff     = "neuro-matrix: off"
@@ -47,10 +51,12 @@ const (
 
 	BusyElapsedSep = " "
 
-	NoticeHarnessErr  = "harness: "
-	NoticeVSCodeErr   = "VS Code: "
-	NoticeTelegramErr = "telegram: "
-	NoticeResetDone   = "removed — relaunch to rebuild"
+	NoticeHarnessErr    = "harness: "
+	NoticeVSCodeErr     = "VS Code: "
+	NoticeTelegramErr   = "telegram: "
+	NoticeAttachErr     = "attach: "
+	NoticeAttachOpening = "attaching…"
+	NoticeResetDone     = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
 	FormOptHarnessOn  = "Enable"
@@ -82,4 +88,5 @@ const (
 	LogTelegramFailed         = "telegram setup failed"
 	LogHarnessFailed          = "harness apply failed"
 	LogVSCodeFailed           = "vscode open failed"
+	LogAttachFailed           = "attach failed"
 )

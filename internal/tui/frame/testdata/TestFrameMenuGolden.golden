@@ -1,7 +1,8 @@
  mirabilis                        v1.3.0 · container up · harness on · proxy on 
 > Launch         │ mirabilis                                                    
-  Harness        │                                                              
-  Telegram       │ pick an action ←                                             
+  Attach         │                                                              
+  Harness        │ pick an action ←                                             
+  Telegram       │                                                              
   VS Code        │                                                              
   Reset          │                                                              
   Quit           │                                                              
@@ -9,7 +10,6 @@
 setup pipeline + │                                                              
 Claude in        │                                                              
 container        │                                                              
-                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              

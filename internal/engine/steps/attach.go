@@ -28,18 +28,27 @@ func (s *attachStep) Check(context.Context) (bool, error) {
 }
 
 func (s *attachStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-	token, err := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("gh", "auth", "token")})
-	token = strings.TrimSpace(token)
-	if err != nil || token == "" {
-		return errors.New("GitHub token is not available — sign in with gh auth login first")
+	argv, env, err := AttachExec(ctx, s.d)
+	if err != nil {
+		return err
 	}
-	argv := sandbox.BuildAttachArgv(s.d.Sandbox.SystemPromptFile(ctx))
 	out <- pipeline.Event{
 		Kind: pipeline.EvWaiting,
 		Step: "attach",
 		Argv: argv,
-		Env:  []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + token},
+		Env:  env,
 	}
 	_, err = awaitResume(ctx, in)
 	return err
+}
+
+func AttachExec(ctx context.Context, d Deps) (argv, env []string, err error) {
+	token, terr := exec.Run(ctx, d.Runner, exec.Spec{Argv: containerArgv("gh", "auth", "token")})
+	token = strings.TrimSpace(token)
+	if terr != nil || token == "" {
+		return nil, nil, errors.New("GitHub token is not available — sign in with gh auth login first")
+	}
+	argv = sandbox.BuildAttachArgv(d.Sandbox.SystemPromptFile(ctx))
+	env = []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + token}
+	return argv, env, nil
 }

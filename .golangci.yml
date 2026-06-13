@@ -92,7 +92,7 @@ linters:
       - path: "_test\\.go"
         linters:
           - forbidigo
-        text: "os\\.Stderr"
+        text: "os\\.Stderr|exec\\.Command"
       - path: "_test\\.go"
         linters:
           - errcheck

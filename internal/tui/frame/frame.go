@@ -149,6 +149,15 @@ func (m Model) Selected() (Item, bool) {
 	return m.items[m.cursor], true
 }
 
+func (m Model) Enabled(action string) bool {
+	for _, it := range m.items {
+		if it.Action == action {
+			return it.Enabled
+		}
+	}
+	return false
+}
+
 func (m *Model) SetEnabled(action string, enabled bool) {
 	items := append([]Item(nil), m.items...)
 	m.items = items
