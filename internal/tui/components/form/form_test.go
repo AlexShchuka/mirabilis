@@ -63,7 +63,7 @@ func run(t *testing.T, h harness, keys ...tea.KeyPressMsg) harness {
 
 func TestSubmitEmitsScreenResult(t *testing.T) {
 	h := run(t,
-		harness{form: form.NewMultiSelect("Plugins", []string{"alpha", "beta"}, nil)},
+		harness{form: form.NewMultiSelect("Plugins", "", []string{"alpha", "beta"}, nil)},
 		tea.KeyPressMsg{Code: 'x', Text: "x"},
 		tea.KeyPressMsg{Code: tea.KeyEnter},
 	)
@@ -80,7 +80,7 @@ func TestSubmitEmitsScreenResult(t *testing.T) {
 
 func TestSubmitKeepsPreselected(t *testing.T) {
 	h := run(t,
-		harness{form: form.NewMultiSelect("Plugins", []string{"alpha", "beta"}, []string{"beta"})},
+		harness{form: form.NewMultiSelect("Plugins", "", []string{"alpha", "beta"}, []string{"beta"})},
 		tea.KeyPressMsg{Code: tea.KeyEnter},
 	)
 	if !h.gotResult {
@@ -93,7 +93,7 @@ func TestSubmitKeepsPreselected(t *testing.T) {
 
 func TestEscEmitsScreenPop(t *testing.T) {
 	h := run(t,
-		harness{form: form.NewMultiSelect("Plugins", []string{"alpha", "beta"}, nil)},
+		harness{form: form.NewMultiSelect("Plugins", "", []string{"alpha", "beta"}, nil)},
 		tea.KeyPressMsg{Code: tea.KeyEscape},
 	)
 	if !h.popped {
@@ -106,10 +106,24 @@ func TestEscEmitsScreenPop(t *testing.T) {
 
 func TestCtrlCEmitsScreenPop(t *testing.T) {
 	h := run(t,
-		harness{form: form.NewMultiSelect("Plugins", []string{"alpha", "beta"}, nil)},
+		harness{form: form.NewMultiSelect("Plugins", "", []string{"alpha", "beta"}, nil)},
 		tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl},
 	)
 	if !h.popped {
 		t.Fatal("ctrl+c did not emit bus.ScreenPop")
 	}
+}
+
+func TestDescriptionRenderedInView(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
+	const desc = "pick one or more"
+	tm := teatest.NewTestModel(t,
+		harness{form: form.NewMultiSelect("Plugins", desc, []string{"alpha", "beta"}, nil)},
+		teatest.WithInitialTermSize(80, 24),
+	)
+	t.Cleanup(func() { _ = tm.Quit() })
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte(desc))
+	}, teatest.WithDuration(3*time.Second), teatest.WithCheckInterval(10*time.Millisecond))
 }

@@ -23,6 +23,7 @@ type Deps struct {
 
 type Catalog struct {
 	Title       string
+	Description string
 	Options     []string
 	Selected    []string
 	MultiSelect bool

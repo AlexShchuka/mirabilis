@@ -139,6 +139,8 @@ func (m Model) glyph(r StepRow) string {
 		return styles.FailMark.Render(uistr.GlyphFailed)
 	case StateSkipped:
 		return styles.Off.Render(uistr.GlyphSkipped)
+	case StateWaiting:
+		return styles.Spinner.Render(uistr.GlyphWaiting)
 	default:
 		return styles.Off.Render(uistr.GlyphPending)
 	}

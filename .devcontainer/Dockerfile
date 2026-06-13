@@ -135,6 +135,7 @@ RUN npm install -g bats \
 ENV GOTMPDIR=/home/node/.cache/go-tmp
 
 ENV MIRABILIS_STACKS=$STACKS
+ENV MIRABILIS_REPO=/opt/mirabilis
 
 RUN mkdir -p /workspace /opt/mirabilis /home/node/.claude /home/node/.config/gh /home/node/.cache/go-tmp \
     && chown -R node:node /workspace /opt/mirabilis /home/node

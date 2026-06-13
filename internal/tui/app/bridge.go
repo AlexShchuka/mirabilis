@@ -134,7 +134,7 @@ func (a *App) handleWaiting(ev pipeline.Event) tea.Cmd {
 	case steps.Catalog:
 		scr := formScreen{
 			id:   "app/launch/form",
-			form: form.NewMultiSelect(p.Title, p.Options, p.Selected),
+			form: form.NewMultiSelect(p.Title, p.Description, p.Options, p.Selected),
 		}
 		return func() tea.Msg { return bus.ScreenPush{Model: scr} }
 	case steps.GHAuth:

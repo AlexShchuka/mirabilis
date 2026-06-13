@@ -37,7 +37,6 @@ func (t *TTY) Run() error {
 	cmd.Stdout = t.stdout
 	cmd.Stderr = t.stderr
 	cmd.WaitDelay = ttyWaitDelay
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd.Run()
 }
 

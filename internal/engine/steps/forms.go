@@ -27,7 +27,11 @@ func (s *formStep) Check(context.Context) (bool, error) {
 }
 
 func (s *formStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
-	out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: s.name, Payload: s.load()}
+	cat := s.load()
+	if len(cat.Options) == 0 {
+		return s.save(nil)
+	}
+	out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: s.name, Payload: cat}
 	r, err := awaitResume(ctx, in)
 	if err != nil {
 		return err
@@ -51,6 +55,7 @@ func newStacksForm(d Deps) *formStep {
 			cur, _ := config.ReadStacks(d.Repo)
 			return Catalog{
 				Title:       "Optional stacks",
+				Description: "Docker stacks to activate. Space toggles, Enter confirms.",
 				Options:     config.ReadStackCatalog(d.Repo),
 				Selected:    splitCSV(cur),
 				MultiSelect: true,
@@ -74,6 +79,7 @@ func newPluginsForm(d Deps) *formStep {
 			catalog := config.ReadPluginCatalog(d.Repo)
 			return Catalog{
 				Title:       "Plugins",
+				Description: "All enabled by default. Uncheck to disable.",
 				Options:     catalog,
 				Selected:    subtract(catalog, config.ReadPluginsDisabled(d.Repo)),
 				MultiSelect: true,
@@ -97,6 +103,7 @@ func newSkillsForm(d Deps) *formStep {
 			cur, _ := config.ReadSkills(d.Repo)
 			return Catalog{
 				Title:       "Optional skills",
+				Description: "Claude skills to load. Space toggles, Enter confirms.",
 				Options:     config.ReadSkillCatalog(d.Repo),
 				Selected:    splitCSV(cur),
 				MultiSelect: true,

@@ -14,7 +14,7 @@ type Model struct {
 	chosen *[]string
 }
 
-func NewMultiSelect(title string, options, selected []string) Model {
+func NewMultiSelect(title, description string, options, selected []string) Model {
 	chosen := new([]string)
 	opts := make([]huh.Option[string], 0, len(options))
 	for _, o := range options {
@@ -23,6 +23,7 @@ func NewMultiSelect(title string, options, selected []string) Model {
 	f := huh.NewForm(huh.NewGroup(
 		huh.NewMultiSelect[string]().
 			Title(title).
+			Description(description).
 			Options(opts...).
 			Filterable(false).
 			Value(chosen),

@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -29,6 +31,32 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+func TestTTYChildInheritsForegroundPgroup(t *testing.T) {
+	parentPgid, err := syscall.Getpgid(0)
+	if err != nil {
+		t.Fatalf("getpgid(self): %v", err)
+	}
+	var out syncBuffer
+	cmd := &TTY{Argv: []string{"/bin/sh", "-c", "ps -o pgid= -p $$ | tr -d ' '"}}
+	cmd.SetStdin(strings.NewReader(""))
+	cmd.SetStdout(&out)
+	cmd.SetStderr(&syncBuffer{})
+	done := make(chan error, 1)
+	go func() { done <- cmd.Run() }()
+	select {
+	case runErr := <-done:
+		if runErr != nil {
+			t.Fatalf("run: %v", runErr)
+		}
+	case <-time.After(ptyTestDeadline):
+		t.Fatal("TTY.Run timed out")
+	}
+	got := strings.TrimSpace(out.String())
+	if got != strconv.Itoa(parentPgid) {
+		t.Errorf("child pgid = %s, want parent pgid %d (child must NOT be in a separate process group)", got, parentPgid)
+	}
 }
 
 func TestTTYRunsChildWithProvidedStdio(t *testing.T) {

@@ -135,3 +135,39 @@ func TestFormRejectsWrongResultType(t *testing.T) {
 		t.Fatalf("err = %v, want type error", err)
 	}
 }
+
+func TestCatalogCarriesDescription(t *testing.T) {
+	t.Parallel()
+	d := newFormsDeps(t)
+	evs, err := runStep(t, newStacksForm(d), resolveStrings(nil))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	cat := waitingEvent(t, evs).Payload.(Catalog)
+	if cat.Description == "" {
+		t.Error("Catalog.Description is empty; expected a non-empty description string")
+	}
+}
+
+func TestEmptyCatalogAutoSkipsWithoutWaiting(t *testing.T) {
+	t.Parallel()
+	d := newFormsDeps(t)
+	dir := filepath.Join(d.Repo, "config")
+	for _, name := range []string{"stacks.txt", "skills.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, s := range []pipeline.Command{newStacksForm(d), newSkillsForm(d)} {
+		evs, err := runStep(t, s, nil)
+		if err != nil {
+			t.Fatalf("%s run: %v", s.Meta().Name, err)
+		}
+		for _, ev := range evs {
+			if ev.Kind == pipeline.EvWaiting {
+				t.Errorf("%s: EvWaiting emitted for empty catalog; expected auto-skip", s.Meta().Name)
+			}
+		}
+	}
+}

@@ -19,6 +19,7 @@ const (
 	GlyphFailed  = "✖"
 	GlyphPending = "·"
 	GlyphSkipped = "−"
+	GlyphWaiting = "?"
 
 	StepDetailWaiting = "waiting"
 
