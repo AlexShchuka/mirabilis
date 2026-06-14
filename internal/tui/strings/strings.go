@@ -1,3 +1,4 @@
+// Package strings holds UI copy constants: notices, log messages, and action labels.
 package strings
 
 const (

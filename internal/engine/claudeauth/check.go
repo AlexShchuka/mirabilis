@@ -1,3 +1,4 @@
+// Package claudeauth manages caching and validation of the Anthropic API token on the host side.
 package claudeauth
 
 import (

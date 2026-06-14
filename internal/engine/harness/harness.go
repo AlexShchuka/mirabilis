@@ -1,3 +1,4 @@
+// Package harness provides install actions and probe scripts for the Claude Code harness.
 package harness
 
 import (

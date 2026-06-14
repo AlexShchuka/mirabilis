@@ -1,3 +1,4 @@
+// Package sandbox manages the Docker dev-container lifecycle and exec attachment.
 package sandbox
 
 import (

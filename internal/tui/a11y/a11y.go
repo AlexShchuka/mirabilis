@@ -1,3 +1,4 @@
+// Package a11y provides accessibility helpers and motion-preference detection for the TUI.
 package a11y
 
 import "os"

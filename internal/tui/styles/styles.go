@@ -1,3 +1,4 @@
+// Package styles defines the shared Lip Gloss style palette for the TUI.
 package styles
 
 import (

@@ -1,3 +1,4 @@
+// Package authproxy hosts an HTTP proxy that injects Anthropic auth headers for in-container requests.
 package authproxy
 
 import (

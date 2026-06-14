@@ -1,3 +1,4 @@
+// Package membackup syncs the in-container Claude memory directory to the host repo.
 package membackup
 
 import (

@@ -1,3 +1,4 @@
+// Package statusbar is a TUI status-bar component showing subsystem health snapshots.
 package statusbar
 
 import (

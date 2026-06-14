@@ -1,3 +1,4 @@
+// Package main is the mirabilis CLI entry point.
 package main
 
 import (

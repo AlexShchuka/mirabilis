@@ -1,16 +1,21 @@
+// Package config reads and writes per-repo configuration from config/ files and .env.
 package config
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
 	HeadroomPort         = 8787
 	defaultAuthProxyPort = 8788
+
+	DeliveredRetention = 10 * time.Minute
 )
 
 type Config struct {
@@ -115,6 +120,7 @@ func ReadMCPCatalog(repo string) []MCPEntry {
 	}
 	var entries []MCPEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
+		slog.Warn("mcp.json malformed", "repo", repo, "err", err)
 		return nil
 	}
 	return entries

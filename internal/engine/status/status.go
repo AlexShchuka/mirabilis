@@ -1,3 +1,4 @@
+// Package status watches container health via Docker events and exposes observable state.
 package status
 
 import (

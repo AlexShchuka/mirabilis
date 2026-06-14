@@ -1,3 +1,4 @@
+// Package steps composes and executes the ordered set of container-launch pipeline steps.
 package steps
 
 import (

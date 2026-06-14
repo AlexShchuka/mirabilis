@@ -1,3 +1,4 @@
+// Package notify delivers asynchronous messages via a file-backed queue and Telegram sender.
 package notify
 
 import (

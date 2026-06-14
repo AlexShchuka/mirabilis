@@ -1,3 +1,4 @@
+// Package obs provides a thread-safe observable state map for named subsystem health.
 package obs
 
 import (

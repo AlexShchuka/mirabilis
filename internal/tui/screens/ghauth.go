@@ -1,3 +1,4 @@
+// Package screens contains the full-screen TUI views: menu, launch, auth, settings flows.
 package screens
 
 import (

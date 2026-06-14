@@ -1,3 +1,4 @@
+// Package frame provides the outer TUI chrome: status-bar, busy indicator, and main content area.
 package frame
 
 import (

@@ -1,3 +1,4 @@
+// Package steplist is a TUI component that renders the provisioning step list with live status icons.
 package steplist
 
 import (

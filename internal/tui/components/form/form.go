@@ -1,3 +1,4 @@
+// Package form provides a wizard form TUI component for multi-step user input.
 package form
 
 import (

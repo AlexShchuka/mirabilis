@@ -1,3 +1,4 @@
+// Package pipeline sequences and executes provisioning steps with streaming event output.
 package pipeline
 
 import (

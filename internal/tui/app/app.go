@@ -1,3 +1,4 @@
+// Package app is the root Bubble Tea model that wires the TUI screens, pipeline, and facade.
 package app
 
 import (
