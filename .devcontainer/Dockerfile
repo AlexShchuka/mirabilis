@@ -90,10 +90,11 @@ WORKDIR /tmp/gomod-tools
 COPY go.mod go.sum ./
 RUN go install tool \
     && go install github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION} \
-    && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION} \
     && go install github.com/fe3dback/go-arch-lint@${GO_ARCH_LINT_VERSION} \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build /tmp/gomod-tools
+
+RUN curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b /home/node/go/bin ${GOLANGCI_LINT_VERSION}
 
 ARG CLAUDE_CODE_VERSION=2.1.177
 ARG GH_VERSION=2.94.0
