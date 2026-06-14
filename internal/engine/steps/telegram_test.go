@@ -73,7 +73,7 @@ func TestTelegramRunStoresTokenAndDetectsChat(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		_, _ = w.Write([]byte(`{"ok":true,"result":[{"channel_post":{"chat":{"id":-100777}}}]}`))
+		_, _ = w.Write([]byte(`{"ok":true,"result":[{"channel_post":{"chat":{"id":-100777,"type":"channel"}}}]}`))
 	}))
 	defer srv.Close()
 	store := newFakeStore()

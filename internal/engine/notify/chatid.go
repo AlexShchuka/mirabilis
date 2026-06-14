@@ -15,7 +15,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
 )
 
-var ErrNoChannel = errors.New("notify telegram: channel not detected — post anything in the channel")
+var (
+	ErrNoChannel      = errors.New("notify telegram: channel not detected — post a fresh message in the channel and retry")
+	ErrWebhookConflict = errors.New("notify telegram: webhook active — delete it first with deleteWebhook")
+)
 
 func ChatIDPath(repo string) string {
 	return filepath.Join(repo, ".mirabilis", "chat-id")
@@ -44,31 +47,51 @@ func DetectChatID(ctx context.Context, store secrets.Store, baseURL string) (str
 		return "", fmt.Errorf("notify telegram: read token: %w", err)
 	}
 	params := url.Values{}
-	params.Set("allowed_updates", `["channel_post"]`)
-	params.Set("limit", "1")
+	params.Set("allowed_updates", `["channel_post","my_chat_member","message"]`)
+	params.Set("limit", "100")
 	params.Set("timeout", "0")
 	body, err := t.postForm(ctx, token, "getUpdates", params)
 	if err != nil {
 		return "", err
 	}
 	var result struct {
-		OK     bool `json:"ok"`
-		Result []struct {
-			ChannelPost *struct {
-				Chat struct {
-					ID int64 `json:"id"`
-				} `json:"chat"`
-			} `json:"channel_post"`
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+		Result      []struct {
+			ChannelPost  *chatHolder `json:"channel_post"`
+			MyChatMember *chatHolder `json:"my_chat_member"`
+			Message      *chatHolder `json:"message"`
 		} `json:"result"`
 	}
-	if err := json.Unmarshal(body, &result); err != nil || !result.OK {
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", ErrNoChannel
+	}
+	if !result.OK {
+		if strings.Contains(result.Description, "webhook") {
+			return "", ErrWebhookConflict
+		}
 		return "", ErrNoChannel
 	}
 	for _, u := range result.Result {
-		if u.ChannelPost == nil || u.ChannelPost.Chat.ID == 0 {
-			continue
+		if id := firstChannelID(u.ChannelPost, u.MyChatMember, u.Message); id != 0 {
+			return strconv.FormatInt(id, 10), nil
 		}
-		return strconv.FormatInt(u.ChannelPost.Chat.ID, 10), nil
 	}
 	return "", ErrNoChannel
+}
+
+type chatHolder struct {
+	Chat struct {
+		ID   int64  `json:"id"`
+		Type string `json:"type"`
+	} `json:"chat"`
+}
+
+func firstChannelID(holders ...*chatHolder) int64 {
+	for _, h := range holders {
+		if h != nil && h.Chat.Type == "channel" && h.Chat.ID != 0 {
+			return h.Chat.ID
+		}
+	}
+	return 0
 }

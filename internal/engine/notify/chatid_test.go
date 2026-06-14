@@ -13,6 +13,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
 )
 
+func channelChat(id int64) map[string]any {
+	return map[string]any{"id": id, "type": "channel"}
+}
+
 func TestChatIDPathShape(t *testing.T) {
 	t.Parallel()
 	got := ChatIDPath("/some/repo")
@@ -95,7 +99,7 @@ func TestDetectChatIDHappyPath(t *testing.T) {
 			"result": []map[string]any{
 				{
 					"channel_post": map[string]any{
-						"chat": map[string]any{"id": int64(-100567)},
+						"chat": channelChat(-100567),
 					},
 				},
 			},
@@ -109,6 +113,75 @@ func TestDetectChatIDHappyPath(t *testing.T) {
 	}
 	if got != "-100567" {
 		t.Errorf("DetectChatID = %q, want -100567", got)
+	}
+}
+
+func TestDetectChatIDMyChatMember(t *testing.T) {
+	t.Parallel()
+	store := storeWithToken(t, "tok-mcm")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"result": []map[string]any{
+				{
+					"my_chat_member": map[string]any{
+						"chat": channelChat(-100999),
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	got, err := DetectChatID(context.Background(), store, srv.URL)
+	if err != nil {
+		t.Fatalf("DetectChatID (my_chat_member): %v", err)
+	}
+	if got != "-100999" {
+		t.Errorf("DetectChatID = %q, want -100999", got)
+	}
+}
+
+func TestDetectChatIDMultiUpdate(t *testing.T) {
+	t.Parallel()
+	store := storeWithToken(t, "tok-multi")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"result": []map[string]any{
+				{"message": map[string]any{"chat": map[string]any{"id": int64(-100111), "type": "group"}}},
+				{"channel_post": map[string]any{"chat": channelChat(-100222)}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	got, err := DetectChatID(context.Background(), store, srv.URL)
+	if err != nil {
+		t.Fatalf("DetectChatID (multi-update): %v", err)
+	}
+	if got != "-100222" {
+		t.Errorf("DetectChatID = %q, want -100222", got)
+	}
+}
+
+func TestDetectChatIDWebhookConflict(t *testing.T) {
+	t.Parallel()
+	store := storeWithToken(t, "tok-webhook")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok":          false,
+			"description": "Conflict: can't use getUpdates method while webhook is active",
+		})
+	}))
+	defer srv.Close()
+
+	_, err := DetectChatID(context.Background(), store, srv.URL)
+	if !errors.Is(err, ErrWebhookConflict) {
+		t.Errorf("DetectChatID webhook conflict = %v, want ErrWebhookConflict", err)
 	}
 }
 
