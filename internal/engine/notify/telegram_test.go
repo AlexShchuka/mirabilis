@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
 )
@@ -55,6 +56,12 @@ func (c *captureServer) last(t *testing.T) capturedRequest {
 		t.Fatal("no requests captured")
 	}
 	return c.reqs[len(c.reqs)-1]
+}
+
+func (c *captureServer) count() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.reqs)
 }
 
 func storeWithToken(t *testing.T, token string) secrets.Store {
@@ -120,6 +127,48 @@ func TestTelegramSendUnauthorizedTokenFree(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), token) {
 		t.Errorf("token leaked into error: %v", err)
+	}
+	if !errors.Is(err, ErrPermanent) {
+		t.Errorf("Send on 401 error = %v, want errors.Is(ErrPermanent)", err)
+	}
+}
+
+func TestTelegramSend4xxIsPermanent(t *testing.T) {
+	for _, code := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden} {
+		code := code
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			t.Parallel()
+			rec := &captureServer{}
+			srv := httptest.NewServer(rec.handler(code, map[string]any{"ok": false, "description": "permanent"}))
+			defer srv.Close()
+			n := NewTelegram(storeWithToken(t, "tok-perm"), srv.URL)
+			err := n.Send(context.Background(), "-100", "x")
+			if !errors.Is(err, ErrPermanent) {
+				t.Errorf("http %d: error = %v, want ErrPermanent wrapped", code, err)
+			}
+		})
+	}
+}
+
+func TestTelegramSend4xxWatcherTerminatesImmediately(t *testing.T) {
+	rec := &captureServer{}
+	srv := httptest.NewServer(rec.handler(http.StatusUnauthorized, map[string]any{"ok": false, "description": "Unauthorized"}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	mustWriteJob(t, dir, "perm-401", "-100", "hello")
+	n := NewTelegram(storeWithToken(t, "tok-401-watcher"), srv.URL)
+	o, _ := newObs(t)
+	startWatch(t, dir, n, o)
+
+	waitFor(t, "terminal status written on 401", func() bool {
+		st, err := ReadStatus(dir, "perm-401")
+		return err == nil && !st.OK
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	if c := rec.count(); c != 1 {
+		t.Errorf("send count = %d, want 1 (permanent 401 must not retry)", c)
 	}
 }
 

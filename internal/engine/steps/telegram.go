@@ -59,8 +59,8 @@ func (s *telegramStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-
 	if token == telegramSkip {
 		return dotenvWrite(s.d.Repo, telegramEnvKey, telegramSkip)
 	}
-	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Payload: "saving token…"}
-	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Payload: "detecting channel…"}
+	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "saving token…"}
+	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "detecting channel…"}
 	cfgCtx, cfgCancel := context.WithTimeout(ctx, telegramConfigureTimeout)
 	defer cfgCancel()
 	return notify.Configure(cfgCtx, s.d.Store, s.baseURL, s.d.Repo, token)
