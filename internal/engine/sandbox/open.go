@@ -2,14 +2,20 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
 
+var errOpenDisabled = errors.New("sandbox: browser open disabled")
+
 func OpenURL(ctx context.Context, runner exec.Runner, url string) error {
 	argv, err := openArgv(url)
+	if errors.Is(err, errOpenDisabled) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -18,11 +24,22 @@ func OpenURL(ctx context.Context, runner exec.Runner, url string) error {
 }
 
 func openArgv(url string) ([]string, error) {
-	if browser := os.Getenv("BROWSER"); browser != "" {
+	if os.Getenv("MIRABILIS_NO_BROWSER") != "" {
+		return nil, errOpenDisabled
+	}
+	browser, browserSet := os.LookupEnv("BROWSER")
+	if browserSet {
+		if browser == "" {
+			return nil, errOpenDisabled
+		}
 		return []string{browser, url}, nil
 	}
 	if isWSL() {
-		return []string{"wslview", url}, nil
+		wslview, err := lookPath("wslview")
+		if err != nil {
+			return nil, errors.New("sandbox: 'wslview' not found in PATH; set $BROWSER")
+		}
+		return []string{wslview, url}, nil
 	}
 	return platformOpen(url)
 }

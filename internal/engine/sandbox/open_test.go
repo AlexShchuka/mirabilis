@@ -1,10 +1,12 @@
 package sandbox
 
 import (
+	"errors"
 	"testing"
 )
 
 func TestOpenArgvBrowserEnv(t *testing.T) {
+	t.Setenv("MIRABILIS_NO_BROWSER", "")
 	t.Setenv("BROWSER", "/usr/bin/my-browser")
 	t.Setenv("WSL_DISTRO_NAME", "")
 	argv, err := openArgv("https://example.com")
@@ -16,15 +18,29 @@ func TestOpenArgvBrowserEnv(t *testing.T) {
 	}
 }
 
-func TestOpenArgvWSL(t *testing.T) {
+func TestOpenArgvEmptyBrowserDisables(t *testing.T) {
+	t.Setenv("MIRABILIS_NO_BROWSER", "")
 	t.Setenv("BROWSER", "")
 	t.Setenv("WSL_DISTRO_NAME", "Ubuntu")
-	argv, err := openArgv("https://example.com")
-	if err != nil {
-		t.Fatalf("openArgv: %v", err)
+	_, err := openArgv("https://example.com")
+	if !errors.Is(err, errOpenDisabled) {
+		t.Errorf("openArgv with BROWSER='' = %v, want errOpenDisabled", err)
 	}
-	if len(argv) < 2 || argv[0] != "wslview" {
-		t.Errorf("openArgv WSL = %v, want [wslview ...]", argv)
+}
+
+func TestOpenArgvNoBrowserEnvDisables(t *testing.T) {
+	t.Setenv("MIRABILIS_NO_BROWSER", "1")
+	t.Setenv("WSL_DISTRO_NAME", "Ubuntu")
+	_, err := openArgv("https://example.com")
+	if !errors.Is(err, errOpenDisabled) {
+		t.Errorf("openArgv with MIRABILIS_NO_BROWSER set = %v, want errOpenDisabled", err)
+	}
+}
+
+func TestOpenURLNoBrowserIsNoop(t *testing.T) {
+	t.Setenv("MIRABILIS_NO_BROWSER", "1")
+	if err := OpenURL(t.Context(), nil, "https://example.com"); err != nil {
+		t.Errorf("OpenURL with MIRABILIS_NO_BROWSER = %v, want nil (graceful no-op)", err)
 	}
 }
 
