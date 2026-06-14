@@ -39,7 +39,7 @@ func (s *pluginsStep) expectedEnabled() map[string]any {
 }
 
 func (s *pluginsStep) Check(ctx context.Context) (bool, error) {
-	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
+	if !s.d.scriptOK(ctx, "command -v claude") {
 		return true, nil
 	}
 	catalog := readLines(s.d.Cfg.PluginsTxt())
@@ -47,7 +47,7 @@ func (s *pluginsStep) Check(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	disabled := s.d.disabledPlugins()
-	listed, _ := s.d.cmd().output(ctx, "claude", "plugin", "list")
+	listed, _ := s.d.output(ctx, "claude", "plugin", "list")
 	for _, p := range catalog {
 		if disabled[p] {
 			continue
@@ -69,22 +69,22 @@ func (s *pluginsStep) Check(ctx context.Context) (bool, error) {
 }
 
 func (s *pluginsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
+	if !s.d.scriptOK(ctx, "command -v claude") {
 		return nil
 	}
 	catalog := readLines(s.d.Cfg.PluginsTxt())
 	if len(catalog) == 0 {
 		return nil
 	}
-	_ = s.d.cmd().streamScript(ctx, "plugins", out, `mkdir -p "$HOME/.cache/tmp"`)
+	_ = s.d.streamScript(ctx, "plugins", out, `mkdir -p "$HOME/.cache/tmp"`)
 	var errs []error
 	for _, market := range config.ReadMarketplaces(s.d.Repo) {
-		if err := s.d.cmd().stream(ctx, "plugins", out, "claude", "plugin", "marketplace", "add", market); err != nil {
+		if err := s.d.stream(ctx, "plugins", out, "claude", "plugin", "marketplace", "add", market); err != nil {
 			errs = append(errs, fmt.Errorf("marketplace add %s: %w", market, err))
 		}
 	}
 	disabled := s.d.disabledPlugins()
-	listed, _ := s.d.cmd().output(ctx, "claude", "plugin", "list")
+	listed, _ := s.d.output(ctx, "claude", "plugin", "list")
 	for _, p := range catalog {
 		if disabled[p] {
 			continue
@@ -93,7 +93,7 @@ func (s *pluginsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-ch
 			continue
 		}
 		script := fmt.Sprintf(`TMPDIR="$HOME/.cache/tmp" claude plugin install %s --scope user`, p)
-		if err := s.d.cmd().streamScript(ctx, "plugins", out, script); err != nil {
+		if err := s.d.streamScript(ctx, "plugins", out, script); err != nil {
 			errs = append(errs, fmt.Errorf("plugin install %s: %w", p, err))
 		}
 	}

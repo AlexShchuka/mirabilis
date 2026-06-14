@@ -28,7 +28,7 @@ func (s *skillsStep) Check(ctx context.Context) (bool, error) {
 	if len(selected) == 0 {
 		return true, nil
 	}
-	if !s.d.cmd().argvOK(ctx, "git", "version") {
+	if !s.d.argvOK(ctx, "git", "version") {
 		return true, nil
 	}
 	for _, entry := range catalog {
@@ -55,7 +55,7 @@ func (s *skillsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-cha
 	if len(selected) == 0 {
 		return nil
 	}
-	if !s.d.cmd().argvOK(ctx, "git", "version") {
+	if !s.d.argvOK(ctx, "git", "version") {
 		return nil
 	}
 	if err := os.MkdirAll(s.skillsDir(), 0o755); err != nil {
@@ -73,14 +73,14 @@ func (s *skillsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-cha
 		owner, repo := parts[0], parts[1]
 		dir := filepath.Join(s.skillsDir(), repo)
 		if fi, err := os.Stat(filepath.Join(dir, ".git")); err == nil && fi.IsDir() {
-			if err := s.d.cmd().stream(ctx, "skills", out, "git", "-C", dir, "pull", "--ff-only"); err != nil {
+			if err := s.d.stream(ctx, "skills", out, "git", "-C", dir, "pull", "--ff-only"); err != nil {
 				errs = append(errs, fmt.Errorf("%s pull: %w", entry, err))
 			}
 			continue
 		}
 		if !exists(dir) {
 			url := "https://github.com/" + owner + "/" + repo + ".git"
-			if err := s.d.cmd().stream(ctx, "skills", out, "git", "clone", "--depth", "1", url, dir); err != nil {
+			if err := s.d.stream(ctx, "skills", out, "git", "clone", "--depth", "1", url, dir); err != nil {
 				errs = append(errs, fmt.Errorf("%s clone: %w", entry, err))
 			}
 		}

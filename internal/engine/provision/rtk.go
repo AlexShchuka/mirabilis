@@ -17,20 +17,20 @@ type rtkStep struct {
 func (s *rtkStep) Meta() pipeline.Meta { return installMeta("rtk", "rtk gateway") }
 
 func (s *rtkStep) Check(ctx context.Context) (bool, error) {
-	if !s.d.cmd().argvOK(ctx, "rtk", "--version") {
+	if !s.d.argvOK(ctx, "rtk", "--version") {
 		return true, nil
 	}
 	return rtkHookPresent(s.d), nil
 }
 
 func (s *rtkStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	if !s.d.cmd().argvOK(ctx, "rtk", "--version") {
+	if !s.d.argvOK(ctx, "rtk", "--version") {
 		return nil
 	}
 	if rtkHookPresent(s.d) {
 		return nil
 	}
-	if err := s.d.cmd().stream(ctx, "rtk", out, "timeout", "60", "rtk", "init", "-g", "--auto-patch"); err != nil {
+	if err := s.d.stream(ctx, "rtk", out, "timeout", "60", "rtk", "init", "-g", "--auto-patch"); err != nil {
 		return fmt.Errorf("rtk init: %w", err)
 	}
 	return nil

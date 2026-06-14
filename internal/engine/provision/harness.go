@@ -19,7 +19,7 @@ func (s *harnessStep) installed(ctx context.Context) bool {
 	if s.d.harnessChoice() == harnessSkip {
 		return true
 	}
-	return s.d.cmd().scriptOK(ctx, harness.ProbeScript)
+	return s.d.scriptOK(ctx, harness.ProbeScript)
 }
 
 func (s *harnessStep) Check(ctx context.Context) (bool, error) {
@@ -31,27 +31,27 @@ func (s *harnessStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-ch
 	if !s.installed(ctx) {
 		errs = append(errs, s.install(ctx, out))
 	}
-	if err := s.d.cmd().streamScript(ctx, "harness", out, harness.RelinkScript); err != nil {
+	if err := s.d.streamScript(ctx, "harness", out, harness.RelinkScript); err != nil {
 		errs = append(errs, fmt.Errorf("neuro-matrix symlink: %w", err))
 	}
 	return errors.Join(errs...)
 }
 
 func (s *harnessStep) install(ctx context.Context, out chan<- pipeline.Event) error {
-	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
+	if !s.d.scriptOK(ctx, "command -v claude") {
 		return nil
 	}
 	var errs []error
 	for _, a := range harness.InstallActions() {
-		err := s.d.cmd().stream(ctx, "harness", out, a.Argv...)
+		err := s.d.stream(ctx, "harness", out, a.Argv...)
 		if err != nil && a.Fallback != nil {
-			err = s.d.cmd().stream(ctx, "harness", out, a.Fallback...)
+			err = s.d.stream(ctx, "harness", out, a.Fallback...)
 		}
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", a.WrapErr, err))
 		}
 	}
-	if !s.d.cmd().scriptOK(ctx, harness.ProbeScript) {
+	if !s.d.scriptOK(ctx, harness.ProbeScript) {
 		errs = append(errs, errors.New("neuro-matrix not installed after reinstall"))
 	}
 	return errors.Join(errs...)

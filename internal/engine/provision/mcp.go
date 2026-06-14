@@ -32,7 +32,7 @@ type mcpStep struct {
 func (s *mcpStep) Meta() pipeline.Meta { return carryMeta("mcp", "MCP servers") }
 
 func (s *mcpStep) entries(ctx context.Context) []config.MCPEntry {
-	hasUvx := s.d.cmd().scriptOK(ctx, "command -v uvx")
+	hasUvx := s.d.scriptOK(ctx, "command -v uvx")
 	var entries []config.MCPEntry
 	for _, e := range config.ReadMCPCatalog(s.d.Repo) {
 		if len(e.Args) > 0 && e.Args[0] == "uvx" && !hasUvx {
@@ -44,11 +44,11 @@ func (s *mcpStep) entries(ctx context.Context) []config.MCPEntry {
 }
 
 func (s *mcpStep) Check(ctx context.Context) (bool, error) {
-	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
+	if !s.d.scriptOK(ctx, "command -v claude") {
 		return true, nil
 	}
 	entries := s.entries(ctx)
-	listOut, _ := s.d.cmd().output(ctx, "claude", "mcp", "list")
+	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	for _, e := range entries {
 		if !registered[e.Name] {
@@ -59,11 +59,11 @@ func (s *mcpStep) Check(ctx context.Context) (bool, error) {
 }
 
 func (s *mcpStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	if !s.d.cmd().scriptOK(ctx, "command -v claude") {
+	if !s.d.scriptOK(ctx, "command -v claude") {
 		return nil
 	}
 	entries := s.entries(ctx)
-	listOut, _ := s.d.cmd().output(ctx, "claude", "mcp", "list")
+	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	var errs []error
 	for _, e := range entries {
@@ -78,7 +78,7 @@ func (s *mcpStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan p
 			argv = append(argv, e.Name, "--")
 			argv = append(argv, e.Args...)
 		}
-		if err := s.d.cmd().stream(ctx, "mcp", out, argv...); err != nil {
+		if err := s.d.stream(ctx, "mcp", out, argv...); err != nil {
 			errs = append(errs, fmt.Errorf("register %s: %w", e.Name, err))
 		}
 	}

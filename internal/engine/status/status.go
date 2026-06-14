@@ -10,8 +10,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 )
 
-var _ sandbox.Docker = (*sandbox.Moby)(nil)
-
 const (
 	node     = "container"
 	maxShift = 5

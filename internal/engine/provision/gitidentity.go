@@ -17,17 +17,17 @@ type gitIdentityStep struct {
 func (s *gitIdentityStep) Meta() pipeline.Meta { return carryMeta("git-identity", "Git identity") }
 
 func (s *gitIdentityStep) Check(ctx context.Context) (bool, error) {
-	if !s.d.cmd().argvOK(ctx, "gh", "auth", "status") {
+	if !s.d.argvOK(ctx, "gh", "auth", "status") {
 		return true, nil
 	}
-	if !s.d.cmd().argvOK(ctx, "git", "version") {
+	if !s.d.argvOK(ctx, "git", "version") {
 		return true, nil
 	}
-	name, err := s.d.cmd().output(ctx, "git", "config", "--global", "user.name")
+	name, err := s.d.output(ctx, "git", "config", "--global", "user.name")
 	if err != nil || strings.TrimSpace(name) == "" {
 		return false, nil
 	}
-	email, err := s.d.cmd().output(ctx, "git", "config", "--global", "user.email")
+	email, err := s.d.output(ctx, "git", "config", "--global", "user.email")
 	if err != nil || strings.TrimSpace(email) == "" {
 		return false, nil
 	}
@@ -35,13 +35,13 @@ func (s *gitIdentityStep) Check(ctx context.Context) (bool, error) {
 }
 
 func (s *gitIdentityStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	if !s.d.cmd().argvOK(ctx, "gh", "auth", "status") {
+	if !s.d.argvOK(ctx, "gh", "auth", "status") {
 		return nil
 	}
-	if !s.d.cmd().argvOK(ctx, "git", "version") {
+	if !s.d.argvOK(ctx, "git", "version") {
 		return nil
 	}
-	raw, err := s.d.cmd().output(ctx, "gh", "api", "user")
+	raw, err := s.d.output(ctx, "gh", "api", "user")
 	if err != nil || raw == "" {
 		return nil
 	}
@@ -63,13 +63,13 @@ func (s *gitIdentityStep) Run(ctx context.Context, out chan<- pipeline.Event, _ 
 		email = fmt.Sprintf("%s+%s@users.noreply.github.com", user.ID.String(), user.Login)
 	}
 	var errs []error
-	if err := s.d.cmd().stream(ctx, "git-identity", out, "git", "config", "--global", "user.name", name); err != nil {
+	if err := s.d.stream(ctx, "git-identity", out, "git", "config", "--global", "user.name", name); err != nil {
 		errs = append(errs, fmt.Errorf("git config user.name: %w", err))
 	}
-	if err := s.d.cmd().stream(ctx, "git-identity", out, "git", "config", "--global", "user.email", email); err != nil {
+	if err := s.d.stream(ctx, "git-identity", out, "git", "config", "--global", "user.email", email); err != nil {
 		errs = append(errs, fmt.Errorf("git config user.email: %w", err))
 	}
-	if err := s.d.cmd().stream(ctx, "git-identity", out, "gh", "auth", "setup-git"); err != nil {
+	if err := s.d.stream(ctx, "git-identity", out, "gh", "auth", "setup-git"); err != nil {
 		errs = append(errs, fmt.Errorf("gh auth setup-git: %w", err))
 	}
 	return errors.Join(errs...)
