@@ -52,7 +52,7 @@ const (
 	MenuDescLaunch   = "setup pipeline + Claude in container"
 	MenuDescHarness  = "neuro-matrix: on / off / reinstall"
 	MenuDescTelegram = "bot notifications: token, optional"
-	MenuDescVSCode   = "attach /workspace in VS Code"
+	MenuDescVSCode   = "open container root in VS Code"
 	MenuDescReset    = "container, image and volumes — permanent"
 
 	NoticeSecondary = "secondary — sandbox owned by another tab"

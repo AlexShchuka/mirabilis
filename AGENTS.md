@@ -145,7 +145,7 @@ These are not style preferences — violating them is a defect.
 
 ## Dependency updates
 
-Dependabot covers: base Docker images (Dockerfile `FROM` digests), `go.mod` (including the five `tool` directive entries — goimports, staticcheck, fieldalignment, actionlint, and their transitive deps), and GitHub Actions SHA pins.
+Dependabot covers: base Docker images (Dockerfile `FROM` digests), `go.mod` (including the four `tool` directive entries — goimports, staticcheck, fieldalignment, actionlint — and their transitive deps), and GitHub Actions SHA pins.
 
 Manually bumped (no dependabot coverage — bump by editing the relevant ARG or action ref directly):
 - `golangci-lint` — Dockerfile ARG `GOLANGCI_LINT_VERSION`; match the version in the golangci-lint action (`ci.yml`).
