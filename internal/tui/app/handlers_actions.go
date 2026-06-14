@@ -10,6 +10,8 @@ import (
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
 
+const ghAuthNodeID = "app/launch/ghauth"
+
 func (a App) handleTelegramDone(msg telegramDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {
@@ -77,11 +79,17 @@ func (a App) handleCopyRequest(msg bus.CopyRequest) (tea.Model, tea.Cmd) {
 }
 
 func (a App) handleCopyDone(msg copyDoneMsg) (tea.Model, tea.Cmd) {
+	line := uistr.GHAuthCopied
 	if msg.err != nil {
-		return a, nil
+		line = uistr.GHAuthCopyFailed
 	}
-	_ = msg.text
-	return a, nil
+	ev := bus.Envelope{
+		To:  ghAuthNodeID,
+		Msg: bus.StepEvent{Kind: bus.StepLine, Line: line},
+	}
+	var cmd tea.Cmd
+	a.router, cmd = a.router.Update(ev)
+	return a, cmd
 }
 
 func osc52Copy(text string) tea.Cmd {

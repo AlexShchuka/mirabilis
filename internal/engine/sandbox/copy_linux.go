@@ -2,10 +2,13 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
+
+var ErrNoClipboard = errors.New("no clipboard utility found (xclip, xsel, wl-copy)")
 
 func CopyText(ctx context.Context, runner exec.Runner, text string) error {
 	for _, name := range []string{"xclip", "xsel", "wl-copy"} {
@@ -17,5 +20,5 @@ func CopyText(ctx context.Context, runner exec.Runner, text string) error {
 			return err
 		}
 	}
-	return nil
+	return ErrNoClipboard
 }

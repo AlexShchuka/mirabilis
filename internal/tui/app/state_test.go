@@ -1557,3 +1557,20 @@ func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
 		t.Error("q produced no command while proxy degraded, want quit")
 	}
 }
+
+func TestStateCopyDoneFeedbackRouted(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, copyDoneMsg{text: "ABCD-1234", err: nil})
+	a, _ = step(t, a, copyDoneMsg{text: "ABCD-1234", err: errors.New("no clipboard")})
+	_ = a
+}
+
+func TestStateCopyDoneErrorFeedbackRouted(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, copyDoneMsg{text: "ABCD", err: errors.New("xclip not found")})
+	_ = a
+}

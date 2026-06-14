@@ -9,7 +9,8 @@ const (
 	GHAuthLabelURL      = "  URL:   "
 	GHAuthStatusWaiting = "requesting device code from GitHub…"
 	GHAuthCopyHint      = "  press c to copy code"
-	GHAuthCopied        = "code copied"
+	GHAuthCopied        = "code copied (also shown above)"
+	GHAuthCopyFailed    = "copy failed — enter the code shown above manually"
 
 	FooterHints    = "enter select · esc back · tab log · q quit"
 	DegradedPrefix = "degraded: "
