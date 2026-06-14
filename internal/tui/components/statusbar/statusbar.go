@@ -1,3 +1,4 @@
+// Package statusbar is a TUI status-bar component showing subsystem health snapshots.
 package statusbar
 
 import (
@@ -41,7 +42,7 @@ func (m Model) View() string {
 			degraded = append(degraded, node)
 			continue
 		}
-		seg := node + " "
+		seg := statusGlyph(st.State) + " " + node + " "
 		if st.Detail != "" {
 			seg += st.Detail
 		} else {
@@ -54,7 +55,21 @@ func (m Model) View() string {
 		segments = append(segments, style.Render(seg))
 	}
 	if len(degraded) > 0 {
-		segments = append(segments, styles.Degraded.Render(uistr.DegradedPrefix+strings.Join(degraded, ", ")))
+		seg := statusGlyph(obs.StateDegraded) + " " + uistr.DegradedPrefix + strings.Join(degraded, ", ")
+		segments = append(segments, styles.Degraded.Render(seg))
 	}
 	return strings.Join(segments, uistr.StatusSep)
+}
+
+func statusGlyph(s obs.State) string {
+	switch s {
+	case obs.StateOK:
+		return uistr.GlyphStatusOK
+	case obs.StateDegraded:
+		return uistr.GlyphStatusDegraded
+	case obs.StateOff:
+		return uistr.GlyphStatusOff
+	default:
+		return uistr.GlyphStatusUnknown
+	}
 }

@@ -37,6 +37,7 @@ type stubFacade struct {
 	vscodeErr        error
 	saveCalls        int
 	resetCalls       int
+	resetErr         error
 	lastHarness      string
 	rememberedChoice string
 	rememberErr      error
@@ -47,6 +48,7 @@ type stubFacade struct {
 	attachEnv        []string
 	attachErr        error
 	attachCalls      int
+	statusSubs       int
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -60,7 +62,18 @@ func (f *stubFacade) Version() string { return "vtest" }
 
 func (f *stubFacade) Logger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func (f *stubFacade) StatusUpdates() <-chan obs.Snapshot { return make(chan obs.Snapshot, 1) }
+func (f *stubFacade) StatusUpdates() <-chan obs.Snapshot {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.statusSubs++
+	return make(chan obs.Snapshot, 1)
+}
+
+func (f *stubFacade) statusUpdatesCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.statusSubs
+}
 
 func (f *stubFacade) OnTokenExtracted(string) {}
 
@@ -79,7 +92,7 @@ func (f *stubFacade) ResetSandbox(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resetCalls++
-	return nil
+	return f.resetErr
 }
 
 func (f *stubFacade) ConfigureTelegram(_ context.Context, token string) error {
@@ -376,6 +389,35 @@ func wizardOf(title string, options []string) steps.Wizard {
 	}}
 }
 
+func TestLaunchScreenSizedToMainAreaNotFullTerminal(t *testing.T) {
+	longLine := strings.Repeat("x", 200)
+	streamer := &stateStep{meta: pipeline.Meta{Name: "stream", Title: "Stream", Kind: pipeline.Auto},
+		runFn: func(_ context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+			out <- pipeline.Event{Kind: pipeline.EvStepStarted, Step: "stream"}
+			out <- pipeline.Event{Kind: pipeline.EvLine, Step: "stream", Line: longLine}
+			<-make(chan struct{})
+			return nil
+		}}
+	f := &stubFacade{steps: []pipeline.Command{streamer}}
+	a := newStateApp(t, f)
+
+	const w, h = 120, 40
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: w, Height: h})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntil(t, a, func(_ App, ev pipeline.Event) bool { return ev.Kind == pipeline.EvLine })
+
+	mw, _ := a.frame.MainSize()
+	if mw >= w {
+		t.Fatalf("main-area width %d not narrower than terminal %d; menu chrome not subtracted", mw, w)
+	}
+	view := plainState(a.router.Top().View())
+	for i, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > mw {
+			t.Errorf("launch line %d width = %d, want <= main-area %d (screen got raw terminal size, not main area)", i, got, mw)
+		}
+	}
+}
+
 func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 	resumed := make(chan pipeline.Result, 1)
 	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
@@ -482,6 +524,122 @@ func TestStateTelegramFailure(t *testing.T) {
 	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeTelegramErr+"boom: channel not detected" {
 		t.Errorf("notice = %q", got)
+	}
+}
+
+func TestStateResetConfirmRunsAndNotifies(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if a.menuAction != "reset" {
+		t.Fatalf("menuAction = %q, want reset", a.menuAction)
+	}
+
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	if !a.busy {
+		t.Error("busy = false while reset runs, want true")
+	}
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if a.busy {
+		t.Error("busy = true after reset done, want false")
+	}
+	if got := menuNotice(t, a); got != uistr.NoticeResetDone {
+		t.Errorf("notice = %q, want %q", got, uistr.NoticeResetDone)
+	}
+	if f.saveCalls != 1 || f.resetCalls != 1 {
+		t.Errorf("saveCalls=%d resetCalls=%d, want 1 and 1", f.saveCalls, f.resetCalls)
+	}
+}
+
+func TestStateResetFailureNotice(t *testing.T) {
+	f := &stubFacade{resetErr: errors.New("disk busy")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if a.busy {
+		t.Error("busy = true after failed reset, want false")
+	}
+	if got := menuNotice(t, a); got != uistr.NoticeResetFailed {
+		t.Errorf("notice = %q, want %q", got, uistr.NoticeResetFailed)
+	}
+	if f.resetCalls != 1 {
+		t.Errorf("resetCalls = %d, want 1", f.resetCalls)
+	}
+}
+
+func TestStateResetCancelMakesNoCalls(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, _ = step(t, a, bus.ScreenPop{})
+	if a.busy {
+		t.Error("busy = true after reset cancel, want false")
+	}
+	if f.saveCalls != 0 || f.resetCalls != 0 {
+		t.Errorf("saveCalls=%d resetCalls=%d after cancel, want 0 and 0", f.saveCalls, f.resetCalls)
+	}
+	if a.router.Depth() != 1 {
+		t.Errorf("router depth = %d after pop, want 1 (menu only)", a.router.Depth())
+	}
+}
+
+func menuErrText(t *testing.T, a App) string {
+	t.Helper()
+	m, ok := a.router.Top().(screens.Menu)
+	if !ok {
+		t.Fatalf("top screen is %T, want screens.Menu", a.router.Top())
+	}
+	return m.ErrText()
+}
+
+func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
+	f := &stubFacade{resetErr: errors.New("disk busy")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	wantErr := uistr.NoticeResetFailed
+	if got := menuErrText(t, a); got != wantErr {
+		t.Fatalf("error surface = %q, want %q right after failure", got, wantErr)
+	}
+
+	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuNotice(t, a); got != uistr.NoticeVSCodeDone {
+		t.Errorf("benign notice = %q, want %q", got, uistr.NoticeVSCodeDone)
+	}
+	if got := menuErrText(t, a); got != wantErr {
+		t.Errorf("error surface = %q after a benign success, want it to persist as %q", got, wantErr)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if got := menuErrText(t, a); got != "" {
+		t.Errorf("error surface = %q after dismiss key, want empty", got)
+	}
+}
+
+func TestStateErrorSurfaceReplacedByNextError(t *testing.T) {
+	f := &stubFacade{resetErr: errors.New("disk busy"), vscodeErr: errors.New("code missing")}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuErrText(t, a); got != uistr.NoticeResetFailed {
+		t.Fatalf("first error = %q, want %q", got, uistr.NoticeResetFailed)
+	}
+
+	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	want := uistr.NoticeVSCodeErr + "code missing"
+	if got := menuErrText(t, a); got != want {
+		t.Errorf("error surface = %q, want it replaced by the newer error %q", got, want)
 	}
 }
 
@@ -727,7 +885,15 @@ func busyGlyphPresent(header string) bool {
 	return false
 }
 
+func enableMotion(t *testing.T) {
+	t.Helper()
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("NO_ANIMATE", "")
+	t.Setenv("ACCESSIBLE", "")
+}
+
 func TestBusyNoticeTicksElapsed(t *testing.T) {
+	enableMotion(t)
 	f := &stubFacade{}
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -773,7 +939,27 @@ func TestBusyNoticeTicksElapsed(t *testing.T) {
 	}
 }
 
+func TestBusyStaticUnderReducedMotion(t *testing.T) {
+	t.Setenv("NO_ANIMATE", "1")
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	a.busy = true
+	if cmd := a.startBusy(); cmd != nil {
+		t.Error("startBusy returned a tick cmd under NO_ANIMATE, want nil (no animation; WCAG 2.3.3)")
+	}
+	h := strings.Split(plainState(a.frame.View("")), "\n")[0]
+	if busyGlyphPresent(h) {
+		t.Errorf("busy header shows an animated spinner frame under reduced motion:\n%s", h)
+	}
+	if !strings.Contains(h, busyStaticGlyph) {
+		t.Errorf("busy header missing the static glyph under reduced motion:\n%s", h)
+	}
+}
+
 func TestBusyTickStaleGenIgnored(t *testing.T) {
+	enableMotion(t)
 	f := &stubFacade{}
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -1031,6 +1217,41 @@ func TestStateScreenResultResumesWaiting(t *testing.T) {
 	a = driveUntilDone(t, a)
 	if got := menuNotice(t, a); got != "" {
 		t.Errorf("notice = %q after clean finish, want empty", got)
+	}
+}
+
+func TestStateGHAuthPushesScreenAndResumes(t *testing.T) {
+	resumed := make(chan pipeline.Result, 1)
+	payload := steps.GHAuth{Code: "ABCD-1234", URL: "https://github.com/login/device"}
+	f := &stubFacade{steps: []pipeline.Command{waitingStep("gh-auth", payload, resumed)}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilWaiting(t, a)
+
+	if a.waiting != "gh-auth" {
+		t.Fatalf("waiting = %q, want gh-auth", a.waiting)
+	}
+	if a.router.Depth() < 2 {
+		t.Fatalf("router depth = %d, want >= 2 (gh-auth screen pushed)", a.router.Depth())
+	}
+
+	a, _ = step(t, a, bus.ScreenResult{Value: nil})
+	select {
+	case r := <-resumed:
+		if r.Cancelled {
+			t.Errorf("Resume cancelled, want completed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gh-auth not resumed via ScreenResult")
+	}
+}
+
+func TestStateStatusSubscribedOnce(t *testing.T) {
+	f := &stubFacade{}
+	_ = newStateApp(t, f)
+	if got := f.statusUpdatesCalls(); got != 1 {
+		t.Errorf("StatusUpdates() called %d times at init, want exactly 1", got)
 	}
 }
 
@@ -1323,6 +1544,44 @@ func TestStateContainerStatusDrivesAttachEnablement(t *testing.T) {
 	a, _ = step(t, a, statusMsg(stoppedSnapshot()))
 	if frameEnabled(a, screens.ActionAttach) {
 		t.Error("attach enabled while container stopped")
+	}
+}
+
+func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
+	degraded := obs.Snapshot{
+		"proxy":     {State: obs.StateDegraded, Detail: "token not ready"},
+		"container": {State: obs.StateOK, Detail: "up"},
+	}
+	a, _ = step(t, a, statusMsg(degraded))
+
+	view := plainState(a.View().Content)
+	if !strings.Contains(view, uistr.DegradedPrefix+"proxy") {
+		t.Errorf("status header does not surface the degraded proxy node:\n%s", view)
+	}
+
+	before := frameSelected(t, a)
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	moved := frameSelected(t, a)
+	if moved == before {
+		t.Errorf("nav broken while proxy degraded: cursor stuck at %q", before)
+	}
+
+	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
+	msg := runMsg(t, cmd)
+	chosen, ok := msg.(bus.MenuChosen)
+	if !ok {
+		t.Fatalf("enter produced %T while proxy degraded, want bus.MenuChosen", msg)
+	}
+	if chosen.Action != moved {
+		t.Errorf("dispatch broken while degraded: action = %q, want %q (the selected item)", chosen.Action, moved)
+	}
+
+	if _, quit := step(t, a, tea.KeyPressMsg{Code: 'q', Text: "q"}); quit == nil {
+		t.Error("q produced no command while proxy degraded, want quit")
 	}
 }
 

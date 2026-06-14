@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +13,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
+	"github.com/AlexShchuka/mirabilis/internal/engine/localllm"
 	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
@@ -60,6 +63,11 @@ func run(args []string) error {
 		return hooks.Dispatch(args[1])
 	case "notify":
 		return runNotify(context.Background(), args[1:])
+	case "localllm":
+		if len(args) < 2 || args[1] != "serve" {
+			return fmt.Errorf("localllm: unknown subcommand — use 'localllm serve'")
+		}
+		return runLocalLLMServe(context.Background())
 	default:
 		return fmt.Errorf("unknown argument %q — run 'mirabilis --help' for usage", args[0])
 	}
@@ -167,13 +175,14 @@ func runProvision(ctx context.Context, args []string) error {
 	defer o.Close()
 
 	deps := provision.Deps{
-		Runner:     newHost(),
-		Cfg:        configFor(repo),
-		Log:        o.Logger("provision"),
-		Repo:       repo,
-		Home:       home,
-		ProxyAddr:  proxyAddr,
-		SessionKey: sessionKey,
+		Runner:      newHost(),
+		Cfg:         configFor(repo),
+		Log:         o.Logger("provision"),
+		Repo:        repo,
+		Home:        home,
+		ProxyAddr:   proxyAddr,
+		SessionKey:  sessionKey,
+		Fingerprint: os.Getenv("MIRABILIS_VERSION"),
 	}
 	return provision.RunPhase(ctx, deps, phase)
 }
@@ -218,4 +227,15 @@ func runNotify(ctx context.Context, args []string) error {
 
 func newPlatformStore(repo, home string) secrets.Store {
 	return platformStore(repo, home)
+}
+
+func runLocalLLMServe(ctx context.Context) error {
+	c := &localllm.HTTPAdapter{
+		BaseURL:   config.LocalLLMBaseURL,
+		Model:     config.LocalLLMModel,
+		Timeout:   config.LocalLLMTimeout,
+		MaxTokens: config.LocalLLMMaxTokens,
+		Client:    &http.Client{},
+	}
+	return localllm.ServeStdio(ctx, c)
 }

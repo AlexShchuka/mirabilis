@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 )
 
 func stubGitIdentityProbes(f *exec.Fake, name, email string) {
@@ -28,6 +29,11 @@ func stubMCPProbes(f *exec.Fake, list string) {
 
 func TestRunPhaseCreateIsIdempotent(t *testing.T) {
 	d, f := testDeps(t)
+	mustWrite(t, filepath.Join(d.Repo, "config", "mcp.json"),
+		`[{"name":"context7","transport":"http","url":"https://mcp.context7.com/mcp"},`+
+			`{"name":"sequential-thinking","transport":"stdio","args":["npx","-y","@modelcontextprotocol/server-sequential-thinking"]},`+
+			`{"name":"arxiv-mcp-server","transport":"stdio","args":["uvx","arxiv-mcp-server"]},`+
+			`{"name":"docling","transport":"stdio","args":["uvx","--from","docling-mcp[local]","docling-mcp-server","--transport","stdio"]}]`)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(d.Home, "xdg"))
 	mustWriteJSON(t, d.Cfg.SettingsSeed(), map[string]any{
 		"hooks": map[string]any{
@@ -61,7 +67,7 @@ func TestRunPhaseCreateIsIdempotent(t *testing.T) {
 	if n := f.Remaining(); n != 0 {
 		t.Fatalf("first create left %d unused stubs", n)
 	}
-	marker, err := os.ReadFile(filepath.Join(d.claudeDir(), CreateMarkerName))
+	marker, err := os.ReadFile(filepath.Join(d.claudeDir(), harness.CreateMarkerName))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,3 +1,4 @@
+// Package router manages a screen stack for the TUI, routing messages to the topmost screen.
 package router
 
 import (

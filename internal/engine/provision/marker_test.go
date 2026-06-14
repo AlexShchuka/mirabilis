@@ -5,20 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-)
 
-func TestStartMarkerHashFormulaStable(t *testing.T) {
-	const golden = "2476eea9945737aec76cb5c18e3acf117384f883949438952343fbd4e428953f"
-	if got := StartMarkerHash("v1.2.3", "session"); got != golden {
-		t.Errorf("StartMarkerHash(v1.2.3, session) = %s, want %s", got, golden)
-	}
-	if StartMarkerHash("v1.2.3", "other") == golden {
-		t.Error("hash must change with the session key")
-	}
-	if StartMarkerHash("v9.9.9", "session") == golden {
-		t.Error("hash must change with the fingerprint")
-	}
-}
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
+)
 
 func TestCreateMarkerStep(t *testing.T) {
 	d, _ := testDeps(t)
@@ -29,7 +18,7 @@ func TestCreateMarkerStep(t *testing.T) {
 	if err := runStep(t, step); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(d.claudeDir(), CreateMarkerName))
+	data, err := os.ReadFile(filepath.Join(d.claudeDir(), harness.CreateMarkerName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,8 +31,8 @@ func TestCreateMarkerStep(t *testing.T) {
 }
 
 func TestStartMarkerStep(t *testing.T) {
-	t.Setenv("MIRABILIS_VERSION", "v1.2.3")
 	d, _ := testDeps(t)
+	d.Fingerprint = "v1.2.3"
 	d.SessionKey = "session"
 	step := &startMarkerStep{d: d}
 	if checkStep(t, step) {
@@ -52,11 +41,11 @@ func TestStartMarkerStep(t *testing.T) {
 	if err := runStep(t, step); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(d.claudeDir(), StartMarkerName))
+	data, err := os.ReadFile(filepath.Join(d.claudeDir(), harness.StartMarkerName))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := StartMarkerHash("v1.2.3", "session")
+	want := harness.StartMarkerHash("v1.2.3", "session")
 	if strings.TrimSpace(string(data)) != want {
 		t.Errorf("marker content = %q, want %s", data, want)
 	}

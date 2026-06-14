@@ -5,8 +5,10 @@ import (
 	huh "charm.land/huh/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
+	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
 type Reset struct {
@@ -21,13 +23,13 @@ func NewReset(id bus.NodeID) Reset {
 	f := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(uistr.FormTitleReset).
+				Title(uistr.GlyphDanger + " " + uistr.FormTitleReset).
 				Description(uistr.MenuDescReset).
 				Affirmative(uistr.FormConfirmReset).
 				Negative(uistr.FormCancelReset).
 				Value(val),
 		),
-	)
+	).WithTheme(styles.HuhThemeDanger()).WithAccessible(a11y.Accessible())
 	f.SubmitCmd = func() tea.Msg {
 		if *val {
 			return bus.ScreenResult{Value: true}

@@ -1,3 +1,4 @@
+// Package provision implements the idempotent provisioning steps run inside the dev-container.
 package provision
 
 import (

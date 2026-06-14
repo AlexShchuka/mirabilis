@@ -77,6 +77,7 @@ func TestCatalogReaders(t *testing.T) {
 		{"ReadStackCatalog", "stacks.txt", ReadStackCatalog},
 		{"ReadPluginCatalog", "plugins.txt", ReadPluginCatalog},
 		{"ReadSkillCatalog", "skills.txt", ReadSkillCatalog},
+		{"ReadMarketplaces", "marketplaces.txt", ReadMarketplaces},
 	}
 	cases := []struct {
 		name    string
@@ -105,6 +106,55 @@ func TestCatalogReaders(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestReadMCPCatalog(t *testing.T) {
+	t.Run("missing file returns nil nil", func(t *testing.T) {
+		got, err := ReadMCPCatalog(t.TempDir())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+	t.Run("malformed json returns error", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
+		got, err := ReadMCPCatalog(dir)
+		if err == nil {
+			t.Fatal("expected error for malformed mcp.json, got nil")
+		}
+		if got != nil {
+			t.Errorf("got %v on error, want nil", got)
+		}
+	})
+	t.Run("parses entries", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"),
+			`[{"name":"context7","transport":"http","url":"https://example/mcp"},`+
+				`{"name":"st","transport":"stdio","args":["npx","-y","pkg"]}]`)
+		got, err := ReadMCPCatalog(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := []MCPEntry{
+			{Name: "context7", Transport: "http", URL: "https://example/mcp"},
+			{Name: "st", Transport: "stdio", Args: []string{"npx", "-y", "pkg"}},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestHeadroomURLs(t *testing.T) {
+	if got := HeadroomBaseURL(); got != "http://127.0.0.1:8787" {
+		t.Errorf("HeadroomBaseURL = %q", got)
+	}
+	if got := HeadroomStatsURL(); got != "http://127.0.0.1:8787/stats" {
+		t.Errorf("HeadroomStatsURL = %q", got)
 	}
 }
 

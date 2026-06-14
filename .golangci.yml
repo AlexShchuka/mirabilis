@@ -13,6 +13,8 @@ linters:
     - forbidigo
     - depguard
     - errcheck
+    - gochecknoinits
+    - containedctx
   settings:
     forbidigo:
       analyze-types: true
@@ -85,10 +87,6 @@ linters:
         linters:
           - forbidigo
         text: "os\\.Stderr"
-      - path: "internal/engine/provision/provision\\.go"
-        linters:
-          - errcheck
-        text: "fmt\\.Fprint"
       - path: "_test\\.go"
         linters:
           - forbidigo

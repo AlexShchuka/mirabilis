@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 )
 
@@ -41,6 +42,9 @@ func tick(ctx context.Context, dir string, n Notifier, o *obs.Obs, log *slog.Log
 			log.Error("watcher tick panic", slog.String("detail", detail))
 		}
 	}()
+	if err := PruneDelivered(dir, config.DeliveredRetention); err != nil {
+		log.Warn("prune delivered", slog.String("error", err.Error()))
+	}
 	pending, err := PendingJobs(dir)
 	if err != nil {
 		o.Set(nodeName, obs.StateDegraded, err.Error())

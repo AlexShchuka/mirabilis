@@ -1,15 +1,26 @@
+// Package config reads and writes per-repo configuration from config/ files and .env.
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
 	HeadroomPort         = 8787
 	defaultAuthProxyPort = 8788
+
+	DeliveredRetention = 10 * time.Minute
+
+	LocalLLMBaseURL   = "http://host.docker.internal:1234/v1"
+	LocalLLMModel     = "local-model"
+	LocalLLMTimeout   = 60 * time.Second
+	LocalLLMMaxTokens = 2048
 )
 
 type Config struct {
@@ -94,6 +105,37 @@ func ReadPluginCatalog(repo string) []string {
 
 func ReadSkillCatalog(repo string) []string {
 	return readList(filepath.Join(repo, "config", "skills.txt"))
+}
+
+func ReadMarketplaces(repo string) []string {
+	return readList(filepath.Join(repo, "config", "marketplaces.txt"))
+}
+
+type MCPEntry struct {
+	Name      string   `json:"name"`
+	Transport string   `json:"transport"`
+	URL       string   `json:"url,omitempty"`
+	Args      []string `json:"args,omitempty"`
+}
+
+func ReadMCPCatalog(repo string) ([]MCPEntry, error) {
+	data, err := os.ReadFile(filepath.Join(repo, "config", "mcp.json"))
+	if err != nil {
+		return nil, nil
+	}
+	var entries []MCPEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("mcp.json malformed: %w", err)
+	}
+	return entries, nil
+}
+
+func HeadroomBaseURL() string {
+	return "http://127.0.0.1:" + strconv.Itoa(HeadroomPort)
+}
+
+func HeadroomStatsURL() string {
+	return HeadroomBaseURL() + "/stats"
 }
 
 func AuthProxyPort(repo string) int {

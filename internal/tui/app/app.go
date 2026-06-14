@@ -1,3 +1,4 @@
+// Package app is the root Bubble Tea model that wires the TUI screens, pipeline, and facade.
 package app
 
 import (
@@ -42,7 +43,7 @@ type Facade interface {
 var execRunner = tea.Exec
 
 type App struct {
-	ctx             context.Context
+	ctx             context.Context //nolint:containedctx
 	cancel          context.CancelFunc
 	facade          Facade
 	statusCh        <-chan obs.Snapshot
@@ -61,6 +62,7 @@ type App struct {
 	harnessChoice   string
 	secondary       bool
 	baseNotice      string
+	errNotice       string
 	attachReady     bool
 }
 
@@ -119,7 +121,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.winW, a.winH = msg.Width, msg.Height
 		var fc, rc tea.Cmd
 		a.frame, fc = a.frame.Update(msg)
-		a.router, rc = a.router.Update(msg)
+		mw, mh := a.frame.MainSize()
+		a.router, rc = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
 		return a, tea.Batch(fc, rc)
 
 	case statusMsg:
@@ -204,12 +207,12 @@ func (a App) overlayView() string {
 	base := a.frame.View(a.router.Below().View())
 	box := styles.Overlay.Render(a.router.Top().View())
 
-	menuW := a.frame.MenuWidth() + 1
-	mainW := max(a.winW-menuW, 0)
+	ox, oy := a.frame.MainOrigin()
+	mainW := max(a.winW-ox, 0)
 	boxW, boxH := lipgloss.Width(box), lipgloss.Height(box)
 
-	cx := menuW + max((mainW-boxW)/2, 0)
-	cy := 1 + max((a.winH-2-boxH)/2, 0)
+	cx := ox + max((mainW-boxW)/2, 0)
+	cy := oy + max((a.winH-2-boxH)/2, 0)
 	if cx+boxW > a.winW {
 		cx = max(a.winW-boxW, 0)
 	}

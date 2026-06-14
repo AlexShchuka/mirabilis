@@ -1,3 +1,4 @@
+// Package main is the mirabilis CLI entry point.
 package main
 
 import (
@@ -30,7 +31,7 @@ type facade struct {
 	docker sandbox.Docker
 	sb     *sandbox.Sandbox
 	store  secrets.Store
-	tokens claudeauth.TokenSource
+	tokens authproxy.TokenSource
 	deps   steps.Deps
 	repo   string
 	port   int
@@ -41,6 +42,10 @@ type facade struct {
 var _ app.Facade = (*facade)(nil)
 
 func newFacade(repo string) (*facade, error) {
+	notify.Register("telegram", func(store secrets.Store) (notify.Notifier, error) {
+		return notify.NewTelegram(store, ""), nil
+	})
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("facade: home dir: %w", err)

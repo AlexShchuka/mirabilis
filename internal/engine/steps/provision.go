@@ -2,12 +2,11 @@ package steps
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"strings"
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
@@ -18,15 +17,13 @@ const (
 	phaseCreate = "create"
 	phaseStart  = "start"
 
-	createMarkerPath = "/home/node/.claude/.mirabilis-provision-status"
-	startMarkerPath  = "/home/node/.claude/.mirabilis-start-marker"
-	createMarkerOK   = "ok"
+	containerClaudeDir = "/home/node/.claude/"
 )
 
-func startMarkerHash(fingerprint, sessionKey string) string {
-	sum := sha256.Sum256([]byte(fingerprint + sessionKey))
-	return hex.EncodeToString(sum[:])
-}
+var (
+	createMarkerPath = containerClaudeDir + harness.CreateMarkerName
+	startMarkerPath  = containerClaudeDir + harness.StartMarkerName
+)
 
 type provisionStep struct {
 	d     Deps
@@ -65,9 +62,9 @@ func (s *provisionStep) Check(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	want := createMarkerOK
+	want := harness.MarkerOK
 	if s.phase == phaseStart {
-		want = startMarkerHash(s.d.Sandbox.Desired(ctx), s.d.SessionKey())
+		want = harness.StartMarkerHash(s.d.Sandbox.Desired(ctx), s.d.SessionKey())
 	}
 	return strings.TrimSpace(out) == want, nil
 }

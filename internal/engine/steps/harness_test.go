@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
 
@@ -31,14 +32,14 @@ func TestHarnessCheck(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().
 			Expect(harnessBash(harnessPrefScript), "", nil).
-			Expect(harnessBash(harnessProbeScript), "", nil)
+			Expect(harnessBash(harness.ProbeScript), "", nil)
 		mustCheck(t, newHarnessForTest(t, fake), true)
 	})
 	t.Run("missing", func(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().
 			Expect(harnessBash(harnessPrefScript), "", nil).
-			Expect(harnessBash(harnessProbeScript), "", errors.New("not found"))
+			Expect(harnessBash(harness.ProbeScript), "", errors.New("not found"))
 		mustCheck(t, newHarnessForTest(t, fake), false)
 	})
 }
@@ -50,8 +51,8 @@ func TestHarnessRunInstalls(t *testing.T) {
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "marketplace", "add"}, "", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "install"}, "", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "update"}, "", nil).
-		Expect(harnessBash(harnessProbeScript), "", nil).
-		Expect(harnessBash(harnessRelinkScript), "", nil)
+		Expect(harnessBash(harness.ProbeScript), "", nil).
+		Expect(harnessBash(harness.RelinkScript), "", nil)
 	s := newHarnessForTest(t, fake)
 	if _, err := runStep(t, s, nil); err != nil {
 		t.Fatalf("run: %v", err)
@@ -69,8 +70,8 @@ func TestHarnessRunFallsBackToMarketplaceUpdate(t *testing.T) {
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "marketplace", "update"}, "", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "install"}, "", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "update"}, "", nil).
-		Expect(harnessBash(harnessProbeScript), "", nil).
-		Expect(harnessBash(harnessRelinkScript), "", nil)
+		Expect(harnessBash(harness.ProbeScript), "", nil).
+		Expect(harnessBash(harness.RelinkScript), "", nil)
 	s := newHarnessForTest(t, fake)
 	if _, err := runStep(t, s, nil); err != nil {
 		t.Fatalf("run: %v", err)
@@ -85,7 +86,7 @@ func TestHarnessCheckHonorsDeadline(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
 		Expect(harnessBash(harnessPrefScript), "", nil).
-		ExpectHang(harnessBash(harnessProbeScript))
+		ExpectHang(harnessBash(harness.ProbeScript))
 	s := newHarnessForTest(t, fake)
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()

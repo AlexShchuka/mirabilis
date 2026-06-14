@@ -21,6 +21,7 @@ type Pipeline struct {
 	log    *slog.Logger
 	steps  []Command
 	events chan Event
+	done   <-chan struct{}
 
 	mu      sync.Mutex
 	resume  chan Result
@@ -72,6 +73,7 @@ func (p *Pipeline) Run(ctx context.Context) error {
 		return errors.New("pipeline: already started")
 	}
 	p.started = true
+	p.done = ctx.Done()
 	p.mu.Unlock()
 	defer close(p.events)
 
@@ -326,9 +328,17 @@ func (p *Pipeline) takeWaiting(step string) bool {
 
 func (p *Pipeline) forward(step string, ev Event) {
 	ev.Step = step
-	p.events <- ev
+	p.emit(ev)
 }
 
 func (p *Pipeline) emit(ev Event) {
-	p.events <- ev
+	select {
+	case p.events <- ev:
+		return
+	default:
+	}
+	select {
+	case p.events <- ev:
+	case <-p.done:
+	}
 }

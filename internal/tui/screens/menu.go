@@ -35,8 +35,9 @@ func MenuItems() []frame.Item {
 }
 
 type Menu struct {
-	id     bus.NodeID
-	notice string
+	id      bus.NodeID
+	notice  string
+	errText string
 }
 
 func NewMenu(id bus.NodeID) Menu {
@@ -48,8 +49,17 @@ func (m Menu) WithNotice(notice string) Menu {
 	return m
 }
 
+func (m Menu) WithError(errText string) Menu {
+	m.errText = errText
+	return m
+}
+
 func (m Menu) Notice() string {
 	return m.notice
+}
+
+func (m Menu) ErrText() string {
+	return m.errText
 }
 
 func (m Menu) ID() bus.NodeID {
@@ -83,8 +93,15 @@ func (m Menu) View() string {
 		"",
 		" " + styles.Hint.Render(uistr.WelcomeHint),
 	}
-	if m.notice != "" {
+	if m.notice != "" && m.notice != m.errText {
 		lines = append(lines, "", " "+styles.Degraded.Render(m.notice))
+	}
+	if m.errText != "" {
+		lines = append(lines,
+			"",
+			" "+styles.Degraded.Render(uistr.GlyphError+" "+m.errText),
+			" "+styles.Hint.Render(uistr.ErrorDismissHint),
+		)
 	}
 	return strings.Join(lines, "\n")
 }

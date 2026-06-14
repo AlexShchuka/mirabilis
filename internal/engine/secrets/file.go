@@ -1,3 +1,4 @@
+// Package secrets reads API tokens and credentials from the host secrets store.
 package secrets
 
 import (

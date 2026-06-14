@@ -1,3 +1,4 @@
+// Package exec provides subprocess execution primitives: streaming, PTY, and fake runners.
 package exec
 
 import (

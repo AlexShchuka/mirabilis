@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
@@ -18,9 +19,7 @@ const (
 
 const (
 	harnessPrefScript     = `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`
-	harnessProbeScript    = "claude plugin list 2>/dev/null | grep -q neuro-matrix"
 	harnessDisabledScript = "claude plugin list 2>/dev/null | grep -A3 neuro-matrix | grep -qw disabled"
-	harnessRelinkScript   = `NM_DIR="$(printf '%s\n' "$HOME"/.claude/plugins/cache/*/neuro-matrix/*/ | sort -V | tail -n1)"; [ -d "$NM_DIR" ] && ln -sfn "${NM_DIR%/}" "$HOME/.neuro-matrix"; L='export CLAUDE_PLUGIN_ROOT="$HOME/.neuro-matrix"'; grep -qxF "$L" "$HOME/.bashrc" 2>/dev/null || printf '%s\n' "$L" >>"$HOME/.bashrc"`
 	harnessSkip           = "skip"
 	harnessInstallPref    = "install"
 )
@@ -56,7 +55,7 @@ func (s *harnessStep) Check(ctx context.Context) (bool, error) {
 	if strings.TrimSpace(pref) == harnessSkip {
 		return true, nil
 	}
-	return scriptOK(checkCtx, s.d, harnessProbeScript), nil
+	return scriptOK(checkCtx, s.d, harness.ProbeScript), nil
 }
 
 func (s *harnessStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
@@ -77,21 +76,19 @@ func streamHarness(ctx context.Context, d Deps, out chan<- pipeline.Event, args 
 
 func installHarness(ctx context.Context, d Deps, out chan<- pipeline.Event) error {
 	var errs []error
-	if err := streamHarness(ctx, d, out, "claude", "plugin", "marketplace", "add", "AlexShchuka/neuro-matrix"); err != nil {
-		if err2 := streamHarness(ctx, d, out, "claude", "plugin", "marketplace", "update", "neuro-matrix"); err2 != nil {
-			errs = append(errs, fmt.Errorf("marketplace add/update neuro-matrix: %w", err2))
+	for _, a := range harness.InstallActions() {
+		err := streamHarness(ctx, d, out, a.Argv...)
+		if err != nil && a.Fallback != nil {
+			err = streamHarness(ctx, d, out, a.Fallback...)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", a.WrapErr, err))
 		}
 	}
-	if err := streamHarness(ctx, d, out, "claude", "plugin", "install", "neuro-matrix@neuro-matrix", "--scope", "user"); err != nil {
-		errs = append(errs, fmt.Errorf("plugin install neuro-matrix: %w", err))
-	}
-	if err := streamHarness(ctx, d, out, "claude", "plugin", "update", "neuro-matrix@neuro-matrix"); err != nil {
-		errs = append(errs, fmt.Errorf("plugin update neuro-matrix: %w", err))
-	}
-	if !scriptOK(ctx, d, harnessProbeScript) {
+	if !scriptOK(ctx, d, harness.ProbeScript) {
 		errs = append(errs, errors.New("neuro-matrix not present after install"))
 	}
-	if err := streamHarness(ctx, d, out, "bash", "-lc", harnessRelinkScript); err != nil {
+	if err := streamHarness(ctx, d, out, "bash", "-lc", harness.RelinkScript); err != nil {
 		errs = append(errs, fmt.Errorf("neuro-matrix symlink: %w", err))
 	}
 	return errors.Join(errs...)
@@ -115,7 +112,7 @@ func HarnessStatus(ctx context.Context, d Deps) (string, error) {
 	if strings.TrimSpace(pref) == harnessSkip {
 		return HarnessOff, nil
 	}
-	if !scriptOK(checkCtx, d, harnessProbeScript) {
+	if !scriptOK(checkCtx, d, harness.ProbeScript) {
 		return HarnessMissing, nil
 	}
 	if scriptOK(checkCtx, d, harnessDisabledScript) {
@@ -148,7 +145,7 @@ func HarnessApply(ctx context.Context, d Deps, choice string) error {
 		if err := writeHarnessPref(ctx, d, harnessSkip); err != nil {
 			return err
 		}
-		if scriptOK(ctx, d, harnessProbeScript) && !scriptOK(ctx, d, harnessDisabledScript) {
+		if scriptOK(ctx, d, harness.ProbeScript) && !scriptOK(ctx, d, harnessDisabledScript) {
 			return streamHarness(ctx, d, out, "claude", "plugin", "disable", "neuro-matrix@neuro-matrix")
 		}
 		return nil
@@ -156,7 +153,7 @@ func HarnessApply(ctx context.Context, d Deps, choice string) error {
 		if err := writeHarnessPref(ctx, d, harnessInstallPref); err != nil {
 			return err
 		}
-		if !scriptOK(ctx, d, harnessProbeScript) {
+		if !scriptOK(ctx, d, harness.ProbeScript) {
 			return installHarness(ctx, d, out)
 		}
 		if scriptOK(ctx, d, harnessDisabledScript) {
@@ -164,12 +161,12 @@ func HarnessApply(ctx context.Context, d Deps, choice string) error {
 				return err
 			}
 		}
-		return streamHarness(ctx, d, out, "bash", "-lc", harnessRelinkScript)
+		return streamHarness(ctx, d, out, "bash", "-lc", harness.RelinkScript)
 	case HarnessReinstall:
 		if err := writeHarnessPref(ctx, d, harnessInstallPref); err != nil {
 			return err
 		}
-		if scriptOK(ctx, d, harnessProbeScript) {
+		if scriptOK(ctx, d, harness.ProbeScript) {
 			if err := streamHarness(ctx, d, out, "claude", "plugin", "uninstall", "neuro-matrix@neuro-matrix"); err != nil {
 				return fmt.Errorf("steps: harness: uninstall before reinstall: %w", err)
 			}

@@ -1,3 +1,4 @@
+// Package cmdlog is a scrollable TUI component that displays streaming command output.
 package cmdlog
 
 import (

@@ -1,3 +1,4 @@
+// Package bus defines shared message and event types for TUI component communication.
 package bus
 
 import (

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
@@ -77,7 +78,7 @@ func (s *pluginsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-ch
 	}
 	_ = s.d.streamScript(ctx, "plugins", out, `mkdir -p "$HOME/.cache/tmp"`)
 	var errs []error
-	for _, market := range []string{"anthropics/claude-plugins-official", "jarrodwatts/claude-hud"} {
+	for _, market := range config.ReadMarketplaces(s.d.Repo) {
 		if err := s.d.stream(ctx, "plugins", out, "claude", "plugin", "marketplace", "add", market); err != nil {
 			errs = append(errs, fmt.Errorf("marketplace add %s: %w", market, err))
 		}
@@ -91,7 +92,7 @@ func (s *pluginsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-ch
 		if strings.Contains(listed, pluginBase(p)) {
 			continue
 		}
-		script := fmt.Sprintf(`TMPDIR="$HOME/.cache/tmp" claude plugin install %s --scope user`, p)
+		script := fmt.Sprintf(`TMPDIR="$HOME/.cache/tmp" claude plugin install %q --scope user`, p)
 		if err := s.d.streamScript(ctx, "plugins", out, script); err != nil {
 			errs = append(errs, fmt.Errorf("plugin install %s: %w", p, err))
 		}

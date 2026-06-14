@@ -1,3 +1,4 @@
+// Package frame provides the outer TUI chrome: status-bar, busy indicator, and main content area.
 package frame
 
 import (
@@ -173,6 +174,10 @@ func (m *Model) SetEnabled(action string, enabled bool) {
 
 func (m Model) MainSize() (int, int) {
 	return max(m.width-m.MenuWidth()-1, 0), max(m.height-2, 0)
+}
+
+func (m Model) MainOrigin() (int, int) {
+	return m.MenuWidth() + 1, 1
 }
 
 func (m Model) View(main string) string {

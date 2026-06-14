@@ -12,6 +12,7 @@ type FakeCall struct {
 	Stdin io.Reader
 	Dir   string
 	Argv  []string
+	Env   []string
 }
 
 type fakeStub struct {
@@ -67,7 +68,7 @@ func (f *Fake) Remaining() int {
 
 func (f *Fake) Stream(ctx context.Context, spec Spec) <-chan Event {
 	f.mu.Lock()
-	f.calls = append(f.calls, FakeCall{Argv: spec.Argv, Dir: spec.Dir, Stdin: spec.Stdin})
+	f.calls = append(f.calls, FakeCall(spec))
 	var stub fakeStub
 	matched := false
 	for i, s := range f.stubs {

@@ -143,13 +143,25 @@ func TestViewGlyphs(t *testing.T) {
 		{Name: "e", Title: "Running step", State: StateRunning},
 	})
 	view := plain(m.View())
-	lines := strings.Split(view, "\n")
+	lines := rowLines(t, m, view)
 	wantPrefix := []string{" ✔ ", " ✖ ", " · ", " − ", " ⠋ "}
 	for i, want := range wantPrefix {
 		if !strings.HasPrefix(lines[i], want) {
 			t.Errorf("line %d = %q, want prefix %q", i, lines[i], want)
 		}
 	}
+}
+
+func rowLines(t *testing.T, m Model, view string) []string {
+	t.Helper()
+	lines := strings.Split(view, "\n")
+	if m.progressView() != "" {
+		if len(lines) < 1 {
+			t.Fatal("view has no lines")
+		}
+		return lines[1:]
+	}
+	return lines
 }
 
 func TestWaitingGlyphDistinct(t *testing.T) {
@@ -167,5 +179,48 @@ func TestWaitingGlyphDistinct(t *testing.T) {
 	}
 	if !strings.HasPrefix(lines[1], " ? ") {
 		t.Errorf("waiting row = %q, want prefix \" ? \"", lines[1])
+	}
+}
+
+func TestSetSizeReflowsRowsToWidth(t *testing.T) {
+	m := New([]StepRow{
+		{Name: "a", Title: "Container", Detail: "a very long detail line that would overflow a narrow terminal area", State: StateRunning},
+	})
+	m.SetSize(20, 10)
+	view := plain(m.View())
+	for i, line := range strings.Split(view, "\n") {
+		if w := len([]rune(line)); w > 20 {
+			t.Errorf("line %d width = %d runes, want <= 20 (must reflow, not overflow): %q", i, w, line)
+		}
+	}
+}
+
+func TestSetSizeClampsHeightWithOverflowAffordance(t *testing.T) {
+	rows := make([]StepRow, 0, 8)
+	for _, n := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+		rows = append(rows, StepRow{Name: n, Title: "Step " + n})
+	}
+	m := New(rows)
+	m.SetSize(40, 4)
+	view := plain(m.View())
+	lines := strings.Split(view, "\n")
+	if len(lines) > 4 {
+		t.Fatalf("clamped view has %d lines, want <= 4", len(lines))
+	}
+	last := lines[len(lines)-1]
+	if !strings.Contains(last, "more") {
+		t.Errorf("overflow affordance missing; last line = %q, want an \"+N more\" indicator", last)
+	}
+}
+
+func TestNoSizeRendersAllRows(t *testing.T) {
+	rows := make([]StepRow, 0, 8)
+	for _, n := range []string{"a", "b", "c", "d", "e", "f", "g", "h"} {
+		rows = append(rows, StepRow{Name: n, Title: "Step " + n})
+	}
+	m := New(rows)
+	view := plain(m.View())
+	if got := len(strings.Split(view, "\n")); got != 8 {
+		t.Errorf("unsized view has %d lines, want 8 (no clamp without SetSize)", got)
 	}
 }

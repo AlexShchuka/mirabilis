@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
@@ -45,7 +46,12 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	"claude-hud": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		mustWrite(t, d.Cfg.HudConfigSeed(), "{}\n")
 	},
-	"mcp": func(_ *testing.T, _ *Deps, f *exec.Fake) {
+	"mcp": func(t *testing.T, d *Deps, f *exec.Fake) {
+		mustWrite(t, filepath.Join(d.Repo, "config", "mcp.json"),
+			`[{"name":"context7","transport":"http","url":"https://mcp.context7.com/mcp"},`+
+				`{"name":"sequential-thinking","transport":"stdio","args":["npx","-y","@modelcontextprotocol/server-sequential-thinking"]},`+
+				`{"name":"arxiv-mcp-server","transport":"stdio","args":["uvx","arxiv-mcp-server"]},`+
+				`{"name":"docling","transport":"stdio","args":["uvx","--from","docling-mcp[local]","docling-mcp-server","--transport","stdio"]}]`)
 		cv := script("command -v claude")
 		uv := script("command -v uvx")
 		list := []string{"claude", "mcp", "list"}
@@ -80,7 +86,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		mustWrite(t, d.Cfg.RTKConfigSeed(), "[rtk]\n")
 	},
 	"harness": func(_ *testing.T, _ *Deps, f *exec.Fake) {
-		probe := script(harnessProbeScript)
+		probe := script(harness.ProbeScript)
 		f.Expect(probe, "", errStub)
 		f.Expect(probe, "", errStub)
 		f.Expect(script("command -v claude"), "", nil)
@@ -88,10 +94,11 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect([]string{"claude", "plugin", "install", "neuro-matrix@neuro-matrix", "--scope", "user"}, "", nil)
 		f.Expect([]string{"claude", "plugin", "update", "neuro-matrix@neuro-matrix"}, "", nil)
 		f.Expect(probe, "", nil)
-		f.Expect(script(relinkScript), "", nil)
+		f.Expect(script(harness.RelinkScript), "", nil)
 		f.Expect(probe, "", nil)
 	},
 	"plugins": func(t *testing.T, d *Deps, f *exec.Fake) {
+		mustWrite(t, filepath.Join(d.Repo, "config", "marketplaces.txt"), "anthropics/claude-plugins-official\njarrodwatts/claude-hud\n")
 		mustWrite(t, d.Cfg.PluginsTxt(), "alpha@1.0\nbeta\n")
 		mustWrite(t, filepath.Join(d.claudeDir(), filePluginsDisabled), "beta\n")
 		mustWriteJSON(t, d.settingsPath(), map[string]any{})
@@ -104,7 +111,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect([]string{"claude", "plugin", "marketplace", "add", "anthropics/claude-plugins-official"}, "", nil)
 		f.Expect([]string{"claude", "plugin", "marketplace", "add", "jarrodwatts/claude-hud"}, "", nil)
 		f.Expect(list, "", nil)
-		f.Expect(script(`TMPDIR="$HOME/.cache/tmp" claude plugin install alpha@1.0 --scope user`), "", nil)
+		f.Expect(script(`TMPDIR="$HOME/.cache/tmp" claude plugin install "alpha@1.0" --scope user`), "", nil)
 		f.Expect(cv, "", nil)
 		f.Expect(list, "alpha 1.0 enabled", nil)
 	},
@@ -143,13 +150,29 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(script(sc["curl"]), "", nil)
 		f.Expect(script(sc["get"]), ".headroom-venv/bin/headroom", nil)
 	},
+	"local-offload": func(t *testing.T, _ *Deps, f *exec.Fake) {
+		self, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable: %v", err)
+		}
+		cv := script("command -v claude")
+		get := []string{"claude", "mcp", "get", "local-offload"}
+		add := []string{"claude", "mcp", "add", "--scope", "user", "--transport", "stdio", "local-offload"}
+		f.Expect(cv, "", nil)
+		f.Expect(get, "", errors.New("not registered"))
+		f.Expect(cv, "", nil)
+		f.Expect(get, "", errors.New("not registered"))
+		f.Expect(add, "", nil)
+		f.Expect(cv, "", nil)
+		f.Expect(get, "local-offload stdio "+self+" localllm serve", nil)
+	},
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"
 	},
 	"create-marker":      func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
 	"claude-credentials": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
-	"start-marker": func(t *testing.T, d *Deps, _ *exec.Fake) {
-		t.Setenv("MIRABILIS_VERSION", "vtest")
+	"start-marker": func(_ *testing.T, d *Deps, _ *exec.Fake) {
+		d.Fingerprint = "vtest"
 		d.SessionKey = "sk-contract"
 	},
 }

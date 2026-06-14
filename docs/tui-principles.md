@@ -2,6 +2,10 @@
 
 Owner doctrine, dictated 2026-06-12. Binding on every TUI change; reviewed against this file. Mechanical homes where they exist are named per item; everything else is enforced at PR review against this document.
 
+## Linter exceptions
+
+`App.ctx` stores a `context.Context` in a struct field; this is the recognized Bubble Tea program-lifetime exception — set once in `New`, cancelled only on quit, analogous to `http.Request`.
+
 ## Principles
 
 1. **Adaptive Layout.** Every dimension is a function of the terminal size (`WindowSizeMsg`), like responsive CSS: proportional splits, named breakpoints for narrow/short terminals, reflow on resize. Constant widths/heights are forbidden; only named minimums and breakpoint thresholds may be constants. The frame never renders taller than the viewport.

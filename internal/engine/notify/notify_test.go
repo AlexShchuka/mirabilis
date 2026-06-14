@@ -34,6 +34,9 @@ func TestRegistryUnknownName(t *testing.T) {
 }
 
 func TestRegistryTelegramRegistered(t *testing.T) {
+	Register("telegram", func(store secrets.Store) (Notifier, error) {
+		return NewTelegram(store, ""), nil
+	})
 	n, err := New("telegram", secrets.NewFileStore(t.TempDir()))
 	if err != nil {
 		t.Fatalf("New(telegram): %v", err)

@@ -1,0 +1,166 @@
+version: 3
+workdir: .
+allow:
+  depOnAnyVendor: false
+  deepScan: false
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+components:
+  cmd:
+    in: cmd/**
+  obs:
+    in: internal/obs
+  bus:
+    in: internal/bus
+  hooks:
+    in: internal/hooks
+  engine-exec:
+    in: internal/engine/exec
+  engine-secrets:
+    in: internal/engine/secrets
+  engine-config:
+    in: internal/engine/config
+  engine-harness:
+    in: internal/engine/harness
+  engine-sandbox:
+    in: internal/engine/sandbox
+  engine-claudeauth:
+    in: internal/engine/claudeauth
+  engine-authproxy:
+    in: internal/engine/authproxy
+  engine-pipeline:
+    in: internal/engine/pipeline
+  engine-notify:
+    in: internal/engine/notify
+  engine-membackup:
+    in: internal/engine/membackup
+  engine-localllm:
+    in: internal/engine/localllm
+  engine-provision:
+    in: internal/engine/provision
+  engine-status:
+    in: internal/engine/status
+  engine-steps:
+    in: internal/engine/steps
+  tui-app:
+    in: internal/tui/app
+  tui-leaves:
+    in:
+      - internal/tui/a11y
+      - internal/tui/strings
+      - internal/tui/styles
+      - internal/tui/frame
+      - internal/tui/router
+      - internal/tui/components/**
+      - internal/tui/screens
+
+commonComponents:
+  - obs
+
+deps:
+  cmd:
+    anyProjectDeps: true
+    anyVendorDeps: true
+
+  hooks:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+      - engine-config
+      - engine-notify
+      - engine-provision
+
+  bus:
+    anyVendorDeps: true
+
+  engine-exec:
+    anyVendorDeps: true
+
+  engine-secrets:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+
+  engine-config:
+    anyVendorDeps: true
+
+  engine-harness:
+    anyVendorDeps: true
+
+  engine-sandbox:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+      - engine-config
+
+  engine-claudeauth:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-secrets
+
+  engine-authproxy:
+    anyVendorDeps: true
+
+  engine-pipeline:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+
+  engine-notify:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-config
+      - engine-secrets
+
+  engine-membackup:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+
+  engine-localllm:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-config
+
+  engine-provision:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+      - engine-config
+      - engine-harness
+      - engine-pipeline
+
+  engine-status:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-sandbox
+
+  engine-steps:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-exec
+      - engine-secrets
+      - engine-config
+      - engine-harness
+      - engine-sandbox
+      - engine-claudeauth
+      - engine-authproxy
+      - engine-pipeline
+      - engine-notify
+
+  tui-app:
+    anyVendorDeps: true
+    mayDependOn:
+      - bus
+      - engine-exec
+      - engine-pipeline
+      - engine-steps
+      - tui-leaves
+
+  tui-leaves:
+    anyVendorDeps: true
+    mayDependOn:
+      - bus
+      - tui-leaves

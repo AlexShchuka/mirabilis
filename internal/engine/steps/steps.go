@@ -1,7 +1,7 @@
 package steps
 
 import (
-	"github.com/AlexShchuka/mirabilis/internal/engine/claudeauth"
+	"github.com/AlexShchuka/mirabilis/internal/engine/authproxy"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
@@ -14,7 +14,7 @@ type Deps struct {
 	Docker     sandbox.Docker
 	Sandbox    *sandbox.Sandbox
 	Store      secrets.Store
-	Tokens     claudeauth.TokenSource
+	Tokens     authproxy.TokenSource
 	Obs        *obs.Obs
 	ProxyAddr  func() string
 	SessionKey func() string

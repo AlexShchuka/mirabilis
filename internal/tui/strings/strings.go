@@ -1,3 +1,4 @@
+// Package strings holds UI copy constants: notices, log messages, and action labels.
 package strings
 
 const (
@@ -15,13 +16,28 @@ const (
 	CmdlogTitle  = "commands"
 	CmdlogPrefix = "+ "
 
-	GlyphDone    = "✔"
-	GlyphFailed  = "✖"
-	GlyphPending = "·"
-	GlyphSkipped = "−"
-	GlyphWaiting = "?"
+	GlyphDone          = "✔"
+	GlyphFailed        = "✖"
+	GlyphPending       = "·"
+	GlyphSkipped       = "−"
+	GlyphWaiting       = "?"
+	GlyphRunningStatic = "▸"
+
+	GlyphStatusOK       = "●"
+	GlyphStatusDegraded = "⊘"
+	GlyphStatusOff      = "○"
+	GlyphStatusUnknown  = "?"
+	GlyphError          = "⊘"
+	GlyphDanger         = "⚠"
+
+	ErrorDismissHint = "press x to dismiss"
 
 	StepDetailWaiting = "waiting"
+
+	StepOverflowPrefix = "+"
+	StepOverflowSuffix = " more"
+
+	ProgressSep = "/"
 
 	MenuActionLaunch   = "Launch"
 	MenuActionAttach   = "Attach"
