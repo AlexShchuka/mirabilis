@@ -109,6 +109,7 @@ deps:
   engine-notify:
     anyVendorDeps: true
     mayDependOn:
+      - engine-config
       - engine-secrets
 
   engine-membackup:

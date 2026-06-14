@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -120,6 +122,18 @@ func TestReadMCPCatalog(t *testing.T) {
 		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
 		if got := ReadMCPCatalog(dir); got != nil {
 			t.Errorf("got %v, want nil", got)
+		}
+	})
+	t.Run("invalid json emits slog warning", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
+		var buf bytes.Buffer
+		old := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		t.Cleanup(func() { slog.SetDefault(old) })
+		_ = ReadMCPCatalog(dir)
+		if !strings.Contains(buf.String(), "mcp.json malformed") {
+			t.Errorf("slog output = %q, want to contain \"mcp.json malformed\"", buf.String())
 		}
 	})
 	t.Run("parses entries", func(t *testing.T) {

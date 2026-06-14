@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 )
 
@@ -13,7 +14,6 @@ const (
 	nodeName = "notify"
 
 	defaultPollInterval = 2 * time.Second
-	deliveredRetention  = 10 * time.Minute
 )
 
 func Watch(ctx context.Context, dir string, n Notifier, o *obs.Obs, interval time.Duration) {
@@ -42,7 +42,7 @@ func tick(ctx context.Context, dir string, n Notifier, o *obs.Obs, log *slog.Log
 			log.Error("watcher tick panic", slog.String("detail", detail))
 		}
 	}()
-	if err := PruneDelivered(dir, deliveredRetention); err != nil {
+	if err := PruneDelivered(dir, config.DeliveredRetention); err != nil {
 		log.Warn("prune delivered", slog.String("error", err.Error()))
 	}
 	pending, err := PendingJobs(dir)
