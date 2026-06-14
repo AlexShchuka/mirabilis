@@ -227,6 +227,16 @@ func TestSanitizeOutput(t *testing.T) {
 			want:  "hello",
 		},
 		{
+			name:  "strips bare turn tag single",
+			input: "PONG<turn|>",
+			want:  "PONG",
+		},
+		{
+			name:  "strips bare turn tag repeated (live artifact)",
+			input: "PONG<turn|><turn|><turn|>\n}\n",
+			want:  "PONG\n}",
+		},
+		{
 			name:  "passthrough clean text",
 			input: "hello world",
 			want:  "hello world",
