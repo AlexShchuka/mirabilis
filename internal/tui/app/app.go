@@ -33,6 +33,8 @@ type Facade interface {
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
+	OpenURL(ctx context.Context, url string) error
+	CopyText(ctx context.Context, text string) error
 	LastHarnessChoice() string
 	RememberHarnessChoice(choice string) error
 	TelegramConfigured() bool
@@ -163,6 +165,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
+
+	case bus.CopyRequest:
+		return a.handleCopyRequest(msg)
+
+	case openURLDoneMsg:
+		return a, nil
+
+	case copyDoneMsg:
+		return a.handleCopyDone(msg)
 	}
 
 	var cmd tea.Cmd

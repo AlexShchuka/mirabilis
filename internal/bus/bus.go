@@ -64,3 +64,7 @@ type ScreenResult struct {
 type StatusChanged struct {
 	Snapshot obs.Snapshot
 }
+
+type CopyRequest struct {
+	Text string
+}

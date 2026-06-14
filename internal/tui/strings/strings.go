@@ -8,6 +8,8 @@ const (
 	GHAuthLabelCode     = "  code:  "
 	GHAuthLabelURL      = "  URL:   "
 	GHAuthStatusWaiting = "requesting device code from GitHub…"
+	GHAuthCopyHint      = "  press c to copy code"
+	GHAuthCopied        = "code copied"
 
 	FooterHints    = "enter select · esc back · tab log · q quit"
 	DegradedPrefix = "degraded: "

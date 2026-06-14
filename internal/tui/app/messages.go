@@ -43,6 +43,15 @@ type vscodeDoneMsg struct {
 	err error
 }
 
+type openURLDoneMsg struct {
+	err error
+}
+
+type copyDoneMsg struct {
+	text string
+	err  error
+}
+
 type promotedMsg struct{}
 
 func watchStatus(ch <-chan obs.Snapshot) tea.Cmd {

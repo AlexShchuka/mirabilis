@@ -38,9 +38,13 @@ func (g GHAuth) Update(msg tea.Msg) (router.Screen, tea.Cmd) {
 	case bus.Envelope:
 		return g.Update(msg.Msg)
 	case tea.KeyPressMsg:
-		if msg.String() == "esc" {
+		switch msg.String() {
+		case "esc":
 			g.done = true
 			return g, func() tea.Msg { return bus.ScreenPop{} }
+		case "c":
+			code := g.code
+			return g, func() tea.Msg { return bus.CopyRequest{Text: code} }
 		}
 	case bus.StepEvent:
 		if msg.Kind == bus.StepLine && msg.Line != "" {
@@ -54,7 +58,8 @@ func (g GHAuth) View() string {
 	var b strings.Builder
 	b.WriteString(" " + styles.Title.Render(uistr.GHAuthTitle) + "\n\n")
 	b.WriteString(" " + styles.NormTitle.Render(uistr.GHAuthLabelCode) + g.code + "\n")
-	b.WriteString(" " + styles.NormTitle.Render(uistr.GHAuthLabelURL) + g.url + "\n\n")
+	b.WriteString(" " + styles.NormTitle.Render(uistr.GHAuthLabelURL) + g.url + "\n")
+	b.WriteString(styles.Hint.Render(uistr.GHAuthCopyHint) + "\n\n")
 	for _, l := range g.lines {
 		b.WriteString(" " + styles.Hint.Render(l) + "\n")
 	}

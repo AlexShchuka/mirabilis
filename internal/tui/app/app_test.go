@@ -143,6 +143,16 @@ func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	return nil
 }
 
+func (f *fakeFacade) OpenURL(_ context.Context, _ string) error {
+	f.logCall("OpenURL")
+	return nil
+}
+
+func (f *fakeFacade) CopyText(_ context.Context, _ string) error {
+	f.logCall("CopyText")
+	return nil
+}
+
 func (f *fakeFacade) LastHarnessChoice() string { return "" }
 
 func (f *fakeFacade) RememberHarnessChoice(_ string) error {

@@ -118,6 +118,10 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	return f.vscodeErr
 }
 
+func (f *stubFacade) OpenURL(context.Context, string) error { return nil }
+
+func (f *stubFacade) CopyText(context.Context, string) error { return nil }
+
 func (f *stubFacade) LastHarnessChoice() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
