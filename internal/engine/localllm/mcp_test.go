@@ -81,6 +81,29 @@ func TestOffloadToolDegradedOnError(t *testing.T) {
 	}
 }
 
+func TestOffloadToolSanitizesLiveArtifact(t *testing.T) {
+	rawFromModel := "PONG<turn|><turn|><turn|>"
+	sess := connectInMemory(t, &stubCompleter{text: rawFromModel})
+	res, err := sess.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "offload",
+		Arguments: map[string]any{"prompt": "reply one word: PONG"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("result IsError=true: %+v", res.Content)
+	}
+	text, ok := res.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("content[0] is %T, want *mcp.TextContent", res.Content[0])
+	}
+	const want = "PONG"
+	if text.Text != want {
+		t.Errorf("offload tool returned %q, want %q (control tokens not stripped)", text.Text, want)
+	}
+}
+
 func TestOffloadToolEmptyPrompt(t *testing.T) {
 	sess := connectInMemory(t, &stubCompleter{text: "should not be reached"})
 	res, err := sess.CallTool(t.Context(), &mcp.CallToolParams{
