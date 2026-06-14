@@ -145,6 +145,86 @@ func TestHTTPAdapterModelError(t *testing.T) {
 	}
 }
 
+func TestDiscoverModelPicksFirst(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(modelsResponse{
+			Data: []struct {
+				ID string `json:"id"`
+			}{{ID: "supergemma4-26b"}, {ID: "other-model"}},
+		})
+	}))
+	defer srv.Close()
+
+	got, err := DiscoverModel(context.Background(), srv.URL, srv.Client())
+	if err != nil {
+		t.Fatalf("DiscoverModel: %v", err)
+	}
+	if got != "supergemma4-26b" {
+		t.Errorf("DiscoverModel = %q, want supergemma4-26b", got)
+	}
+}
+
+func TestDiscoverModelEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(modelsResponse{})
+	}))
+	defer srv.Close()
+
+	_, err := DiscoverModel(context.Background(), srv.URL, srv.Client())
+	if err == nil {
+		t.Fatal("DiscoverModel with empty models = nil, want error")
+	}
+}
+
+func TestSanitizeOutput(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "strips template tags",
+			input: "<|turn|>hello<|end|>",
+			want:  "hello",
+		},
+		{
+			name:  "strips template tags leaving separating newlines",
+			input: "<|system|>\nBe helpful.\n<|user|>\nHi",
+			want:  "Be helpful.\n\nHi",
+		},
+		{
+			name:  "collapses triple newlines",
+			input: "a\n\n\n\nb",
+			want:  "a\n\nb",
+		},
+		{
+			name:  "trims whitespace",
+			input: "  hello  \n",
+			want:  "hello",
+		},
+		{
+			name:  "passthrough clean text",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SanitizeOutput(tc.input)
+			if got != tc.want {
+				t.Errorf("SanitizeOutput(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestHTTPAdapterOptMaxTokensOverride(t *testing.T) {
 	var captured chatRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
