@@ -143,6 +143,22 @@ These are not style preferences — violating them is a defect.
 
 **TUI test determinism.** Bubble Tea v2 renders cell-level diffs, so substring waits on intermediate teatest frames are non-deterministic by construction (a string sharing a prefix or screen position with prior text may never appear contiguously, or may match a stale repaint). State-machine semantics are tested by driving `App.Update` synchronously in package-internal tests (`state_test.go`): pipeline events are consumed from `Events()` directly, assertions read model state (`pipe`, `busy`, `menuAction`, router depth, `Menu.Notice()`). teatest/pty harnesses are reserved for whole-program integration (exec handoff, golden frames, latency) and assert only final or probed state (`FinalOutput`, quit-probe), never intermediate frame substrings.
 
+## Dependency updates
+
+Dependabot covers: base Docker images (Dockerfile `FROM` digests), `go.mod` (including the five `tool` directive entries — goimports, staticcheck, fieldalignment, actionlint, and their transitive deps), and GitHub Actions SHA pins.
+
+Manually bumped (no dependabot coverage — bump by editing the relevant ARG or action ref directly):
+- `golangci-lint` — Dockerfile ARG `GOLANGCI_LINT_VERSION`; match the version in the golangci-lint action (`ci.yml`).
+- `gitleaks` — Dockerfile ARG `GITLEAKS_VERSION`; match the gitleaks-action SHA in `ci.yml`.
+- `go-arch-lint` — Dockerfile ARG `GO_ARCH_LINT_VERSION`; match `ci.yml`.
+- `RTK` — Dockerfile ARG `RTK_VERSION`.
+- `uv` — Dockerfile ARG `UV_VERSION`.
+- `go` — Dockerfile ARG `GO_VERSION` (also update build stage `FROM golang:` pin).
+- `gh` — Dockerfile ARG `GH_VERSION`.
+- `docker-ce-cli` — Dockerfile ARG `DOCKER_CE_CLI_VERSION`.
+- `claude-code` — Dockerfile ARG `CLAUDE_CODE_VERSION`.
+- `bats` — Dockerfile ARG `BATS_VERSION`.
+
 ## References
 
 Style and idioms are CI-enforced by golangci-lint (govet, staticcheck, gofmt, forbidigo, depguard, errcheck, unused). The following are the upstream sources those rules derive from — they are pointers, not the operating contract:
