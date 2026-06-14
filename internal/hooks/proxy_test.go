@@ -97,8 +97,8 @@ func TestEnsureProxyForSession_ProxyUnreachable_StartsHeadroomAndPolls(t *testin
 	}
 
 	start := scriptOf(t, calls[1])
-	if !strings.Contains(start, `ANTHROPIC_TARGET_API_URL="http://host.docker.internal:8788" `) {
-		t.Errorf("start script = %q, want ANTHROPIC_TARGET_API_URL env prefix", start)
+	if strings.Contains(start, "ANTHROPIC_TARGET_API_URL") {
+		t.Errorf("start script = %q, ANTHROPIC_TARGET_API_URL must not appear in shell script (CWE-78 fix)", start)
 	}
 	if !strings.Contains(start, "setsid nohup") {
 		t.Errorf("start script = %q, want setsid nohup", start)
@@ -106,8 +106,19 @@ func TestEnsureProxyForSession_ProxyUnreachable_StartsHeadroomAndPolls(t *testin
 	if !strings.Contains(start, filepath.Join(home, ".headroom-venv/bin/headroom")) {
 		t.Errorf("start script = %q, want headroom venv bin path", start)
 	}
-	if !strings.Contains(start, `proxy >"$HOME/.headroom-proxy.log" 2>&1 &`) {
-		t.Errorf("start script = %q, want backgrounded proxy with log redirect", start)
+	if !strings.Contains(start, `proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`) {
+		t.Errorf("start script = %q, want --mode cache and log redirect", start)
+	}
+	startEnv := calls[1].Env
+	found := false
+	for _, e := range startEnv {
+		if e == "ANTHROPIC_TARGET_API_URL=http://host.docker.internal:8788" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("start call Env = %v, want ANTHROPIC_TARGET_API_URL=http://host.docker.internal:8788 passed via process env", startEnv)
 	}
 
 	poll := scriptOf(t, calls[2])
@@ -146,6 +157,9 @@ func TestEnsureProxyForSession_EmptyUpstream_StartsWithoutEnvPrefix(t *testing.T
 	}
 	if !strings.HasPrefix(start, "setsid nohup") {
 		t.Errorf("start script = %q, want to begin with setsid nohup", start)
+	}
+	if len(calls[1].Env) != 0 {
+		t.Errorf("start call Env = %v, want empty when upstream is empty", calls[1].Env)
 	}
 }
 

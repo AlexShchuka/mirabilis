@@ -55,12 +55,18 @@ func (s *headroomStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-c
 	}
 	if !s.reachable(ctx) {
 		upstream := s.upstreamOnDisk()
-		env := ""
+		startEnv := []string{}
 		if upstream != "" {
-			env = fmt.Sprintf(`ANTHROPIC_TARGET_API_URL=%q `, upstream)
+			startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 		}
-		s.runScript(ctx, out, fmt.Sprintf(
-			`%ssetsid nohup %q proxy >"$HOME/.headroom-proxy.log" 2>&1 &`, env, s.d.headroomBin()))
+		startScript := fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`,
+			s.d.headroomBin())
+		for ev := range s.d.Runner.Stream(ctx, exec.Spec{Argv: []string{"bash", "-lc", startScript}, Env: startEnv}) {
+			pipeline.Forward("headroom", out, ev)
+			if ev.Kind == exec.KindExited {
+				break
+			}
+		}
 		if !s.poll(ctx, out) {
 			return fmt.Errorf("headroom proxy did not come up")
 		}

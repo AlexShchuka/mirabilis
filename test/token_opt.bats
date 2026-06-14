@@ -12,13 +12,20 @@ setup() {
   grep -q 'exclude_commands' "$REPO_ROOT/config/rtk-config.toml"
 }
 
-@test "headroom startHeadroom script sets ANTHROPIC_TARGET_API_URL from upstream" {
-  grep -rq 'ANTHROPIC_TARGET_API_URL' "$REPO_ROOT/internal/hooks/"
+@test "headroom --mode cache is passed in the start script (CacheAligner enabled)" {
+  grep -q '\-\-mode cache' "$REPO_ROOT/internal/hooks/session.go"
+  grep -q '\-\-mode cache' "$REPO_ROOT/internal/engine/provision/headroom.go"
+}
+
+@test "upstream reaches headroom via process env not shell interpolation (CWE-78 fix)" {
+  ! grep -rn 'ANTHROPIC_TARGET_API_URL=%q' "$REPO_ROOT/internal/"
+  grep -q 'ANTHROPIC_TARGET_API_URL.*upstream' "$REPO_ROOT/internal/hooks/session.go"
+  grep -q 'ANTHROPIC_TARGET_API_URL.*upstream' "$REPO_ROOT/internal/engine/provision/headroom.go"
 }
 
 @test "headroom proxy is started without --no-optimize (compression enabled by default)" {
-  grep -q 'proxy ' "$REPO_ROOT/internal/hooks/session.go"
   ! grep -q 'no-optimize' "$REPO_ROOT/internal/hooks/session.go"
+  ! grep -q 'no-optimize' "$REPO_ROOT/internal/engine/provision/headroom.go"
 }
 
 @test "caveman skill is in the skills catalog" {

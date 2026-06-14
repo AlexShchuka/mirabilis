@@ -65,13 +65,14 @@ func proxyAlive(ctx context.Context) bool {
 }
 
 func startHeadroom(ctx context.Context, upstream string) bool {
-	env := ""
+	startEnv := []string{}
 	if upstream != "" {
-		env = fmt.Sprintf("ANTHROPIC_TARGET_API_URL=%q ", upstream)
+		startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 	}
-	start := fmt.Sprintf(`%ssetsid nohup %q proxy >"$HOME/.headroom-proxy.log" 2>&1 &`,
-		env, filepath.Join(home(), headroomVenvRel))
-	if err := runScript(ctx, start); err != nil {
+	start := fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`,
+		filepath.Join(home(), headroomVenvRel))
+	startSpec := exec.Spec{Argv: []string{"bash", "-lc", start}, Env: startEnv}
+	if _, err := exec.Run(ctx, runner, startSpec); err != nil {
 		return false
 	}
 	poll := fmt.Sprintf(`for i in $(seq 1 %d); do curl -fsS %s >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1`,
