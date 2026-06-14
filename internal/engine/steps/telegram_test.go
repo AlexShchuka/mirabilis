@@ -73,13 +73,14 @@ func TestTelegramRunStoresTokenAndDetectsChat(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		_, _ = w.Write([]byte(`{"ok":true,"result":[{"channel_post":{"chat":{"id":-100777}}}]}`))
+		_, _ = w.Write([]byte(`{"ok":true,"result":[{"channel_post":{"chat":{"id":-100777,"type":"channel"}}}]}`))
 	}))
 	defer srv.Close()
 	store := newFakeStore()
 	s := newTelegramForTest(t, store)
 	s.baseURL = srv.URL
-	if _, err := runStep(t, s, func(any) pipeline.Result { return pipeline.Result{Value: "12345:token"} }); err != nil {
+	evs, err := runStep(t, s, func(any) pipeline.Result { return pipeline.Result{Value: "12345:token"} })
+	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if got := store.m[notify.TokenKey]; got != "12345:token" {
@@ -89,6 +90,22 @@ func TestTelegramRunStoresTokenAndDetectsChat(t *testing.T) {
 		t.Fatalf("chat id = %q err=%v", id, err)
 	}
 	mustCheck(t, s, true)
+
+	var lines []string
+	for _, ev := range evs {
+		if ev.Kind == pipeline.EvLine && ev.Line != "" {
+			lines = append(lines, ev.Line)
+		}
+	}
+	if len(lines) < 2 {
+		t.Fatalf("got %d EvLine events with non-empty Line, want at least 2 (saving token + detecting channel)", len(lines))
+	}
+	if lines[0] != "saving token…" {
+		t.Errorf("lines[0] = %q, want \"saving token…\"", lines[0])
+	}
+	if lines[1] != "detecting channel…" {
+		t.Errorf("lines[1] = %q, want \"detecting channel…\"", lines[1])
+	}
 }
 
 func TestTelegramRunCancelled(t *testing.T) {

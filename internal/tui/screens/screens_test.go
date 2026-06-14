@@ -122,6 +122,20 @@ func TestGHAuthEnvelopeUnwrap(t *testing.T) {
 	}
 }
 
+func TestGHAuthCKeyEmitsCopyRequest(t *testing.T) {
+	const code = "ABCD-1234"
+	g := NewGHAuth("app/ghauth", code, "https://github.com/login/device")
+	_, cmd := g.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	msg := emit(cmd)
+	cr, ok := msg.(bus.CopyRequest)
+	if !ok {
+		t.Fatalf("c key: got %T, want bus.CopyRequest", msg)
+	}
+	if cr.Text != code {
+		t.Errorf("CopyRequest.Text = %q, want %q", cr.Text, code)
+	}
+}
+
 func TestResetID(t *testing.T) {
 	r := NewReset("app/reset")
 	if r.ID() != "app/reset" {

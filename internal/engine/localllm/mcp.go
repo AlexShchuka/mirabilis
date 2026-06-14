@@ -29,6 +29,7 @@ func NewServer(c Completer) *mcp.Server {
 				Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
 			}, nil, nil
 		}
+		text = SanitizeOutput(text)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: text}},
 		}, nil, nil

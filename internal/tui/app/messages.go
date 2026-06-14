@@ -43,9 +43,12 @@ type vscodeDoneMsg struct {
 	err error
 }
 
-type attachReadyMsg struct {
-	argv []string
-	env  []string
+type openURLDoneMsg struct {
+	err error
+}
+
+type copyDoneMsg struct {
+	text string
 	err  error
 }
 

@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -151,14 +152,14 @@ func TestWatchFirstLaunchDeliversJobConfiguredAfterBoot(t *testing.T) {
 	}
 }
 
-func TestWatchSendFailureDegradesAndNeverRetries(t *testing.T) {
+func TestWatchTransientFailureRetriesAndEventuallyTerminates(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteJob(t, dir, "fail-1", "-100", "boom payload")
 	f := &fakeNotifier{err: errors.New("boom")}
 	o, _ := newObs(t)
 	startWatch(t, dir, f, o)
 
-	waitFor(t, "failure status written", func() bool {
+	waitFor(t, "failure status written after max retries", func() bool {
 		st, err := ReadStatus(dir, "fail-1")
 		return err == nil && !st.OK
 	})
@@ -175,11 +176,29 @@ func TestWatchSendFailureDegradesAndNeverRetries(t *testing.T) {
 	})
 
 	time.Sleep(100 * time.Millisecond)
-	if n := f.count(); n != 1 {
-		t.Errorf("send count = %d, want 1 (at-most-once on failure)", n)
+	if n := f.count(); n < maxTransientAttempts {
+		t.Errorf("send count = %d, want >= %d (retries up to cap)", n, maxTransientAttempts)
 	}
 	if state := o.Snapshot()[nodeName].State; state != obs.StateDegraded {
 		t.Errorf("obs state = %v, want degraded to persist", state)
+	}
+}
+
+func TestWatchPermanentFailureTerminatesImmediately(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteJob(t, dir, "perm-1", "-100", "perm payload")
+	f := &fakeNotifier{err: fmt.Errorf("auth: %w", ErrPermanent)}
+	o, _ := newObs(t)
+	startWatch(t, dir, f, o)
+
+	waitFor(t, "failure status written on permanent error", func() bool {
+		st, err := ReadStatus(dir, "perm-1")
+		return err == nil && !st.OK
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	if n := f.count(); n != 1 {
+		t.Errorf("send count = %d, want 1 (permanent error must not retry)", n)
 	}
 }
 

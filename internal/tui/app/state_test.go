@@ -44,11 +44,8 @@ type stubFacade struct {
 	telegramCfg      bool
 	telegramMarked   bool
 	markErr          error
-	attachArgv       []string
-	attachEnv        []string
-	attachErr        error
-	attachCalls      int
 	statusSubs       int
+	openURLCalls     []string
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -122,12 +119,22 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	return f.vscodeErr
 }
 
-func (f *stubFacade) AttachExec(context.Context) ([]string, []string, error) {
+func (f *stubFacade) OpenURL(_ context.Context, url string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.attachCalls++
-	return f.attachArgv, f.attachEnv, f.attachErr
+	f.openURLCalls = append(f.openURLCalls, url)
+	return nil
 }
+
+func (f *stubFacade) openURLs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.openURLCalls))
+	copy(out, f.openURLCalls)
+	return out
+}
+
+func (f *stubFacade) CopyText(context.Context, string) error { return nil }
 
 func (f *stubFacade) LastHarnessChoice() string {
 	f.mu.Lock()
@@ -356,6 +363,70 @@ func collectFast(t *testing.T, cmd tea.Cmd) []tea.Msg {
 		}
 	}
 	return out
+}
+
+// collectDeep runs cmd, recursively unwraps tea.BatchMsg, and concurrently
+// executes every leaf command (200 ms timeout each). Returns all resulting msgs.
+func collectDeep(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		return nil
+	}
+	var leaves []tea.Cmd
+	var expand func(tea.Cmd)
+	expand = func(c tea.Cmd) {
+		if c == nil {
+			return
+		}
+		ch := make(chan tea.Msg, 1)
+		go func() { ch <- c() }()
+		select {
+		case msg := <-ch:
+			if batch, ok := msg.(tea.BatchMsg); ok {
+				for _, bc := range batch {
+					expand(bc)
+				}
+			} else if msg != nil {
+				leaves = append(leaves, func() tea.Msg { return msg })
+			}
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	expand(cmd)
+	var out []tea.Msg
+	for _, c := range leaves {
+		out = append(out, c())
+	}
+	return out
+}
+
+// driveUntilGHAuthUp drives the pipeline until EvWaiting with a GHAuth payload,
+// then steps both bus.ScreenPush and openURLDoneMsg into the app so that the
+// GHAuth screen is on the router stack and OpenURL has been called.
+func driveUntilGHAuthUp(t *testing.T, a App) App {
+	t.Helper()
+	p := a.pipe
+	if p == nil {
+		t.Fatal("no pipeline running")
+	}
+	for {
+		ev, ok := nextEvent(t, p)
+		if !ok {
+			t.Fatal("pipeline ended before gh-auth waiting appeared")
+		}
+		var cmd tea.Cmd
+		a, cmd = step(t, a, pipelineEventMsg{ev: ev})
+		if ev.Kind != pipeline.EvWaiting {
+			continue
+		}
+		for _, msg := range collectDeep(t, cmd) {
+			switch msg.(type) {
+			case bus.ScreenPush, openURLDoneMsg:
+				a, _ = step(t, a, msg)
+			}
+		}
+		return a
+	}
 }
 
 func driveUntilFormUp(t *testing.T, a App) App {
@@ -1227,13 +1298,23 @@ func TestStateGHAuthPushesScreenAndResumes(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
-	a = driveUntilWaiting(t, a)
+	// driveUntilGHAuthUp expands the nested batch and steps ScreenPush +
+	// openURLDoneMsg into the app, placing GHAuth on the router stack.
+	a = driveUntilGHAuthUp(t, a)
 
 	if a.waiting != "gh-auth" {
 		t.Fatalf("waiting = %q, want gh-auth", a.waiting)
 	}
-	if a.router.Depth() < 2 {
-		t.Fatalf("router depth = %d, want >= 2 (gh-auth screen pushed)", a.router.Depth())
+	if a.router.Depth() < 3 {
+		t.Fatalf("router depth = %d, want >= 3 (menu, launch, ghauth)", a.router.Depth())
+	}
+
+	// OpenURL must have been fired automatically with the device URL.
+	urls := f.openURLs()
+	if len(urls) == 0 {
+		t.Error("OpenURL not called after GHAuth screen push, want called with device URL")
+	} else if urls[0] != payload.URL {
+		t.Errorf("OpenURL called with %q, want %q", urls[0], payload.URL)
 	}
 
 	a, _ = step(t, a, bus.ScreenResult{Value: nil})
@@ -1447,10 +1528,6 @@ func runningSnapshot() obs.Snapshot {
 	return obs.Snapshot{"container": {State: obs.StateOK, Detail: "up"}}
 }
 
-func stoppedSnapshot() obs.Snapshot {
-	return obs.Snapshot{"container": {State: obs.StateOff, Detail: "not running"}}
-}
-
 func TestStateSecondaryDisablesMutatingItems(t *testing.T) {
 	f := &stubFacade{}
 	a := newSecondaryApp(t, f)
@@ -1473,19 +1550,13 @@ func TestStateSecondaryDisablesMutatingItems(t *testing.T) {
 func TestStateSecondaryNavSkipsDisabled(t *testing.T) {
 	f := &stubFacade{}
 	a := newSecondaryApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
 
 	if got := frameSelected(t, a); got != screens.ActionVSCode {
-		t.Fatalf("initial secondary selection = %q, want vscode (attach not yet first-enabled at build)", got)
+		t.Fatalf("initial secondary selection = %q, want vscode (mutating actions disabled)", got)
 	}
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
-	if got := frameSelected(t, a); got != screens.ActionAttach {
-		t.Errorf("after up: selection = %q, want attach (launch/harness/telegram disabled)", got)
-	}
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	if got := frameSelected(t, a); got != screens.ActionQuit {
-		t.Errorf("after down,down: selection = %q, want quit (reset disabled)", got)
+		t.Errorf("after down: selection = %q, want quit (reset disabled)", got)
 	}
 }
 
@@ -1528,22 +1599,12 @@ func TestStatePromotionNoopWhenOwner(t *testing.T) {
 	}
 }
 
-func TestStateContainerStatusDrivesAttachEnablement(t *testing.T) {
+func TestStateContainerStatusUpdatesFrame(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
-
-	if frameEnabled(a, screens.ActionAttach) {
-		t.Fatal("attach enabled before any container status")
-	}
-
 	a, _ = step(t, a, statusMsg(runningSnapshot()))
-	if !frameEnabled(a, screens.ActionAttach) {
-		t.Error("attach disabled while container running")
-	}
-
-	a, _ = step(t, a, statusMsg(stoppedSnapshot()))
-	if frameEnabled(a, screens.ActionAttach) {
-		t.Error("attach enabled while container stopped")
+	if !frameEnabled(a, screens.ActionVSCode) {
+		t.Error("vscode disabled after container running status")
 	}
 }
 
@@ -1585,85 +1646,38 @@ func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
 	}
 }
 
-func TestStateAttachActionEmitsExecHandoff(t *testing.T) {
-	oldRunner := execRunner
-	var mu sync.Mutex
-	var capturedCmd tea.ExecCommand
-	var capturedCb tea.ExecCallback
-	execRunner = func(c tea.ExecCommand, fn tea.ExecCallback) tea.Cmd {
-		mu.Lock()
-		capturedCmd = c
-		capturedCb = fn
-		mu.Unlock()
-		return nil
-	}
-	t.Cleanup(func() { execRunner = oldRunner })
-
-	const fakeToken = "gho_attach-secret"
-	f := &stubFacade{
-		attachArgv: []string{"docker", "exec", "-it", "mirabilis", "claude"},
-		attachEnv:  []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + fakeToken},
-	}
+func ghAuthApp(t *testing.T) (App, *stubFacade) {
+	t.Helper()
+	resumed := make(chan pipeline.Result, 1)
+	payload := steps.GHAuth{Code: "ABCD-1234", URL: "https://github.com/login/device"}
+	f := &stubFacade{steps: []pipeline.Command{waitingStep("gh-auth", payload, resumed)}}
 	a := newStateApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	// driveUntilGHAuthUp expands the nested batch (ScreenPush + openURLDoneMsg)
+	// and steps both into the app so GHAuth is on the router stack.
+	a = driveUntilGHAuthUp(t, a)
+	if a.waiting != "gh-auth" {
+		t.Fatalf("ghAuthApp: waiting = %q, want gh-auth", a.waiting)
+	}
+	return a, f
+}
 
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionAttach})
-	if got := menuNotice(t, a); got != uistr.NoticeAttachOpening {
-		t.Fatalf("notice = %q, want %q", got, uistr.NoticeAttachOpening)
-	}
+func TestStateCopyDoneFeedbackRouted(t *testing.T) {
+	a, _ := ghAuthApp(t)
 
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if f.attachCalls != 1 {
-		t.Fatalf("AttachExec calls = %d, want 1", f.attachCalls)
-	}
-
-	mu.Lock()
-	gotCmd := capturedCmd
-	cb := capturedCb
-	mu.Unlock()
-	if cb == nil {
-		t.Fatal("execRunner not invoked for the attach action")
-	}
-	tty, ok := gotCmd.(*exec.TTY)
-	if !ok {
-		t.Fatalf("captured exec command = %T, want *exec.TTY", gotCmd)
-	}
-	for _, arg := range tty.Argv {
-		if strings.Contains(arg, fakeToken) {
-			t.Errorf("token leaked into argv element: %q", arg)
-		}
-	}
-	foundEnv := false
-	for _, e := range tty.Env {
-		if e == "GITHUB_PERSONAL_ACCESS_TOKEN="+fakeToken {
-			foundEnv = true
-		}
-	}
-	if !foundEnv {
-		t.Errorf("token env missing from TTY.Env: %v", tty.Env)
-	}
-
-	a, _ = step(t, a, cb(nil))
-	if a.busy {
-		t.Error("busy after attach handoff returned")
-	}
-	if a.router.Depth() != 1 {
-		t.Errorf("router depth = %d after attach, want 1 (menu)", a.router.Depth())
+	a, _ = step(t, a, copyDoneMsg{text: "ABCD-1234", err: nil})
+	view := plainState(a.router.Top().View())
+	if !strings.Contains(view, uistr.GHAuthCopied) {
+		t.Errorf("copyDone(nil): ghauth view missing %q:\n%s", uistr.GHAuthCopied, view)
 	}
 }
 
-func TestStateAttachActionNoTokenShowsError(t *testing.T) {
-	f := &stubFacade{attachErr: errors.New("not logged in")}
-	a := newStateApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
+func TestStateCopyDoneErrorFeedbackRouted(t *testing.T) {
+	a, _ := ghAuthApp(t)
 
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionAttach})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-
-	if got := menuNotice(t, a); got != uistr.NoticeAttachErr+"not logged in" {
-		t.Errorf("notice = %q, want attach error", got)
-	}
-	if a.busy {
-		t.Error("busy after attach error, want false")
+	a, _ = step(t, a, copyDoneMsg{text: "ABCD", err: errors.New("xclip not found")})
+	view := plainState(a.router.Top().View())
+	if !strings.Contains(view, uistr.GHAuthCopyFailed) {
+		t.Errorf("copyDone(err): ghauth view missing %q:\n%s", uistr.GHAuthCopyFailed, view)
 	}
 }

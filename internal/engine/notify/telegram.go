@@ -80,6 +80,16 @@ func (t *Telegram) postForm(ctx context.Context, token, method string, params ur
 	if err != nil {
 		return nil, redact(fmt.Errorf("notify telegram: read body: %w", err), token)
 	}
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		var result struct {
+			Description string `json:"description"`
+		}
+		desc := ""
+		if jerr := json.Unmarshal(body, &result); jerr == nil {
+			desc = result.Description
+		}
+		return nil, redact(fmt.Errorf("notify telegram: %w: http %d: %s", ErrPermanent, resp.StatusCode, desc), token)
+	}
 	return body, nil
 }
 

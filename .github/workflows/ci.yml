@@ -25,9 +25,7 @@ jobs:
         with:
           version: v2.12.2
       - name: actionlint
-        run: |
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          actionlint
+        run: go tool actionlint
       - name: test -race
         run: go test -race -covermode=atomic -coverprofile=cover.out -tags integration ./...
       - id: cover

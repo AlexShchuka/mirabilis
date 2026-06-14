@@ -1,12 +1,16 @@
 package app
 
 import (
+	"encoding/base64"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
+
+const ghAuthNodeID = "app/launch/ghauth"
 
 func (a App) handleTelegramDone(msg telegramDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
@@ -59,4 +63,38 @@ func (a App) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 		return a.failToMenu(uistr.NoticeResetFailed)
 	}
 	return a.backToMenu(uistr.NoticeResetDone)
+}
+
+func (a App) handleCopyRequest(msg bus.CopyRequest) (tea.Model, tea.Cmd) {
+	text := msg.Text
+	ctx := a.ctx
+	f := a.facade
+	osc52 := osc52Copy(text)
+	return a, tea.Batch(
+		osc52,
+		func() tea.Msg {
+			return copyDoneMsg{text: text, err: f.CopyText(ctx, text)}
+		},
+	)
+}
+
+func (a App) handleCopyDone(msg copyDoneMsg) (tea.Model, tea.Cmd) {
+	line := uistr.GHAuthCopied
+	if msg.err != nil {
+		line = uistr.GHAuthCopyFailed
+	}
+	ev := bus.Envelope{
+		To:  ghAuthNodeID,
+		Msg: bus.StepEvent{Kind: bus.StepLine, Line: line},
+	}
+	var cmd tea.Cmd
+	a.router, cmd = a.router.Update(ev)
+	return a, cmd
+}
+
+func osc52Copy(text string) tea.Cmd {
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	return tea.Sequence(
+		tea.Println("\x1b]52;c;" + encoded + "\x07"),
+	)
 }

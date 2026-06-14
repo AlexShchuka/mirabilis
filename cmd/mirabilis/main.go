@@ -230,12 +230,25 @@ func newPlatformStore(repo, home string) secrets.Store {
 }
 
 func runLocalLLMServe(ctx context.Context) error {
+	timeout := config.LocalLLMEffectiveTimeout()
+	client := &http.Client{Timeout: timeout}
+	baseURL := config.LocalLLMEffectiveBaseURL()
+	model := config.LocalLLMEffectiveModel()
+	if model == "" || model == "auto" {
+		discCtx, discCancel := context.WithTimeout(ctx, timeout)
+		defer discCancel()
+		discovered, err := localllm.DiscoverModel(discCtx, baseURL, client)
+		if err != nil {
+			return fmt.Errorf("localllm: model discovery failed: %w", err)
+		}
+		model = discovered
+	}
 	c := &localllm.HTTPAdapter{
-		BaseURL:   config.LocalLLMBaseURL,
-		Model:     config.LocalLLMModel,
-		Timeout:   config.LocalLLMTimeout,
-		MaxTokens: config.LocalLLMMaxTokens,
-		Client:    &http.Client{},
+		BaseURL:   baseURL,
+		Model:     model,
+		Timeout:   timeout,
+		MaxTokens: config.LocalLLMEffectiveMaxTokens(),
+		Client:    client,
 	}
 	return localllm.ServeStdio(ctx, c)
 }

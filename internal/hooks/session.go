@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
@@ -16,7 +17,9 @@ import (
 func SessionStart() error {
 	_, _ = io.ReadAll(os.Stdin)
 
-	ensureProxyForSession(context.Background())
+	proxyCtx, proxyCancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer proxyCancel()
+	ensureProxyForSession(proxyCtx)
 
 	memDir := filepath.Join(home(), ".claude", "memory")
 	idx, _ := memoryIndex(memDir)

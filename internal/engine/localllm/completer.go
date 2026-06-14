@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -110,4 +111,47 @@ func (a *HTTPAdapter) Complete(ctx context.Context, prompt string, opts Opts) (s
 		return "", fmt.Errorf("localllm: no choices in response from %s", a.BaseURL)
 	}
 	return cr.Choices[0].Message.Content, nil
+}
+
+type modelsResponse struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
+func DiscoverModel(ctx context.Context, baseURL string, client *http.Client) (string, error) {
+	url := strings.TrimRight(baseURL, "/") + "/models"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("localllm: build models request: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("localllm: models request: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("localllm: read models response: %w", err)
+	}
+	var mr modelsResponse
+	if err := json.Unmarshal(raw, &mr); err != nil {
+		return "", fmt.Errorf("localllm: decode models: %w", err)
+	}
+	if len(mr.Data) == 0 {
+		return "", fmt.Errorf("localllm: no models available at %s", baseURL)
+	}
+	return mr.Data[0].ID, nil
+}
+
+var (
+	templateTagRE    = regexp.MustCompile(`<\|?[^<>|]*\|>`)
+	repeatedNewlines = regexp.MustCompile(`\n{3,}`)
+)
+
+func SanitizeOutput(s string) string {
+	s = templateTagRE.ReplaceAllString(s, "")
+	s = repeatedNewlines.ReplaceAllString(s, "\n\n")
+	s = strings.TrimSpace(s)
+	return s
 }

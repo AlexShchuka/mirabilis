@@ -26,7 +26,7 @@ func (s *Sandbox) OpenVSCode(ctx context.Context) error {
 
 func vscodeArgv(code string) []string {
 	enc := hex.EncodeToString([]byte(`{"containerName":"/` + ContainerName + `"}`))
-	return []string{code, "--folder-uri", "vscode-remote://attached-container+" + enc + "/workspace"}
+	return []string{code, "--folder-uri", "vscode-remote://attached-container+" + enc + "/"}
 }
 
 func resolveCode() (string, error) {

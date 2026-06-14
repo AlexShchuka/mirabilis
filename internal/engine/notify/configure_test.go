@@ -22,7 +22,7 @@ func updatesServer(t *testing.T, chatID int64) *httptest.Server {
 			"result": []map[string]any{
 				{
 					"channel_post": map[string]any{
-						"chat": map[string]any{"id": chatID},
+						"chat": map[string]any{"id": chatID, "type": "channel"},
 					},
 				},
 			},

@@ -11,7 +11,7 @@ import (
 )
 
 const vscodeURI = "vscode-remote://attached-container+" +
-	"7b22636f6e7461696e65724e616d65223a222f6d69726162696c6973227d/workspace"
+	"7b22636f6e7461696e65724e616d65223a222f6d69726162696c6973227d/"
 
 func fakeCodeBinary(t *testing.T) string {
 	t.Helper()

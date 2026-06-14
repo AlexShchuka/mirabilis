@@ -130,6 +130,38 @@ func ReadMCPCatalog(repo string) ([]MCPEntry, error) {
 	return entries, nil
 }
 
+func LocalLLMEffectiveBaseURL() string {
+	if v := os.Getenv("LOCAL_LLM_BASE_URL"); v != "" {
+		return v
+	}
+	return LocalLLMBaseURL
+}
+
+func LocalLLMEffectiveModel() string {
+	if v := os.Getenv("LOCAL_LLM_MODEL"); v != "" {
+		return v
+	}
+	return LocalLLMModel
+}
+
+func LocalLLMEffectiveTimeout() time.Duration {
+	if v := os.Getenv("LOCAL_LLM_TIMEOUT_S"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return time.Duration(n) * time.Second
+		}
+	}
+	return LocalLLMTimeout
+}
+
+func LocalLLMEffectiveMaxTokens() int {
+	if v := os.Getenv("LOCAL_LLM_MAX_TOKENS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return LocalLLMMaxTokens
+}
+
 func HeadroomBaseURL() string {
 	return "http://127.0.0.1:" + strconv.Itoa(HeadroomPort)
 }

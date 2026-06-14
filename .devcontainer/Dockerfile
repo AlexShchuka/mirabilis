@@ -83,20 +83,20 @@ RUN arch="$(dpkg --print-architecture)" \
     && tar -C /usr/local -xzf /tmp/go.tar.gz \
     && rm -f /tmp/go.tar.gz
 
-ARG GOIMPORTS_VERSION=v0.45.0
-ARG STATICCHECK_VERSION=v0.7.0
-ARG FIELDALIGNMENT_VERSION=v0.45.0
-ARG ACTIONLINT_VERSION=v1.7.12
 ARG GITLEAKS_VERSION=v8.30.1
-RUN go install golang.org/x/tools/cmd/goimports@${GOIMPORTS_VERSION} \
-    && go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION} \
-    && go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@${FIELDALIGNMENT_VERSION} \
-    && go install github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION} \
+ARG GOLANGCI_LINT_VERSION=v2.12.2
+ARG GO_ARCH_LINT_VERSION=v1.15.0
+WORKDIR /tmp/gomod-tools
+COPY go.mod go.sum ./
+RUN go install tool \
     && go install github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION} \
+    && go install github.com/fe3dback/go-arch-lint@${GO_ARCH_LINT_VERSION} \
     && go clean -modcache \
-    && rm -rf /root/.cache/go-build
+    && rm -rf /root/.cache/go-build /tmp/gomod-tools
 
-ARG CLAUDE_CODE_VERSION=latest
+RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://golangci-lint.run/install.sh | sh -s -- -b /home/node/go/bin ${GOLANGCI_LINT_VERSION}
+
+ARG CLAUDE_CODE_VERSION=2.1.177
 ARG GH_VERSION=2.94.0
 ARG DOCKER_CE_CLI_VERSION=5:28.1.1-1~debian.13~trixie
 RUN install -m 0755 -d /etc/apt/keyrings \
@@ -121,10 +121,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
              /etc/apt/keyrings/githubcli-archive-keyring.gpg \
              /etc/apt/keyrings/docker.gpg
 
+ARG BATS_VERSION=1.13.0
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
-    && rm -rf /root/.npm
-
-RUN npm install -g bats \
+    && npm install -g bats@${BATS_VERSION} \
     && rm -rf /root/.npm
 
 ENV GOTMPDIR=/home/node/.cache/go-tmp

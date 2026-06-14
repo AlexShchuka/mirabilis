@@ -21,6 +21,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 			"env":        map[string]any{"FOO": "1"},
 		})
 	},
+	"onboarding": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
 	"theme": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		mustWriteJSON(t, d.settingsPath(), map[string]any{})
 		mustWrite(t, d.themePath(), "dark\n")

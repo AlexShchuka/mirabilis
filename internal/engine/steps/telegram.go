@@ -3,6 +3,7 @@ package steps
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
@@ -21,6 +22,8 @@ type telegramStep struct {
 func newTelegram(d Deps) *telegramStep {
 	return &telegramStep{d: d}
 }
+
+const telegramConfigureTimeout = 45 * time.Second
 
 func (s *telegramStep) Meta() pipeline.Meta {
 	return pipeline.Meta{
@@ -56,5 +59,9 @@ func (s *telegramStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-
 	if token == telegramSkip {
 		return dotenvWrite(s.d.Repo, telegramEnvKey, telegramSkip)
 	}
-	return notify.Configure(ctx, s.d.Store, s.baseURL, s.d.Repo, token)
+	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "saving token…"}
+	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "detecting channel…"}
+	cfgCtx, cfgCancel := context.WithTimeout(ctx, telegramConfigureTimeout)
+	defer cfgCancel()
+	return notify.Configure(cfgCtx, s.d.Store, s.baseURL, s.d.Repo, token)
 }

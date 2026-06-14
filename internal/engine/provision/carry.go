@@ -26,6 +26,7 @@ const (
 func carryCreate(d Deps) []pipeline.Command {
 	return []pipeline.Command{
 		&settingsStep{d: d},
+		&onboardingStep{d: d},
 		&themeStep{d: d},
 		&memoryStep{d: d},
 		&gitIdentityStep{d: d},

@@ -164,8 +164,12 @@ func (f *facade) OpenVSCode(ctx context.Context) error {
 	return f.sb.OpenVSCode(ctx)
 }
 
-func (f *facade) AttachExec(ctx context.Context) ([]string, []string, error) {
-	return steps.AttachExec(ctx, f.deps)
+func (f *facade) OpenURL(ctx context.Context, url string) error {
+	return sandbox.OpenURL(ctx, f.runner, url)
+}
+
+func (f *facade) CopyText(ctx context.Context, text string) error {
+	return sandbox.CopyText(ctx, f.runner, text)
 }
 
 func (f *facade) LastHarnessChoice() string {

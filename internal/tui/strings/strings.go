@@ -8,6 +8,9 @@ const (
 	GHAuthLabelCode     = "  code:  "
 	GHAuthLabelURL      = "  URL:   "
 	GHAuthStatusWaiting = "requesting device code from GitHub…"
+	GHAuthCopyHint      = "  press c to copy code"
+	GHAuthCopied        = "code copied (also shown above)"
+	GHAuthCopyFailed    = "copy failed — enter the code shown above manually"
 
 	FooterHints    = "enter select · esc back · tab log · q quit"
 	DegradedPrefix = "degraded: "
@@ -40,7 +43,6 @@ const (
 	ProgressSep = "/"
 
 	MenuActionLaunch   = "Launch"
-	MenuActionAttach   = "Attach"
 	MenuActionHarness  = "Harness"
 	MenuActionTelegram = "Telegram"
 	MenuActionVSCode   = "VS Code"
@@ -48,10 +50,9 @@ const (
 	MenuActionQuit     = "Quit"
 
 	MenuDescLaunch   = "setup pipeline + Claude in container"
-	MenuDescAttach   = "spawn a new Claude in the container"
 	MenuDescHarness  = "neuro-matrix: on / off / reinstall"
 	MenuDescTelegram = "bot notifications: token, optional"
-	MenuDescVSCode   = "attach /workspace in VS Code"
+	MenuDescVSCode   = "open container root in VS Code"
 	MenuDescReset    = "container, image and volumes — permanent"
 
 	NoticeSecondary = "secondary — sandbox owned by another tab"
@@ -68,12 +69,10 @@ const (
 
 	BusyElapsedSep = " "
 
-	NoticeHarnessErr    = "harness: "
-	NoticeVSCodeErr     = "VS Code: "
-	NoticeTelegramErr   = "telegram: "
-	NoticeAttachErr     = "attach: "
-	NoticeAttachOpening = "attaching…"
-	NoticeResetDone     = "removed — relaunch to rebuild"
+	NoticeHarnessErr  = "harness: "
+	NoticeVSCodeErr   = "VS Code: "
+	NoticeTelegramErr = "telegram: "
+	NoticeResetDone   = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
 	FormOptHarnessOn  = "Enable"
@@ -105,5 +104,4 @@ const (
 	LogTelegramFailed         = "telegram setup failed"
 	LogHarnessFailed          = "harness apply failed"
 	LogVSCodeFailed           = "vscode open failed"
-	LogAttachFailed           = "attach failed"
 )
