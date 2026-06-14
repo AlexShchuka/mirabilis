@@ -31,23 +31,30 @@ type mcpStep struct {
 
 func (s *mcpStep) Meta() pipeline.Meta { return carryMeta("mcp", "MCP servers") }
 
-func (s *mcpStep) entries(ctx context.Context) []config.MCPEntry {
+func (s *mcpStep) entries(ctx context.Context) ([]config.MCPEntry, error) {
+	all, err := config.ReadMCPCatalog(s.d.Repo)
+	if err != nil {
+		return nil, err
+	}
 	hasUvx := s.d.scriptOK(ctx, "command -v uvx")
 	var entries []config.MCPEntry
-	for _, e := range config.ReadMCPCatalog(s.d.Repo) {
+	for _, e := range all {
 		if len(e.Args) > 0 && e.Args[0] == "uvx" && !hasUvx {
 			continue
 		}
 		entries = append(entries, e)
 	}
-	return entries
+	return entries, nil
 }
 
 func (s *mcpStep) Check(ctx context.Context) (bool, error) {
 	if !s.d.scriptOK(ctx, "command -v claude") {
 		return true, nil
 	}
-	entries := s.entries(ctx)
+	entries, err := s.entries(ctx)
+	if err != nil {
+		return false, err
+	}
 	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	for _, e := range entries {
@@ -62,7 +69,10 @@ func (s *mcpStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan p
 	if !s.d.scriptOK(ctx, "command -v claude") {
 		return nil
 	}
-	entries := s.entries(ctx)
+	entries, err := s.entries(ctx)
+	if err != nil {
+		return err
+	}
 	listOut, _ := s.d.output(ctx, "claude", "mcp", "list")
 	registered := parseMCPList(listOut)
 	var errs []error

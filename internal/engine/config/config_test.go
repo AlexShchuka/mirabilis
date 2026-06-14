@@ -1,8 +1,6 @@
 package config
 
 import (
-	"bytes"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -112,28 +110,24 @@ func TestCatalogReaders(t *testing.T) {
 }
 
 func TestReadMCPCatalog(t *testing.T) {
-	t.Run("missing file returns nil", func(t *testing.T) {
-		if got := ReadMCPCatalog(t.TempDir()); got != nil {
+	t.Run("missing file returns nil nil", func(t *testing.T) {
+		got, err := ReadMCPCatalog(t.TempDir())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != nil {
 			t.Errorf("got %v, want nil", got)
 		}
 	})
-	t.Run("invalid json returns nil", func(t *testing.T) {
+	t.Run("malformed json returns error", func(t *testing.T) {
 		dir := t.TempDir()
 		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
-		if got := ReadMCPCatalog(dir); got != nil {
-			t.Errorf("got %v, want nil", got)
+		got, err := ReadMCPCatalog(dir)
+		if err == nil {
+			t.Fatal("expected error for malformed mcp.json, got nil")
 		}
-	})
-	t.Run("invalid json emits slog warning", func(t *testing.T) {
-		dir := t.TempDir()
-		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"), "{not json")
-		var buf bytes.Buffer
-		old := slog.Default()
-		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
-		t.Cleanup(func() { slog.SetDefault(old) })
-		_ = ReadMCPCatalog(dir)
-		if !strings.Contains(buf.String(), "mcp.json malformed") {
-			t.Errorf("slog output = %q, want to contain \"mcp.json malformed\"", buf.String())
+		if got != nil {
+			t.Errorf("got %v on error, want nil", got)
 		}
 	})
 	t.Run("parses entries", func(t *testing.T) {
@@ -141,7 +135,10 @@ func TestReadMCPCatalog(t *testing.T) {
 		mustWriteFile(t, filepath.Join(dir, "config", "mcp.json"),
 			`[{"name":"context7","transport":"http","url":"https://example/mcp"},`+
 				`{"name":"st","transport":"stdio","args":["npx","-y","pkg"]}]`)
-		got := ReadMCPCatalog(dir)
+		got, err := ReadMCPCatalog(dir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		want := []MCPEntry{
 			{Name: "context7", Transport: "http", URL: "https://example/mcp"},
 			{Name: "st", Transport: "stdio", Args: []string{"npx", "-y", "pkg"}},

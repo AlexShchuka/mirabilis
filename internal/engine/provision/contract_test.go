@@ -111,7 +111,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect([]string{"claude", "plugin", "marketplace", "add", "anthropics/claude-plugins-official"}, "", nil)
 		f.Expect([]string{"claude", "plugin", "marketplace", "add", "jarrodwatts/claude-hud"}, "", nil)
 		f.Expect(list, "", nil)
-		f.Expect(script(`TMPDIR="$HOME/.cache/tmp" claude plugin install alpha@1.0 --scope user`), "", nil)
+		f.Expect(script(`TMPDIR="$HOME/.cache/tmp" claude plugin install "alpha@1.0" --scope user`), "", nil)
 		f.Expect(cv, "", nil)
 		f.Expect(list, "alpha 1.0 enabled", nil)
 	},
@@ -150,7 +150,11 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(script(sc["curl"]), "", nil)
 		f.Expect(script(sc["get"]), ".headroom-venv/bin/headroom", nil)
 	},
-	"local-offload": func(_ *testing.T, _ *Deps, f *exec.Fake) {
+	"local-offload": func(t *testing.T, _ *Deps, f *exec.Fake) {
+		self, err := os.Executable()
+		if err != nil {
+			t.Fatalf("os.Executable: %v", err)
+		}
 		cv := script("command -v claude")
 		get := []string{"claude", "mcp", "get", "local-offload"}
 		add := []string{"claude", "mcp", "add", "--scope", "user", "--transport", "stdio", "local-offload"}
@@ -160,7 +164,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(get, "", errors.New("not registered"))
 		f.Expect(add, "", nil)
 		f.Expect(cv, "", nil)
-		f.Expect(get, "local-offload stdio", nil)
+		f.Expect(get, "local-offload stdio "+self+" localllm serve", nil)
 	},
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"

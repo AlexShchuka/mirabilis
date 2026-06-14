@@ -30,6 +30,10 @@ func TestLocalLLMCheckTrueWhenCLAUDEAbsent(t *testing.T) {
 	}
 }
 
+func registeredOutput() string {
+	return "local-offload stdio " + testSelfPath + " localllm serve"
+}
+
 func TestLocalLLMCheckFalseWhenNotRegistered(t *testing.T) {
 	d, f := testDeps(t)
 	f.Expect(script(`command -v claude`), "", nil)
@@ -40,13 +44,23 @@ func TestLocalLLMCheckFalseWhenNotRegistered(t *testing.T) {
 	}
 }
 
-func TestLocalLLMCheckTrueWhenRegistered(t *testing.T) {
+func TestLocalLLMCheckFalseWhenRegisteredAtDifferentPath(t *testing.T) {
 	d, f := testDeps(t)
 	f.Expect(script(`command -v claude`), "", nil)
-	f.Expect([]string{"claude", "mcp", "get", "local-offload"}, "local-offload stdio", nil)
+	f.Expect([]string{"claude", "mcp", "get", "local-offload"}, "local-offload stdio /old/bin/mirabilis localllm serve", nil)
+	step := testLocalLLMStep(d)
+	if checkStep(t, step) {
+		t.Error("check should be false when registered path differs from self (stale binary)")
+	}
+}
+
+func TestLocalLLMCheckTrueWhenRegisteredAtCurrentPath(t *testing.T) {
+	d, f := testDeps(t)
+	f.Expect(script(`command -v claude`), "", nil)
+	f.Expect([]string{"claude", "mcp", "get", "local-offload"}, registeredOutput(), nil)
 	step := testLocalLLMStep(d)
 	if !checkStep(t, step) {
-		t.Error("check should be true when local-offload is already registered")
+		t.Error("check should be true when local-offload is registered at current self path")
 	}
 }
 
@@ -67,7 +81,7 @@ func TestLocalLLMRunRegisters(t *testing.T) {
 func TestLocalLLMRunIdempotentWhenAlreadyRegistered(t *testing.T) {
 	d, f := testDeps(t)
 	f.Expect(script(`command -v claude`), "", nil)
-	f.Expect([]string{"claude", "mcp", "get", "local-offload"}, "local-offload stdio", nil)
+	f.Expect([]string{"claude", "mcp", "get", "local-offload"}, registeredOutput(), nil)
 	step := testLocalLLMStep(d)
 	if err := runStep(t, step); err != nil {
 		t.Fatalf("run should be no-op when already registered: %v", err)

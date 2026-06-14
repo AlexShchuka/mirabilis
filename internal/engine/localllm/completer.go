@@ -90,6 +90,10 @@ func (a *HTTPAdapter) Complete(ctx context.Context, prompt string, opts Opts) (s
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("localllm: http %d from %s", resp.StatusCode, a.BaseURL)
+	}
+
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("localllm: read response: %w", err)
@@ -101,9 +105,6 @@ func (a *HTTPAdapter) Complete(ctx context.Context, prompt string, opts Opts) (s
 	}
 	if cr.Error != nil && cr.Error.Message != "" {
 		return "", fmt.Errorf("localllm: model error: %s", cr.Error.Message)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("localllm: http %d from %s", resp.StatusCode, a.BaseURL)
 	}
 	if len(cr.Choices) == 0 {
 		return "", fmt.Errorf("localllm: no choices in response from %s", a.BaseURL)

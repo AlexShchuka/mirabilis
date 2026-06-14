@@ -7,19 +7,22 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
 
 const (
 	headroomVenvRel   = ".headroom-venv/bin/headroom"
-	headroomStatsURL  = "http://127.0.0.1:8787/stats"
 	headroomPollLimit = 60
 
 	postToolUseFailureBulletCap = 10
 	postToolUseFailureByteCap   = 2048
 )
 
-var runner exec.Runner = exec.NewHost()
+var (
+	runner           exec.Runner = exec.NewHost()
+	headroomStatsURL             = config.HeadroomStatsURL()
+)
 
 var eventNameRe = regexp.MustCompile(`"hook_event_name"\s*:\s*"([^"]*)"`)
 

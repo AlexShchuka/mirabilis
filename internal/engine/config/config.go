@@ -3,7 +3,7 @@ package config
 
 import (
 	"encoding/json"
-	"log/slog"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -118,17 +118,16 @@ type MCPEntry struct {
 	Args      []string `json:"args,omitempty"`
 }
 
-func ReadMCPCatalog(repo string) []MCPEntry {
+func ReadMCPCatalog(repo string) ([]MCPEntry, error) {
 	data, err := os.ReadFile(filepath.Join(repo, "config", "mcp.json"))
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var entries []MCPEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		slog.Warn("mcp.json malformed", "repo", repo, "err", err)
-		return nil
+		return nil, fmt.Errorf("mcp.json malformed: %w", err)
 	}
-	return entries
+	return entries, nil
 }
 
 func HeadroomBaseURL() string {

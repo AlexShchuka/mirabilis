@@ -37,7 +37,7 @@ setup() {
   [ "$count" -ge 2 ]
 }
 
-@test "I1 guard: token never injected via env-var hard-code in production source" {
-  ! grep -rn 'ANTHROPIC_API_KEY\s*=\s*"sk-ant' \
+@test "CWE-798 regression guard: no hardcoded Anthropic key in production source" {
+  ! grep -rn 'ANTHROPIC_API_KEY[[:space:]]*=[[:space:]]*"sk-ant' \
     "$REPO_ROOT/internal/" "$REPO_ROOT/cmd/"
 }
