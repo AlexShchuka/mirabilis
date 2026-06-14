@@ -51,7 +51,11 @@ func (s *headroomStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-c
 	}
 	if s.reachable(ctx) && upstreamChanged {
 		s.runScript(ctx, out, `pkill -f "headroom proxy" || true`)
-		time.Sleep(time.Second)
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if !s.reachable(ctx) {
 		upstream := s.upstreamOnDisk()
