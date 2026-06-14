@@ -150,6 +150,18 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(script(sc["curl"]), "", nil)
 		f.Expect(script(sc["get"]), ".headroom-venv/bin/headroom", nil)
 	},
+	"local-offload": func(_ *testing.T, _ *Deps, f *exec.Fake) {
+		cv := script("command -v claude")
+		get := []string{"claude", "mcp", "get", "local-offload"}
+		add := []string{"claude", "mcp", "add", "--scope", "user", "--transport", "stdio", "local-offload"}
+		f.Expect(cv, "", nil)
+		f.Expect(get, "", errors.New("not registered"))
+		f.Expect(cv, "", nil)
+		f.Expect(get, "", errors.New("not registered"))
+		f.Expect(add, "", nil)
+		f.Expect(cv, "", nil)
+		f.Expect(get, "local-offload stdio", nil)
+	},
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"
 	},

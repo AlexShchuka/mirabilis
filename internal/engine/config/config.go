@@ -16,6 +16,11 @@ const (
 	defaultAuthProxyPort = 8788
 
 	DeliveredRetention = 10 * time.Minute
+
+	LocalLLMBaseURL   = "http://host.docker.internal:1234/v1"
+	LocalLLMModel     = "local-model"
+	LocalLLMTimeout   = 60 * time.Second
+	LocalLLMMaxTokens = 2048
 )
 
 type Config struct {

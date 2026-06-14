@@ -36,6 +36,8 @@ components:
     in: internal/engine/notify
   engine-membackup:
     in: internal/engine/membackup
+  engine-localllm:
+    in: internal/engine/localllm
   engine-provision:
     in: internal/engine/provision
   engine-status:
@@ -116,6 +118,11 @@ deps:
     anyVendorDeps: true
     mayDependOn:
       - engine-exec
+
+  engine-localllm:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-config
 
   engine-provision:
     anyVendorDeps: true

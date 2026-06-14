@@ -46,7 +46,7 @@ func Create(d Deps) []pipeline.Command {
 }
 
 func Start(d Deps) []pipeline.Command {
-	out := []pipeline.Command{&credentialsStep{d: d}, &headroomStep{d: d}, &settingsEnvStep{d: d}}
+	out := []pipeline.Command{&credentialsStep{d: d}, &headroomStep{d: d}, &localLLMStep{d: d}, &settingsEnvStep{d: d}}
 	out = append(out, carryStart(d)...)
 	return append(out, &startMarkerStep{d: d})
 }

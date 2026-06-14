@@ -19,7 +19,11 @@ symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`.
   MCP) → host auth proxy (token injection) → Anthropic. The **real Claude token never enters
   the sandbox** — only a per-session key does. Stopping credential exfiltration is the
   **harness's** behavioural job. `WebFetch`/`WebSearch` go via the Anthropic API and always
-  work.
+  work. **Deliberate additional egress edge**: `internal/engine/localllm` POSTs to
+  `host.docker.internal:1234` (LM Studio default port) to offload prompts to a host-local
+  model. This edge is intentional and hardcoded to `http://host.docker.internal:1234/v1`; it
+  carries only prompt text, never the Claude token. If an egress allowlist is added in future,
+  it must include `host.docker.internal:1234`.
 - **Secrets**: single source of truth per platform — keychain (macOS) / file `0600`
   (Linux/WSL). Entry name `mirabilis-<key>` (no doubled suffix). The Claude OAuth token
   stays on the host; only the per-session key reaches the container. The Telegram token is
