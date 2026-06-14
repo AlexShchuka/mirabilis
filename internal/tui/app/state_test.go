@@ -45,6 +45,7 @@ type stubFacade struct {
 	telegramMarked   bool
 	markErr          error
 	statusSubs       int
+	openURLCalls     []string
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -118,7 +119,20 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	return f.vscodeErr
 }
 
-func (f *stubFacade) OpenURL(context.Context, string) error { return nil }
+func (f *stubFacade) OpenURL(_ context.Context, url string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.openURLCalls = append(f.openURLCalls, url)
+	return nil
+}
+
+func (f *stubFacade) openURLs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.openURLCalls))
+	copy(out, f.openURLCalls)
+	return out
+}
 
 func (f *stubFacade) CopyText(context.Context, string) error { return nil }
 
@@ -349,6 +363,70 @@ func collectFast(t *testing.T, cmd tea.Cmd) []tea.Msg {
 		}
 	}
 	return out
+}
+
+// collectDeep runs cmd, recursively unwraps tea.BatchMsg, and concurrently
+// executes every leaf command (200 ms timeout each). Returns all resulting msgs.
+func collectDeep(t *testing.T, cmd tea.Cmd) []tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		return nil
+	}
+	var leaves []tea.Cmd
+	var expand func(tea.Cmd)
+	expand = func(c tea.Cmd) {
+		if c == nil {
+			return
+		}
+		ch := make(chan tea.Msg, 1)
+		go func() { ch <- c() }()
+		select {
+		case msg := <-ch:
+			if batch, ok := msg.(tea.BatchMsg); ok {
+				for _, bc := range batch {
+					expand(bc)
+				}
+			} else if msg != nil {
+				leaves = append(leaves, func() tea.Msg { return msg })
+			}
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	expand(cmd)
+	var out []tea.Msg
+	for _, c := range leaves {
+		out = append(out, c())
+	}
+	return out
+}
+
+// driveUntilGHAuthUp drives the pipeline until EvWaiting with a GHAuth payload,
+// then steps both bus.ScreenPush and openURLDoneMsg into the app so that the
+// GHAuth screen is on the router stack and OpenURL has been called.
+func driveUntilGHAuthUp(t *testing.T, a App) App {
+	t.Helper()
+	p := a.pipe
+	if p == nil {
+		t.Fatal("no pipeline running")
+	}
+	for {
+		ev, ok := nextEvent(t, p)
+		if !ok {
+			t.Fatal("pipeline ended before gh-auth waiting appeared")
+		}
+		var cmd tea.Cmd
+		a, cmd = step(t, a, pipelineEventMsg{ev: ev})
+		if ev.Kind != pipeline.EvWaiting {
+			continue
+		}
+		for _, msg := range collectDeep(t, cmd) {
+			switch msg.(type) {
+			case bus.ScreenPush, openURLDoneMsg:
+				a, _ = step(t, a, msg)
+			}
+		}
+		return a
+	}
 }
 
 func driveUntilFormUp(t *testing.T, a App) App {
@@ -1220,13 +1298,23 @@ func TestStateGHAuthPushesScreenAndResumes(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
-	a = driveUntilWaiting(t, a)
+	// driveUntilGHAuthUp expands the nested batch and steps ScreenPush +
+	// openURLDoneMsg into the app, placing GHAuth on the router stack.
+	a = driveUntilGHAuthUp(t, a)
 
 	if a.waiting != "gh-auth" {
 		t.Fatalf("waiting = %q, want gh-auth", a.waiting)
 	}
-	if a.router.Depth() < 2 {
-		t.Fatalf("router depth = %d, want >= 2 (gh-auth screen pushed)", a.router.Depth())
+	if a.router.Depth() < 3 {
+		t.Fatalf("router depth = %d, want >= 3 (menu, launch, ghauth)", a.router.Depth())
+	}
+
+	// OpenURL must have been fired automatically with the device URL.
+	urls := f.openURLs()
+	if len(urls) == 0 {
+		t.Error("OpenURL not called after GHAuth screen push, want called with device URL")
+	} else if urls[0] != payload.URL {
+		t.Errorf("OpenURL called with %q, want %q", urls[0], payload.URL)
 	}
 
 	a, _ = step(t, a, bus.ScreenResult{Value: nil})
@@ -1558,19 +1646,38 @@ func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
 	}
 }
 
-func TestStateCopyDoneFeedbackRouted(t *testing.T) {
-	f := &stubFacade{}
+func ghAuthApp(t *testing.T) (App, *stubFacade) {
+	t.Helper()
+	resumed := make(chan pipeline.Result, 1)
+	payload := steps.GHAuth{Code: "ABCD-1234", URL: "https://github.com/login/device"}
+	f := &stubFacade{steps: []pipeline.Command{waitingStep("gh-auth", payload, resumed)}}
 	a := newStateApp(t, f)
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	// driveUntilGHAuthUp expands the nested batch (ScreenPush + openURLDoneMsg)
+	// and steps both into the app so GHAuth is on the router stack.
+	a = driveUntilGHAuthUp(t, a)
+	if a.waiting != "gh-auth" {
+		t.Fatalf("ghAuthApp: waiting = %q, want gh-auth", a.waiting)
+	}
+	return a, f
+}
+
+func TestStateCopyDoneFeedbackRouted(t *testing.T) {
+	a, _ := ghAuthApp(t)
 
 	a, _ = step(t, a, copyDoneMsg{text: "ABCD-1234", err: nil})
-	a, _ = step(t, a, copyDoneMsg{text: "ABCD-1234", err: errors.New("no clipboard")})
-	_ = a
+	view := plainState(a.router.Top().View())
+	if !strings.Contains(view, uistr.GHAuthCopied) {
+		t.Errorf("copyDone(nil): ghauth view missing %q:\n%s", uistr.GHAuthCopied, view)
+	}
 }
 
 func TestStateCopyDoneErrorFeedbackRouted(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
+	a, _ := ghAuthApp(t)
 
 	a, _ = step(t, a, copyDoneMsg{text: "ABCD", err: errors.New("xclip not found")})
-	_ = a
+	view := plainState(a.router.Top().View())
+	if !strings.Contains(view, uistr.GHAuthCopyFailed) {
+		t.Errorf("copyDone(err): ghauth view missing %q:\n%s", uistr.GHAuthCopyFailed, view)
+	}
 }
