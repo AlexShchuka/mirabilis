@@ -178,6 +178,28 @@ func TestDiscoverModelEmpty(t *testing.T) {
 	}
 }
 
+func TestDiscoverModelContextTimeout(t *testing.T) {
+	done := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-done:
+		}
+	}))
+	t.Cleanup(func() {
+		close(done)
+		srv.Close()
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := DiscoverModel(ctx, srv.URL, srv.Client())
+	if err == nil {
+		t.Fatal("DiscoverModel with hanging server = nil, want timeout error")
+	}
+}
+
 func TestSanitizeOutput(t *testing.T) {
 	tests := []struct {
 		name  string
