@@ -33,7 +33,6 @@ type Facade interface {
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
-	AttachExec(ctx context.Context) (argv, env []string, err error)
 	LastHarnessChoice() string
 	RememberHarnessChoice(choice string) error
 	TelegramConfigured() bool
@@ -63,7 +62,6 @@ type App struct {
 	secondary       bool
 	baseNotice      string
 	errNotice       string
-	attachReady     bool
 }
 
 func New(ctx context.Context, f Facade, secondary bool) App {
@@ -100,14 +98,6 @@ func (a *App) promote() {
 	}
 }
 
-func (a *App) applyContainerState(snap obs.Snapshot) {
-	running := snap["container"].State == obs.StateOK
-	if running != a.attachReady {
-		a.attachReady = running
-		a.frame.SetEnabled(screens.ActionAttach, running)
-	}
-}
-
 func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.router.Init(),
@@ -128,7 +118,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusMsg:
 		var fc tea.Cmd
 		snap := obs.Snapshot(msg)
-		a.applyContainerState(snap)
 		sc := bus.StatusChanged{Snapshot: snap}
 		a.frame, fc = a.frame.Update(sc)
 		return a, tea.Batch(fc, watchStatus(a.statusCh))
@@ -174,9 +163,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
-
-	case attachReadyMsg:
-		return a.handleAttachReady(msg)
 	}
 
 	var cmd tea.Cmd

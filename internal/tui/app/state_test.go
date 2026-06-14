@@ -44,10 +44,6 @@ type stubFacade struct {
 	telegramCfg      bool
 	telegramMarked   bool
 	markErr          error
-	attachArgv       []string
-	attachEnv        []string
-	attachErr        error
-	attachCalls      int
 	statusSubs       int
 }
 
@@ -120,13 +116,6 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	defer f.mu.Unlock()
 	f.vscodeCalls++
 	return f.vscodeErr
-}
-
-func (f *stubFacade) AttachExec(context.Context) ([]string, []string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.attachCalls++
-	return f.attachArgv, f.attachEnv, f.attachErr
 }
 
 func (f *stubFacade) LastHarnessChoice() string {
@@ -1473,19 +1462,13 @@ func TestStateSecondaryDisablesMutatingItems(t *testing.T) {
 func TestStateSecondaryNavSkipsDisabled(t *testing.T) {
 	f := &stubFacade{}
 	a := newSecondaryApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
 
 	if got := frameSelected(t, a); got != screens.ActionVSCode {
-		t.Fatalf("initial secondary selection = %q, want vscode (attach not yet first-enabled at build)", got)
+		t.Fatalf("initial secondary selection = %q, want vscode (mutating actions disabled)", got)
 	}
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
-	if got := frameSelected(t, a); got != screens.ActionAttach {
-		t.Errorf("after up: selection = %q, want attach (launch/harness/telegram disabled)", got)
-	}
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	if got := frameSelected(t, a); got != screens.ActionQuit {
-		t.Errorf("after down,down: selection = %q, want quit (reset disabled)", got)
+		t.Errorf("after down: selection = %q, want quit (reset disabled)", got)
 	}
 }
 
@@ -1528,22 +1511,12 @@ func TestStatePromotionNoopWhenOwner(t *testing.T) {
 	}
 }
 
-func TestStateContainerStatusDrivesAttachEnablement(t *testing.T) {
+func TestStateContainerStatusUpdatesFrame(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
-
-	if frameEnabled(a, screens.ActionAttach) {
-		t.Fatal("attach enabled before any container status")
-	}
-
 	a, _ = step(t, a, statusMsg(runningSnapshot()))
-	if !frameEnabled(a, screens.ActionAttach) {
-		t.Error("attach disabled while container running")
-	}
-
-	a, _ = step(t, a, statusMsg(stoppedSnapshot()))
-	if frameEnabled(a, screens.ActionAttach) {
-		t.Error("attach enabled while container stopped")
+	if !frameEnabled(a, screens.ActionVSCode) {
+		t.Error("vscode disabled after container running status")
 	}
 }
 
@@ -1585,85 +1558,3 @@ func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
 	}
 }
 
-func TestStateAttachActionEmitsExecHandoff(t *testing.T) {
-	oldRunner := execRunner
-	var mu sync.Mutex
-	var capturedCmd tea.ExecCommand
-	var capturedCb tea.ExecCallback
-	execRunner = func(c tea.ExecCommand, fn tea.ExecCallback) tea.Cmd {
-		mu.Lock()
-		capturedCmd = c
-		capturedCb = fn
-		mu.Unlock()
-		return nil
-	}
-	t.Cleanup(func() { execRunner = oldRunner })
-
-	const fakeToken = "gho_attach-secret"
-	f := &stubFacade{
-		attachArgv: []string{"docker", "exec", "-it", "mirabilis", "claude"},
-		attachEnv:  []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + fakeToken},
-	}
-	a := newStateApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionAttach})
-	if got := menuNotice(t, a); got != uistr.NoticeAttachOpening {
-		t.Fatalf("notice = %q, want %q", got, uistr.NoticeAttachOpening)
-	}
-
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if f.attachCalls != 1 {
-		t.Fatalf("AttachExec calls = %d, want 1", f.attachCalls)
-	}
-
-	mu.Lock()
-	gotCmd := capturedCmd
-	cb := capturedCb
-	mu.Unlock()
-	if cb == nil {
-		t.Fatal("execRunner not invoked for the attach action")
-	}
-	tty, ok := gotCmd.(*exec.TTY)
-	if !ok {
-		t.Fatalf("captured exec command = %T, want *exec.TTY", gotCmd)
-	}
-	for _, arg := range tty.Argv {
-		if strings.Contains(arg, fakeToken) {
-			t.Errorf("token leaked into argv element: %q", arg)
-		}
-	}
-	foundEnv := false
-	for _, e := range tty.Env {
-		if e == "GITHUB_PERSONAL_ACCESS_TOKEN="+fakeToken {
-			foundEnv = true
-		}
-	}
-	if !foundEnv {
-		t.Errorf("token env missing from TTY.Env: %v", tty.Env)
-	}
-
-	a, _ = step(t, a, cb(nil))
-	if a.busy {
-		t.Error("busy after attach handoff returned")
-	}
-	if a.router.Depth() != 1 {
-		t.Errorf("router depth = %d after attach, want 1 (menu)", a.router.Depth())
-	}
-}
-
-func TestStateAttachActionNoTokenShowsError(t *testing.T) {
-	f := &stubFacade{attachErr: errors.New("not logged in")}
-	a := newStateApp(t, f)
-	a, _ = step(t, a, statusMsg(runningSnapshot()))
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionAttach})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-
-	if got := menuNotice(t, a); got != uistr.NoticeAttachErr+"not logged in" {
-		t.Errorf("notice = %q, want attach error", got)
-	}
-	if a.busy {
-		t.Error("busy after attach error, want false")
-	}
-}

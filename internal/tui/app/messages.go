@@ -43,12 +43,6 @@ type vscodeDoneMsg struct {
 	err error
 }
 
-type attachReadyMsg struct {
-	argv []string
-	env  []string
-	err  error
-}
-
 type promotedMsg struct{}
 
 func watchStatus(ch <-chan obs.Snapshot) tea.Cmd {

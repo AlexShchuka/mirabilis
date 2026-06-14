@@ -87,7 +87,7 @@ func TestMenuViewWelcomeAndNotice(t *testing.T) {
 }
 
 func TestMenuItemsActions(t *testing.T) {
-	want := []string{ActionLaunch, ActionAttach, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
+	want := []string{ActionLaunch, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
 	items := MenuItems()
 	if len(items) != len(want) {
 		t.Fatalf("MenuItems() len = %d, want %d", len(items), len(want))
@@ -96,9 +96,8 @@ func TestMenuItemsActions(t *testing.T) {
 		if it.Action != want[i] {
 			t.Errorf("item %d action = %q, want %q", i, it.Action, want[i])
 		}
-		wantEnabled := it.Action != ActionAttach
-		if it.Enabled != wantEnabled {
-			t.Errorf("item %q enabled = %v, want %v", it.Action, it.Enabled, wantEnabled)
+		if !it.Enabled {
+			t.Errorf("item %q enabled = false, want true", it.Action)
 		}
 		if it.Title == "" {
 			t.Errorf("item %q has no title", it.Action)

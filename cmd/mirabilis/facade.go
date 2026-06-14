@@ -164,10 +164,6 @@ func (f *facade) OpenVSCode(ctx context.Context) error {
 	return f.sb.OpenVSCode(ctx)
 }
 
-func (f *facade) AttachExec(ctx context.Context) ([]string, []string, error) {
-	return steps.AttachExec(ctx, f.deps)
-}
-
 func (f *facade) LastHarnessChoice() string {
 	v, _ := config.ReadLastHarness(f.repo)
 	return v

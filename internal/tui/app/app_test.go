@@ -143,11 +143,6 @@ func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	return nil
 }
 
-func (f *fakeFacade) AttachExec(_ context.Context) ([]string, []string, error) {
-	f.logCall("AttachExec")
-	return nil, nil, nil
-}
-
 func (f *fakeFacade) LastHarnessChoice() string { return "" }
 
 func (f *fakeFacade) RememberHarnessChoice(_ string) error {

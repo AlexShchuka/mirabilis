@@ -40,7 +40,6 @@ const (
 	ProgressSep = "/"
 
 	MenuActionLaunch   = "Launch"
-	MenuActionAttach   = "Attach"
 	MenuActionHarness  = "Harness"
 	MenuActionTelegram = "Telegram"
 	MenuActionVSCode   = "VS Code"
@@ -48,7 +47,6 @@ const (
 	MenuActionQuit     = "Quit"
 
 	MenuDescLaunch   = "setup pipeline + Claude in container"
-	MenuDescAttach   = "spawn a new Claude in the container"
 	MenuDescHarness  = "neuro-matrix: on / off / reinstall"
 	MenuDescTelegram = "bot notifications: token, optional"
 	MenuDescVSCode   = "attach /workspace in VS Code"
@@ -68,12 +66,10 @@ const (
 
 	BusyElapsedSep = " "
 
-	NoticeHarnessErr    = "harness: "
-	NoticeVSCodeErr     = "VS Code: "
-	NoticeTelegramErr   = "telegram: "
-	NoticeAttachErr     = "attach: "
-	NoticeAttachOpening = "attaching…"
-	NoticeResetDone     = "removed — relaunch to rebuild"
+	NoticeHarnessErr  = "harness: "
+	NoticeVSCodeErr   = "VS Code: "
+	NoticeTelegramErr = "telegram: "
+	NoticeResetDone   = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
 	FormOptHarnessOn  = "Enable"
@@ -102,8 +98,7 @@ const (
 	NoticeVSCodeOpening       = "opening VS Code…"
 	NoticeBusy                = "busy — wait"
 	NoticeVSCodeDone          = "VS Code: opened"
-	LogTelegramFailed         = "telegram setup failed"
-	LogHarnessFailed          = "harness apply failed"
-	LogVSCodeFailed           = "vscode open failed"
-	LogAttachFailed           = "attach failed"
+	LogTelegramFailed = "telegram setup failed"
+	LogHarnessFailed  = "harness apply failed"
+	LogVSCodeFailed   = "vscode open failed"
 )
