@@ -100,7 +100,7 @@ const (
 	NoticeVSCodeOpening       = "opening VS Code…"
 	NoticeBusy                = "busy — wait"
 	NoticeVSCodeDone          = "VS Code: opened"
-	LogTelegramFailed = "telegram setup failed"
-	LogHarnessFailed  = "harness apply failed"
-	LogVSCodeFailed   = "vscode open failed"
+	LogTelegramFailed         = "telegram setup failed"
+	LogHarnessFailed          = "harness apply failed"
+	LogVSCodeFailed           = "vscode open failed"
 )

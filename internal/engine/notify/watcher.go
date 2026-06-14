@@ -15,7 +15,7 @@ import (
 const (
 	nodeName = "notify"
 
-	defaultPollInterval = 2 * time.Second
+	defaultPollInterval  = 2 * time.Second
 	maxTransientAttempts = 3
 )
 

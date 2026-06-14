@@ -145,7 +145,7 @@ func DiscoverModel(ctx context.Context, baseURL string, client *http.Client) (st
 }
 
 var (
-	templateTagRE = regexp.MustCompile(`<\|[^|>]*\|>`)
+	templateTagRE    = regexp.MustCompile(`<\|[^|>]*\|>`)
 	repeatedNewlines = regexp.MustCompile(`\n{3,}`)
 )
 

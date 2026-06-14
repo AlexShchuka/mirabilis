@@ -1440,10 +1440,6 @@ func runningSnapshot() obs.Snapshot {
 	return obs.Snapshot{"container": {State: obs.StateOK, Detail: "up"}}
 }
 
-func stoppedSnapshot() obs.Snapshot {
-	return obs.Snapshot{"container": {State: obs.StateOff, Detail: "not running"}}
-}
-
 func TestStateSecondaryDisablesMutatingItems(t *testing.T) {
 	f := &stubFacade{}
 	a := newSecondaryApp(t, f)
@@ -1561,4 +1557,3 @@ func TestStateDegradedNodeStillLetsMenuNavigateAndDispatch(t *testing.T) {
 		t.Error("q produced no command while proxy degraded, want quit")
 	}
 }
-

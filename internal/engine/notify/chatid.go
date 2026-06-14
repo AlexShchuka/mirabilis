@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	ErrNoChannel      = errors.New("notify telegram: channel not detected — post a fresh message in the channel and retry")
+	ErrNoChannel       = errors.New("notify telegram: channel not detected — post a fresh message in the channel and retry")
 	ErrWebhookConflict = errors.New("notify telegram: webhook active — delete it first with deleteWebhook")
 )
 
