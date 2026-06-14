@@ -94,7 +94,7 @@ RUN go install tool \
     && go clean -modcache \
     && rm -rf /root/.cache/go-build /tmp/gomod-tools
 
-RUN curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b /home/node/go/bin ${GOLANGCI_LINT_VERSION}
+RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://golangci-lint.run/install.sh | sh -s -- -b /home/node/go/bin ${GOLANGCI_LINT_VERSION}
 
 ARG CLAUDE_CODE_VERSION=2.1.177
 ARG GH_VERSION=2.94.0
