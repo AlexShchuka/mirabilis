@@ -518,3 +518,24 @@ func TestHeadroomMode(t *testing.T) {
 		})
 	}
 }
+
+func TestSkillGroupsFrom(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "skills.txt")
+	mustWriteFile(t, path, "# comment\ngolang owner/repo skill-a skill-b\nbare\nnamed only/repo\n\n")
+	got := SkillGroupsFrom(path)
+	want := []SkillGroup{
+		{Name: "golang", Repo: "owner/repo", Skills: []string{"skill-a", "skill-b"}},
+		{Name: "bare"},
+		{Name: "named", Repo: "only/repo"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SkillGroupsFrom = %#v, want %#v", got, want)
+	}
+}
+
+func TestSkillGroupsFromMissing(t *testing.T) {
+	if got := SkillGroupsFrom(filepath.Join(t.TempDir(), "nope.txt")); got != nil {
+		t.Fatalf("missing file: got %#v, want nil", got)
+	}
+}

@@ -103,8 +103,41 @@ func ReadPluginCatalog(repo string) []string {
 	return readList(filepath.Join(repo, "config", "plugins.txt"))
 }
 
+type SkillGroup struct {
+	Name   string
+	Repo   string
+	Skills []string
+}
+
+func SkillGroupsFrom(path string) []SkillGroup {
+	var out []SkillGroup
+	for _, line := range readList(path) {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		g := SkillGroup{Name: fields[0]}
+		if len(fields) > 1 {
+			g.Repo = fields[1]
+		}
+		if len(fields) > 2 {
+			g.Skills = fields[2:]
+		}
+		out = append(out, g)
+	}
+	return out
+}
+
+func ReadSkillGroups(repo string) []SkillGroup {
+	return SkillGroupsFrom(filepath.Join(repo, "config", "skills.txt"))
+}
+
 func ReadSkillCatalog(repo string) []string {
-	return readList(filepath.Join(repo, "config", "skills.txt"))
+	var names []string
+	for _, g := range ReadSkillGroups(repo) {
+		names = append(names, g.Name)
+	}
+	return names
 }
 
 func ReadMarketplaces(repo string) []string {
