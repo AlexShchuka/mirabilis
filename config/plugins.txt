@@ -7,3 +7,4 @@ frontend-design@claude-plugins-official
 typescript-lsp@claude-plugins-official
 pyright-lsp@claude-plugins-official
 claude-hud@claude-hud
+caveman@caveman

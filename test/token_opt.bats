@@ -12,9 +12,11 @@ setup() {
   grep -q 'exclude_commands' "$REPO_ROOT/config/rtk-config.toml"
 }
 
-@test "headroom --mode cache is passed in the start script (CacheAligner enabled)" {
-  grep -q '\-\-mode cache' "$REPO_ROOT/internal/hooks/session.go"
-  grep -q '\-\-mode cache' "$REPO_ROOT/internal/engine/provision/headroom.go"
+@test "headroom --mode is threaded from config (CacheAligner default enabled)" {
+  grep -q '\-\-mode' "$REPO_ROOT/internal/hooks/session.go"
+  grep -q '\-\-mode' "$REPO_ROOT/internal/engine/provision/headroom.go"
+  grep -q 'HeadroomMode' "$REPO_ROOT/internal/hooks/session.go"
+  grep -q 'HeadroomMode' "$REPO_ROOT/internal/engine/provision/headroom.go"
 }
 
 @test "upstream reaches headroom via process env not shell interpolation (CWE-78 fix)" {
@@ -28,8 +30,12 @@ setup() {
   ! grep -q 'no-optimize' "$REPO_ROOT/internal/engine/provision/headroom.go"
 }
 
-@test "caveman skill is in the skills catalog" {
-  grep -q 'juliusbrussee/caveman' "$REPO_ROOT/config/skills.txt"
+@test "caveman is in the plugin catalog" {
+  grep -q 'caveman@caveman' "$REPO_ROOT/config/plugins.txt"
+}
+
+@test "caveman marketplace is registered" {
+  grep -q 'JuliusBrussee/caveman' "$REPO_ROOT/config/marketplaces.txt"
 }
 
 @test "auth chain: upstream file path is consistent between hooks and provision" {
