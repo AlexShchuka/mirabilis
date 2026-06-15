@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -80,6 +81,7 @@ func runTUI() error {
 	repo := resolveRepo()
 
 	ensureServe(repo)
+	waitForSessionKey(repo, 2*time.Second, 50*time.Millisecond)
 
 	cleanup, err := registerClient(repo)
 	if err != nil {

@@ -81,13 +81,13 @@ func TestAttachExecSharedHelper(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
 		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret\n", nil).
-		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "/tmp/p.md", nil)
+		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "", nil)
 	d := newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())
 	argv, env, err := AttachExec(t.Context(), d)
 	if err != nil {
 		t.Fatalf("AttachExec: %v", err)
 	}
-	want := sandbox.BuildAttachArgv("/tmp/p.md")
+	want := sandbox.BuildAttachArgv("/tmp/mirabilis-system-prompt.md")
 	if !slices.Equal(argv, want) {
 		t.Fatalf("argv = %v, want %v", argv, want)
 	}

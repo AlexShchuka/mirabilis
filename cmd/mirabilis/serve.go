@@ -59,7 +59,7 @@ func reapLoop(ctx context.Context, repo string, log interface{ Error(string, ...
 	reapLoopWith(ctx, repo, log, reapInterval, reapGrace)
 }
 
-func reapLoopWith(ctx context.Context, repo string, _ interface{ Error(string, ...any) }, interval, grace time.Duration) {
+func reapLoopWith(ctx context.Context, repo string, log interface{ Error(string, ...any) }, interval, grace time.Duration) {
 	dir := clientsDir(repo)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -71,7 +71,12 @@ func reapLoopWith(ctx context.Context, repo string, _ interface{ Error(string, .
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			n := liveClientCount(dir)
+			n, err := liveClientCount(dir)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				log.Error("clients dir unreadable — skipping reap", "err", err)
+				zeroSince = time.Time{}
+				continue
+			}
 			switch {
 			case n > 0:
 				zeroSince = time.Time{}
@@ -84,10 +89,10 @@ func reapLoopWith(ctx context.Context, repo string, _ interface{ Error(string, .
 	}
 }
 
-func liveClientCount(dir string) int {
+func liveClientCount(dir string) (int, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return 0
+		return 0, err
 	}
 	live := 0
 	for _, e := range entries {
@@ -110,7 +115,7 @@ func liveClientCount(dir string) int {
 			_ = os.Remove(path)
 		}
 	}
-	return live
+	return live, nil
 }
 
 func pidAlive(pid int) bool {

@@ -81,13 +81,53 @@ func TestLiveClientCountDeadPidRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	count := liveClientCount(cdir)
+	count, err := liveClientCount(cdir)
+	if err != nil {
+		t.Fatalf("liveClientCount error: %v", err)
+	}
 	if count != 1 {
 		t.Fatalf("liveClientCount = %d, want 1", count)
 	}
 
 	if _, err := os.Stat(deadFile); !os.IsNotExist(err) {
 		t.Fatal("dead pidfile not removed by liveClientCount")
+	}
+}
+
+func TestLiveClientCountReadDirErrorDoesNotReap(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	miraDir := filepath.Join(dir, ".mirabilis")
+	if err := os.MkdirAll(miraDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(miraDir, "clients")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	var logged bool
+	log := capturingLogger{fn: func() { logged = true }}
+	go func() {
+		reapLoopWith(ctx, dir, log, 10*time.Millisecond, 20*time.Millisecond)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if ctx.Err() == nil {
+			t.Fatal("reapLoop exited early despite ReadDir error — must not reap on error")
+		}
+	case <-ctx.Done():
+	}
+
+	if !logged {
+		t.Error("error not logged when clients dir unreadable")
 	}
 }
 
@@ -170,3 +210,9 @@ func TestReapLoopReapsWhenLastClientExits(t *testing.T) {
 type testLogger struct{}
 
 func (testLogger) Error(string, ...any) {}
+
+type capturingLogger struct {
+	fn func()
+}
+
+func (c capturingLogger) Error(_ string, _ ...any) { c.fn() }

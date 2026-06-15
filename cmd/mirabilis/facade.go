@@ -103,8 +103,13 @@ func newFacade(repo string) (*facade, error) {
 
 func (f *facade) sessionKey() string {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
-	return f.key
+	k := f.key
+	f.mu.RUnlock()
+	if k != "" {
+		return k
+	}
+	k, _ = readSessionKey(f.repo)
+	return k
 }
 
 func (f *facade) newProxy(key string) *authproxy.Proxy {

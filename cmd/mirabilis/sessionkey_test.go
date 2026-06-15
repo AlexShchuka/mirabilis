@@ -87,6 +87,25 @@ func TestFacadeNewProxyPersistsAndReturnsKey(t *testing.T) {
 	}
 }
 
+func TestFacadeSessionKeyFallsBackToDisk(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("MIRABILIS_REPO", repo)
+	f, err := newFacade(repo)
+	if err != nil {
+		t.Fatalf("newFacade: %v", err)
+	}
+	t.Cleanup(func() { _ = f.obs.Close() })
+
+	const diskKey = "dummy-session-key"
+	if err := writeSessionKey(repo, diskKey); err != nil {
+		t.Fatalf("writeSessionKey: %v", err)
+	}
+
+	if got := f.sessionKey(); got != diskKey {
+		t.Fatalf("sessionKey() with empty f.key = %q, want disk key %q", got, diskKey)
+	}
+}
+
 func TestWriteSessionKeyTrimmedOnRead(t *testing.T) {
 	repo := t.TempDir()
 	if err := writeSessionKey(repo, "abc123\n"); err != nil {
