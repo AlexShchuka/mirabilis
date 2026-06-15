@@ -1,17 +1,17 @@
- ⊕         mirabilis        v1.3.0 · ● container up · ● harness on · ● proxy on 
+    │    ┌┬┐┬┬─┐┌─┐┌┐ ┬ ┬  ┬┌─┐ v1.3.0 · ● container up · ● harness on · ● proxy
+  ──○──  │││││├┬┘├─┤├┴┐││  │└─┐                                                 
+    │    ┴ ┴┴┴└─┴ ┴└─┘┴─┘  ┴└─┘                                                 
 ────────────────────────────────────────────────────────────────────────────────
-> Launch         │    │                                                         
-  Harness        │  ──○──                                                       
-  Telegram       │    │                                                         
+> Launch         │ mirabilis                                                    
+  Harness        │                                                              
+  Telegram       │ pick an action ←                                             
   VS Code        │                                                              
-  Reset          │ mirabilis                                                    
+  Reset          │                                                              
   Quit           │                                                              
-                 │ pick an action ←                                             
+                 │                                                              
 setup pipeline + │                                                              
 Claude in        │                                                              
 container        │                                                              
-                 │                                                              
-                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              
