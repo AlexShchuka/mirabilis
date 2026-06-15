@@ -107,21 +107,3 @@ func dotenvRead(repo, key string) (string, bool) {
 	}
 	return "", false
 }
-
-func dotenvWrite(repo, key, value string) error {
-	path := filepath.Join(repo, ".env")
-	var keep []string
-	if data, err := os.ReadFile(path); err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			if !strings.HasPrefix(line, key+"=") {
-				keep = append(keep, line)
-			}
-		}
-	}
-	out := strings.TrimRight(strings.Join(keep, "\n"), "\n")
-	if out != "" {
-		out += "\n"
-	}
-	out += key + "=" + value + "\n"
-	return os.WriteFile(path, []byte(out), 0o644)
-}

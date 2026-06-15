@@ -7,19 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"syscall"
-)
-
-var (
-	flockMu   sync.Mutex
-	flockFile *os.File
 )
 
 var errFlockHeld = errors.New("flock: held by another process")
 
-func lockPathFor(repo string) string {
-	return filepath.Join(repo, ".mirabilis", "mirabilis.lock")
+func serveLockPath(repo string) string {
+	return filepath.Join(repo, ".mirabilis", "serve.lock")
 }
 
 func tryFlock(lockPath string) (*os.File, error) {
@@ -38,28 +32,4 @@ func tryFlock(lockPath string) (*os.File, error) {
 		return nil, fmt.Errorf("flock: lock: %w", err)
 	}
 	return f, nil
-}
-
-func acquireFlock(repo string) error {
-	f, err := tryFlock(lockPathFor(repo))
-	if err != nil {
-		return err
-	}
-	setFlock(f)
-	return nil
-}
-
-func setFlock(f *os.File) {
-	flockMu.Lock()
-	defer flockMu.Unlock()
-	flockFile = f
-}
-
-func releaseFlock() {
-	flockMu.Lock()
-	defer flockMu.Unlock()
-	if flockFile != nil {
-		_ = flockFile.Close()
-		flockFile = nil
-	}
 }

@@ -132,6 +132,8 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 		return a.failToMenu(uistr.NoticeLaunchErrPrefix + err.Error())
 	}
 	a.pipe = p
+	a.busy = true
+	tick := a.startBusy()
 
 	rows := stepsToRows(pipeCmds)
 	scr := launchScreen(rows)
@@ -147,15 +149,7 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 	pipeCtx := a.ctx
 	go func() { _ = p.Run(pipeCtx) }()
 
-	return a, tea.Batch(rc, ic, pumpEvents(p.Events()))
-}
-
-func (a App) handlePromoted() (tea.Model, tea.Cmd) {
-	if !a.secondary {
-		return a, nil
-	}
-	a.promote()
-	return a.backToMenu("")
+	return a, tea.Batch(rc, ic, tick, pumpEvents(p.Events()))
 }
 
 func (a App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

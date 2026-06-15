@@ -207,9 +207,15 @@ func TestSetSizeClampsHeightWithOverflowAffordance(t *testing.T) {
 	if len(lines) > 4 {
 		t.Fatalf("clamped view has %d lines, want <= 4", len(lines))
 	}
-	last := lines[len(lines)-1]
-	if !strings.Contains(last, "more") {
-		t.Errorf("overflow affordance missing; last line = %q, want an \"+N more\" indicator", last)
+	found := false
+	for _, l := range lines {
+		if strings.Contains(l, "more") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("overflow affordance missing in:\n%s", view)
 	}
 }
 
@@ -220,7 +226,7 @@ func TestNoSizeRendersAllRows(t *testing.T) {
 	}
 	m := New(rows)
 	view := plain(m.View())
-	if got := len(strings.Split(view, "\n")); got != 8 {
-		t.Errorf("unsized view has %d lines, want 8 (no clamp without SetSize)", got)
+	if got := len(strings.Split(view, "\n")); got != 9 {
+		t.Errorf("unsized view has %d lines, want 9 (8 rows + 1 status line)", got)
 	}
 }

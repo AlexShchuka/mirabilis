@@ -82,7 +82,7 @@ linters:
       - path: "cmd/mirabilis/"
         linters:
           - forbidigo
-        text: "log\\.|fmt\\.Fprint|os\\.Stderr"
+        text: "log\\.|fmt\\.Fprint|os\\.Stderr|exec\\.Command"
       - path: "internal/hooks/"
         linters:
           - forbidigo

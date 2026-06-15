@@ -139,7 +139,7 @@ func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
 	f := newFakeFacade([]pipeline.Command{
 		terminalStep("attach", []string{"/bin/sh", "-c", "test -t 0 && test -t 1 && printf in-child-tty || printf in-child-no-tty"}),
 	})
-	a := app.New(context.Background(), f, false)
+	a := app.New(context.Background(), f)
 	p := tea.NewProgram(a, tea.WithInput(slave), tea.WithOutput(slave))
 
 	out := &lockedBuffer{}

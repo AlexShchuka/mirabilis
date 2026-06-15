@@ -11,9 +11,28 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
 
-func TestAttachCheckAlwaysFalse(t *testing.T) {
+func TestAttachCheckFalseWhenNotRunning(t *testing.T) {
 	t.Parallel()
-	s := &attachStep{d: newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), newFakeStore())}
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: false}, nil)
+	s := &attachStep{d: newTestDeps(t, exec.NewFake(), fakeDocker, newFakeStore())}
+	mustCheck(t, s, false)
+}
+
+func TestAttachCheckTrueWhenRunningAndClaudeAccessible(t *testing.T) {
+	t.Parallel()
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
+	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil)
+	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
+	mustCheck(t, s, true)
+}
+
+func TestAttachCheckFalseWhenClaudeNotAccessible(t *testing.T) {
+	t.Parallel()
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
+	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "", errors.New("not found"))
+	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
 	mustCheck(t, s, false)
 }
 
@@ -62,13 +81,13 @@ func TestAttachExecSharedHelper(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
 		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret\n", nil).
-		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "/tmp/p.md", nil)
+		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "", nil)
 	d := newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())
 	argv, env, err := AttachExec(t.Context(), d)
 	if err != nil {
 		t.Fatalf("AttachExec: %v", err)
 	}
-	want := sandbox.BuildAttachArgv("/tmp/p.md")
+	want := sandbox.BuildAttachArgv("/tmp/mirabilis-system-prompt.md")
 	if !slices.Equal(argv, want) {
 		t.Fatalf("argv = %v, want %v", argv, want)
 	}

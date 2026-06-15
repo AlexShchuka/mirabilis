@@ -218,22 +218,40 @@ func (m Model) ratio() float64 {
 }
 
 func (m Model) View() string {
-	lines := make([]string, 0, len(m.rows)+1)
+	lines := make([]string, 0, len(m.rows)+2)
 	if bar := m.progressView(); bar != "" {
 		lines = append(lines, bar)
 	}
 	for _, r := range m.rows {
 		line := " " + m.glyph(r) + " " + styles.NormTitle.Width(titleWidth).Render(r.Title)
-		if r.Detail != "" {
-			line += " " + styles.Hint.Render(r.Detail)
-		}
 		if m.width > 0 {
 			line = truncate(line, m.width)
 		}
 		lines = append(lines, line)
 	}
 	lines = m.clampHeight(lines)
+	lines = append(lines, m.activeDetailLine())
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) activeDetailLine() string {
+	for _, r := range m.rows {
+		if r.State == StateRunning || r.State == StateWaiting {
+			detail := r.Detail
+			if detail == "" {
+				detail = " "
+			}
+			w := m.width
+			if w <= 0 {
+				return styles.Hint.Render(detail)
+			}
+			return styles.Hint.Width(w).MaxWidth(w).Render(detail)
+		}
+	}
+	if m.width > 0 {
+		return styles.Hint.Width(m.width).Render(" ")
+	}
+	return " "
 }
 
 func (m Model) progressView() string {
@@ -255,10 +273,11 @@ func (m Model) progressView() string {
 }
 
 func (m Model) clampHeight(lines []string) []string {
-	if m.height <= 0 || len(lines) <= m.height {
+	budget := m.height - 1
+	if budget <= 0 || len(lines) <= budget {
 		return lines
 	}
-	keep := max(m.height-1, 1)
+	keep := max(budget-1, 1)
 	hidden := len(lines) - keep
 	out := lines[:keep]
 	overflow := uistr.StepOverflowPrefix + strconv.Itoa(hidden) + uistr.StepOverflowSuffix

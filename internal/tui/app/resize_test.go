@@ -38,7 +38,7 @@ func startPTYApp(t *testing.T, f *fakeFacade, rows, cols int) *ptyHarness {
 		t.Fatalf("pty.Setsize: %v", err)
 	}
 
-	a := app.New(context.Background(), f, false)
+	a := app.New(context.Background(), f)
 	p := tea.NewProgram(a, tea.WithInput(slave), tea.WithOutput(slave))
 
 	out := &lockedBuffer{}

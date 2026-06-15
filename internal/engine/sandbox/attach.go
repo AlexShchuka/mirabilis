@@ -1,19 +1,26 @@
-// Package sandbox manages the Docker dev-container lifecycle and exec attachment.
 package sandbox
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 )
 
-const defaultSystemPromptFile = "/opt/mirabilis/config/sandbox-context.md"
+const systemPromptOut = "/tmp/mirabilis-system-prompt.md"
 
-const systemPromptScript = `sbx=/opt/mirabilis/config/sandbox-context.md; out=/tmp/mirabilis-system-prompt.md
-nm="$HOME/.neuro-matrix/CLAUDE.md"
-if [ -f "$nm" ]; then cat "$sbx" "$nm" >"$out" && { printf %s "$out"; exit 0; }; fi
-printf %s "$sbx"`
+func contextContent() string {
+	var sb strings.Builder
+	sb.WriteString("storage(/workspace,durable). storage(~/.claude,durable). storage(/tmp,ephemeral).\n")
+	sb.WriteString("memory_root(~/.claude/memory). rules_root(~/.claude/rules).\n")
+	for _, cat := range config.MemoryCategories {
+		fmt.Fprintf(&sb, "memory_category(%s,%s).\n", cat.Name, cat.MemoryType)
+	}
+	sb.WriteString("rule: keep ~/.claude/rules/*.md only for genuine path-scoped per-file-type rules.\n")
+	return sb.String()
+}
 
 func BuildAttachArgv(systemPromptFile string) []string {
 	return []string{
@@ -27,13 +34,14 @@ func BuildAttachArgv(systemPromptFile string) []string {
 }
 
 func (s *Sandbox) SystemPromptFile(ctx context.Context) string {
-	out, err := exec.Run(ctx, s.runner, exec.Spec{
-		Argv: []string{"docker", "exec", ContainerName, "bash", "-lc", systemPromptScript},
+	base := contextContent()
+	script := fmt.Sprintf(
+		`printf %%s %q >%q; nm="$HOME/.neuro-matrix/CLAUDE.md"; if [ -f "$nm" ]; then cat "$nm" >>%q; fi`,
+		base, systemPromptOut, systemPromptOut,
+	)
+	_, _ = exec.Run(ctx, s.runner, exec.Spec{
+		Argv: []string{"docker", "exec", ContainerName, "bash", "-lc", script},
 		Dir:  s.repo,
 	})
-	out = strings.TrimSpace(out)
-	if err != nil || out == "" {
-		return defaultSystemPromptFile
-	}
-	return out
+	return systemPromptOut
 }

@@ -473,3 +473,48 @@ func TestLogPath(t *testing.T) {
 		t.Errorf("LogPath = %q, want %q", got, want)
 	}
 }
+
+func TestHeadroomMode(t *testing.T) {
+	t.Run("default is cache", func(t *testing.T) {
+		t.Setenv("HEADROOM_MODE", "")
+		if got := HeadroomMode(t.TempDir()); got != "cache" {
+			t.Errorf("HeadroomMode default = %q, want cache", got)
+		}
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		t.Setenv("HEADROOM_MODE", "token")
+		if got := HeadroomMode(t.TempDir()); got != "token" {
+			t.Errorf("HeadroomMode with HEADROOM_MODE=token = %q, want token", got)
+		}
+	})
+
+	t.Run("dotenv override", func(t *testing.T) {
+		t.Setenv("HEADROOM_MODE", "")
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, ".env"), "HEADROOM_MODE=token\n")
+		if got := HeadroomMode(dir); got != "token" {
+			t.Errorf("HeadroomMode with .env HEADROOM_MODE=token = %q, want token", got)
+		}
+	})
+
+	t.Run("dotenv takes precedence over env", func(t *testing.T) {
+		t.Setenv("HEADROOM_MODE", "cache")
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, ".env"), "HEADROOM_MODE=token\n")
+		if got := HeadroomMode(dir); got != "token" {
+			t.Errorf("HeadroomMode dotenv should take precedence, got %q, want token", got)
+		}
+	})
+
+	unknownCases := []string{"$(rm -rf /)", "cache; rm", "token\nmalicious", "turbo", "", " "}
+	for _, bad := range unknownCases {
+		bad := bad
+		t.Run("unknown value falls back to cache: "+bad, func(t *testing.T) {
+			t.Setenv("HEADROOM_MODE", bad)
+			if got := HeadroomMode(t.TempDir()); got != "cache" {
+				t.Errorf("HeadroomMode(%q) = %q, want cache (allowlist fallback)", bad, got)
+			}
+		})
+	}
+}

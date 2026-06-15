@@ -18,6 +18,19 @@ func newTelegramForTest(t *testing.T, store *fakeStore) *telegramStep {
 	return newTelegram(newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), store))
 }
 
+func newTelegramServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/getUpdates") {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"result":[{"channel_post":{"chat":{"id":-100777,"type":"channel"}}}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 func TestTelegramCheck(t *testing.T) {
 	t.Parallel()
 	t.Run("unconfigured", func(t *testing.T) {
@@ -27,10 +40,7 @@ func TestTelegramCheck(t *testing.T) {
 	t.Run("skip persisted", func(t *testing.T) {
 		t.Parallel()
 		s := newTelegramForTest(t, newFakeStore())
-		if err := dotenvWrite(s.d.Repo, telegramEnvKey, telegramSkip); err != nil {
-			t.Fatal(err)
-		}
-		mustCheck(t, s, true)
+		mustCheck(t, s, false)
 	})
 	t.Run("token without chat id", func(t *testing.T) {
 		t.Parallel()
@@ -50,7 +60,7 @@ func TestTelegramCheck(t *testing.T) {
 	})
 }
 
-func TestTelegramRunSkipPersists(t *testing.T) {
+func TestTelegramRunSkipNonTerminal(t *testing.T) {
 	t.Parallel()
 	s := newTelegramForTest(t, newFakeStore())
 	evs, err := runStep(t, s, func(any) pipeline.Result { return pipeline.Result{Value: "skip"} })
@@ -60,10 +70,7 @@ func TestTelegramRunSkipPersists(t *testing.T) {
 	if _, ok := waitingEvent(t, evs).Payload.(TelegramSetup); !ok {
 		t.Fatalf("payload = %T, want TelegramSetup", waitingEvent(t, evs).Payload)
 	}
-	if v, ok := dotenvRead(s.d.Repo, telegramEnvKey); !ok || v != telegramSkip {
-		t.Fatalf("TELEGRAM = %q ok=%v, want skip", v, ok)
-	}
-	mustCheck(t, s, true)
+	mustCheck(t, s, false)
 }
 
 func TestTelegramRunStoresTokenAndDetectsChat(t *testing.T) {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -52,8 +52,12 @@ func run(args []string) error {
 		fmt.Println(effectiveVersion())
 		return nil
 	case "-h", "-help", "--help", "help":
-		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  notify      host-side notification commands\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
+		fmt.Print("usage: mirabilis [command]\n\ncommands:\n  serve       run proxy and notify services (managed automatically by TUI)\n  provision   run a provisioning phase inside the container\n  hook        dispatch a git hook by name\n  notify      host-side notification commands\n\nflags:\n  --version   print the build version and exit\n  --help      print this message and exit\n")
 		return nil
+	case "serve":
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		defer stop()
+		return runServe(ctx, resolveRepo())
 	case "provision":
 		return runProvision(context.Background(), args[1:])
 	case "hook":
@@ -76,14 +80,14 @@ func run(args []string) error {
 func runTUI() error {
 	repo := resolveRepo()
 
-	owner := true
-	if err := acquireFlock(repo); err != nil {
-		if !errors.Is(err, errFlockHeld) {
-			return fmt.Errorf("init: %w", err)
-		}
-		owner = false
+	ensureServe(repo)
+	waitForSessionKey(repo, 2*time.Second, 50*time.Millisecond)
+
+	cleanup, err := registerClient(repo)
+	if err != nil {
+		return fmt.Errorf("init: %w", err)
 	}
-	defer releaseFlock()
+	defer cleanup()
 
 	f, err := newFacade(repo)
 	if err != nil {
@@ -100,45 +104,11 @@ func runTUI() error {
 
 	status.New(f.docker, f.obs).Start(ctx)
 
-	if owner {
-		startSession(ctx, f, repo, "")
-	}
-
-	a := app.New(ctx, f, !owner)
+	a := app.New(ctx, f)
 	p := tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx))
-
-	if !owner {
-		go promoteLoop(ctx, lockPathFor(repo), promoteInterval, f.obs.Logger("promote"), func(lock *os.File) {
-			setFlock(lock)
-			startSession(ctx, f, repo, promotedKey(f, repo))
-			p.Send(app.PromotedMsg())
-		})
-	}
 
 	_, err = p.Run()
 	return err
-}
-
-func startSession(ctx context.Context, f *facade, repo, key string) {
-	proxy := f.newProxy(key)
-	if err := writeSessionKey(repo, proxy.Key()); err != nil {
-		f.obs.Logger("authproxy").Error("session-key persist failed", "err", err)
-	}
-	go func() {
-		if err := proxy.Start(ctx); err != nil {
-			f.obs.Logger("authproxy").Error("listen failed", "err", err)
-		}
-	}()
-	go notify.Watch(ctx, notify.OutboxDir(repo), notify.NewTelegram(f.store, ""), f.obs, 0)
-}
-
-func promotedKey(f *facade, repo string) string {
-	key, err := readSessionKey(repo)
-	if err != nil || key == "" {
-		f.obs.Logger("authproxy").Error("session-key missing on promotion; generating fresh", "err", err)
-		return ""
-	}
-	return key
 }
 
 func runProvision(ctx context.Context, args []string) error {

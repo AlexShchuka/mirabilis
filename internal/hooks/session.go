@@ -10,12 +10,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
 )
 
 func SessionStart() error {
 	_, _ = io.ReadAll(os.Stdin)
+
+	if err := runScript(context.Background(), "gh auth setup-git"); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: gh auth setup-git: %v\n", err)
+	}
 
 	proxyCtx, proxyCancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer proxyCancel()
@@ -72,8 +77,8 @@ func startHeadroom(ctx context.Context, upstream string) bool {
 	if upstream != "" {
 		startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 	}
-	start := fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`,
-		filepath.Join(home(), headroomVenvRel))
+	start := fmt.Sprintf(`setsid nohup %q proxy --mode %q >"$HOME/.headroom-proxy.log" 2>&1 &`,
+		filepath.Join(home(), headroomVenvRel), config.HeadroomMode(repoRoot()))
 	startSpec := exec.Spec{Argv: []string{"bash", "-lc", start}, Env: startEnv}
 	if _, err := exec.Run(ctx, runner, startSpec); err != nil {
 		return false

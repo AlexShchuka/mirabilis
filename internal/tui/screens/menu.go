@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
@@ -33,9 +34,12 @@ func MenuItems() []frame.Item {
 }
 
 type Menu struct {
-	id      bus.NodeID
-	notice  string
-	errText string
+	id          bus.NodeID
+	notice      string
+	errText     string
+	width       int
+	height      int
+	chromeFrame int
 }
 
 func NewMenu(id bus.NodeID) Menu {
@@ -75,6 +79,10 @@ func (m Menu) Update(msg tea.Msg) (router.Screen, tea.Cmd) {
 		case "esc":
 			return m, quitCmd
 		}
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+	case bus.ChromeTick:
+		m.chromeFrame = msg.Frame
 	case bus.Envelope:
 		return m.Update(msg.Msg)
 	}
@@ -85,12 +93,33 @@ func quitCmd() tea.Msg {
 	return bus.MenuChosen{Action: ActionQuit}
 }
 
-func (m Menu) View() string {
-	lines := []string{
-		" " + styles.Title.Render(uistr.AppName),
-		"",
-		" " + styles.Hint.Render(uistr.WelcomeHint),
+func (m Menu) largeMark() string {
+	if a11y.ReducedMotion() {
+		return uistr.LogoLargeStatic
 	}
+	if m.chromeFrame%2 == 0 {
+		return uistr.LogoLargeFrameA
+	}
+	return uistr.LogoLargeFrameB
+}
+
+func (m Menu) showLargeMark() bool {
+	return m.width >= frame.NarrowWidth && m.height >= frame.ShortHeight
+}
+
+func (m Menu) View() string {
+	lines := []string{}
+	if m.showLargeMark() {
+		for _, l := range strings.Split(m.largeMark(), "\n") {
+			lines = append(lines, " "+styles.Spinner.Render(l))
+		}
+		lines = append(lines, "")
+	}
+	lines = append(lines,
+		" "+styles.Title.Render(uistr.AppName),
+		"",
+		" "+styles.Hint.Render(uistr.WelcomeHint),
+	)
 	if m.notice != "" && m.notice != m.errText {
 		lines = append(lines, "", " "+styles.Degraded.Render(m.notice))
 	}

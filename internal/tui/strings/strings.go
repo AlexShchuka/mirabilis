@@ -4,6 +4,12 @@ package strings
 const (
 	AppName = "mirabilis"
 
+	LogoSmallFrames = "⊕⊛※"
+
+	LogoLargeFrameA = "   │   \n ──⊙── \n   │   "
+	LogoLargeFrameB = " ╲   ╱ \n   ⊙   \n ╱   ╲ "
+	LogoLargeStatic = LogoLargeFrameB
+
 	GHAuthTitle         = "GitHub sign-in"
 	GHAuthLabelCode     = "  code:  "
 	GHAuthLabelURL      = "  URL:   "
@@ -54,8 +60,6 @@ const (
 	MenuDescTelegram = "bot notifications: token, optional"
 	MenuDescVSCode   = "open container root in VS Code"
 	MenuDescReset    = "container, image and volumes — permanent"
-
-	NoticeSecondary = "secondary — sandbox owned by another tab"
 
 	MenuHarnessOn      = "neuro-matrix: on"
 	MenuHarnessOff     = "neuro-matrix: off"

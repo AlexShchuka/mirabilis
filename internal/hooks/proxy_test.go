@@ -106,8 +106,8 @@ func TestEnsureProxyForSession_ProxyUnreachable_StartsHeadroomAndPolls(t *testin
 	if !strings.Contains(start, filepath.Join(home, ".headroom-venv/bin/headroom")) {
 		t.Errorf("start script = %q, want headroom venv bin path", start)
 	}
-	if !strings.Contains(start, `proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`) {
-		t.Errorf("start script = %q, want --mode cache and log redirect", start)
+	if !strings.Contains(start, `proxy --mode "cache" >"$HOME/.headroom-proxy.log" 2>&1 &`) {
+		t.Errorf("start script = %q, want --mode \"cache\" and log redirect", start)
 	}
 	startEnv := calls[1].Env
 	found := false
@@ -217,7 +217,9 @@ func TestSessionStart_UpstreamPresent_ProbesViaRunner(t *testing.T) {
 	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
 
-	fake := exec.NewFake().Expect(bashPrefix, "", nil)
+	fake := exec.NewFake().
+		Expect(bashPrefix, "", nil).
+		Expect(bashPrefix, "", nil)
 	setRunner(t, fake)
 
 	replaceStdin(t, "")
@@ -228,7 +230,12 @@ func TestSessionStart_UpstreamPresent_ProbesViaRunner(t *testing.T) {
 	}
 	_ = getOut()
 
-	if calls := fake.Calls(); len(calls) != 1 {
-		t.Errorf("runner calls = %d, want 1 probe from SessionStart", len(calls))
+	calls := fake.Calls()
+	if len(calls) != 2 {
+		t.Errorf("runner calls = %d, want 2 (gh auth setup-git + proxy probe)", len(calls))
+		return
+	}
+	if !strings.Contains(calls[0].Argv[2], "gh auth setup-git") {
+		t.Errorf("first call = %q, want gh auth setup-git", calls[0].Argv[2])
 	}
 }

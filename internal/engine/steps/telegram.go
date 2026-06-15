@@ -9,10 +9,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
 
-const (
-	telegramEnvKey = "TELEGRAM"
-	telegramSkip   = "skip"
-)
+const telegramSkip = "skip"
 
 type telegramStep struct {
 	d       Deps
@@ -36,9 +33,6 @@ func (s *telegramStep) Meta() pipeline.Meta {
 }
 
 func (s *telegramStep) Check(ctx context.Context) (bool, error) {
-	if v, ok := dotenvRead(s.d.Repo, telegramEnvKey); ok && v == telegramSkip {
-		return true, nil
-	}
 	if _, err := s.d.Store.Get(ctx, notify.TokenKey); err != nil {
 		return false, nil
 	}
@@ -57,7 +51,7 @@ func (s *telegramStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-
 		return fmt.Errorf("steps: telegram: expected string result, got %T", r.Value)
 	}
 	if token == telegramSkip {
-		return dotenvWrite(s.d.Repo, telegramEnvKey, telegramSkip)
+		return nil
 	}
 	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "saving token…"}
 	out <- pipeline.Event{Kind: pipeline.EvLine, Step: "telegram", Line: "detecting channel…"}

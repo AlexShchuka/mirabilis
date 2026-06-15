@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func sessionKeyPath(repo string) string {
@@ -32,4 +33,14 @@ func readSessionKey(repo string) (string, error) {
 		return "", fmt.Errorf("session-key: read: %w", err)
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func waitForSessionKey(repo string, timeout, poll time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if k, err := readSessionKey(repo); err == nil && k != "" {
+			return
+		}
+		time.Sleep(poll)
+	}
 }

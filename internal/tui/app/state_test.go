@@ -196,7 +196,7 @@ func (c *stateStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-cha
 
 func newStateApp(t *testing.T, f Facade) App {
 	t.Helper()
-	a := New(context.Background(), f, false)
+	a := New(context.Background(), f)
 	t.Cleanup(a.cancel)
 	return a
 }
@@ -1513,90 +1513,12 @@ func TestStatePipelineEventBranchesForward(t *testing.T) {
 	}
 }
 
-func newSecondaryApp(t *testing.T, f Facade) App {
-	t.Helper()
-	a := New(context.Background(), f, true)
-	t.Cleanup(a.cancel)
-	return a
-}
-
 func frameEnabled(a App, action string) bool {
 	return a.frame.Enabled(action)
 }
 
 func runningSnapshot() obs.Snapshot {
 	return obs.Snapshot{"container": {State: obs.StateOK, Detail: "up"}}
-}
-
-func TestStateSecondaryDisablesMutatingItems(t *testing.T) {
-	f := &stubFacade{}
-	a := newSecondaryApp(t, f)
-
-	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
-		if frameEnabled(a, action) {
-			t.Errorf("secondary: action %q enabled, want disabled", action)
-		}
-	}
-	for _, action := range []string{screens.ActionVSCode, screens.ActionQuit} {
-		if !frameEnabled(a, action) {
-			t.Errorf("secondary: action %q disabled, want enabled", action)
-		}
-	}
-	if got := menuNotice(t, a); got != uistr.NoticeSecondary {
-		t.Errorf("secondary notice = %q, want %q", got, uistr.NoticeSecondary)
-	}
-}
-
-func TestStateSecondaryNavSkipsDisabled(t *testing.T) {
-	f := &stubFacade{}
-	a := newSecondaryApp(t, f)
-
-	if got := frameSelected(t, a); got != screens.ActionVSCode {
-		t.Fatalf("initial secondary selection = %q, want vscode (mutating actions disabled)", got)
-	}
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
-	if got := frameSelected(t, a); got != screens.ActionQuit {
-		t.Errorf("after down: selection = %q, want quit (reset disabled)", got)
-	}
-}
-
-func TestStateSecondaryNoticeSurvivesBackToMenu(t *testing.T) {
-	f := &stubFacade{vscodeErr: errors.New("boom")}
-	a := newSecondaryApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeVSCodeErr+"boom" {
-		t.Fatalf("notice = %q, want vscode err", got)
-	}
-}
-
-func TestStatePromotionFlipsEnablementAndNotice(t *testing.T) {
-	f := &stubFacade{}
-	a := newSecondaryApp(t, f)
-
-	a, _ = step(t, a, promotedMsg{})
-
-	if a.secondary {
-		t.Fatal("still secondary after promotion")
-	}
-	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
-		if !frameEnabled(a, action) {
-			t.Errorf("after promotion: action %q disabled, want enabled", action)
-		}
-	}
-	if got := menuNotice(t, a); got != "" {
-		t.Errorf("notice = %q after promotion, want empty", got)
-	}
-}
-
-func TestStatePromotionNoopWhenOwner(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-	a, _ = step(t, a, promotedMsg{})
-	if a.secondary {
-		t.Fatal("owner became secondary")
-	}
 }
 
 func TestStateContainerStatusUpdatesFrame(t *testing.T) {
@@ -1679,5 +1601,22 @@ func TestStateCopyDoneErrorFeedbackRouted(t *testing.T) {
 	view := plainState(a.router.Top().View())
 	if !strings.Contains(view, uistr.GHAuthCopyFailed) {
 		t.Errorf("copyDone(err): ghauth view missing %q:\n%s", uistr.GHAuthCopyFailed, view)
+	}
+}
+
+func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
+	f := &stubFacade{steps: []pipeline.Command{&stateStep{
+		meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto},
+	}}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.busy {
+		t.Fatal("busy = false immediately after ActionLaunch, want true")
+	}
+
+	a = driveUntilDone(t, a)
+	if a.busy {
+		t.Fatal("busy = true after pipelineDoneMsg, want false")
 	}
 }
