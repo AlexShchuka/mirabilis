@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
 )
@@ -72,8 +73,8 @@ func startHeadroom(ctx context.Context, upstream string) bool {
 	if upstream != "" {
 		startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 	}
-	start := fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`,
-		filepath.Join(home(), headroomVenvRel))
+	start := fmt.Sprintf(`setsid nohup %q proxy --mode %s >"$HOME/.headroom-proxy.log" 2>&1 &`,
+		filepath.Join(home(), headroomVenvRel), config.HeadroomMode(repoRoot()))
 	startSpec := exec.Spec{Argv: []string{"bash", "-lc", start}, Env: startEnv}
 	if _, err := exec.Run(ctx, runner, startSpec); err != nil {
 		return false

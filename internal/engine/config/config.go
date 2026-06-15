@@ -162,6 +162,27 @@ func LocalLLMEffectiveMaxTokens() int {
 	return LocalLLMMaxTokens
 }
 
+const defaultHeadroomMode = "cache"
+
+func HeadroomMode(repo string) string {
+	if v, ok := envRead(repo, "HEADROOM_MODE"); ok && v != "" {
+		return allowedMode(v)
+	}
+	if v := os.Getenv("HEADROOM_MODE"); v != "" {
+		return allowedMode(v)
+	}
+	return defaultHeadroomMode
+}
+
+func allowedMode(v string) string {
+	switch v {
+	case "cache", "token":
+		return v
+	default:
+		return defaultHeadroomMode
+	}
+}
+
 func HeadroomBaseURL() string {
 	return "http://127.0.0.1:" + strconv.Itoa(HeadroomPort)
 }

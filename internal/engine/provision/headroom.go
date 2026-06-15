@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 )
@@ -63,8 +64,8 @@ func (s *headroomStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-c
 		if upstream != "" {
 			startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 		}
-		startScript := fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`,
-			s.d.headroomBin())
+		startScript := fmt.Sprintf(`setsid nohup %q proxy --mode %s >"$HOME/.headroom-proxy.log" 2>&1 &`,
+			s.d.headroomBin(), config.HeadroomMode(s.d.Repo))
 		for ev := range s.d.Runner.Stream(ctx, exec.Spec{Argv: []string{"bash", "-lc", startScript}, Env: startEnv}) {
 			pipeline.Forward("headroom", out, ev)
 			if ev.Kind == exec.KindExited {
