@@ -31,6 +31,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git jq less sudo tini \
       ripgrep unzip tzdata \
+      gcc libc6-dev \
       python3 python3-venv python3-pip
 
 ARG RTK_VERSION=v0.42.3
