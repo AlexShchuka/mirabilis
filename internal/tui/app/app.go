@@ -99,8 +99,6 @@ func (a *App) handleChromeTick(msg chromeTickMsg) (tea.Model, tea.Cmd) {
 	}
 	a.chromeFrame++
 	a.frame.SetChrome(a.chromeFrame)
-	ct := bus.ChromeTick{Frame: a.chromeFrame}
-	a.router, _ = a.router.Update(bus.Envelope{Msg: ct})
 	return a, startChromeTick(a.chromeGen)
 }
 
