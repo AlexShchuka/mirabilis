@@ -69,8 +69,8 @@ func TestSystemPromptFile(t *testing.T) {
 		if len(argv) != 6 || !slices.Equal(argv[:5], wantPrefix) {
 			t.Fatalf("argv = %v", argv)
 		}
-		if !strings.Contains(argv[5], "sandbox-context.md") {
-			t.Fatalf("script missing: %q", argv[5])
+		if !strings.Contains(argv[5], "memory_category") {
+			t.Fatalf("script missing generated context: %q", argv[5])
 		}
 	})
 
@@ -78,7 +78,7 @@ func TestSystemPromptFile(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().Expect([]string{"docker", "exec"}, "", errors.New("container down"))
 		s := New(fake, NewFakeDocker(), repo)
-		if got := s.SystemPromptFile(ctx); got != "/opt/mirabilis/config/sandbox-context.md" {
+		if got := s.SystemPromptFile(ctx); got != "/tmp/mirabilis-system-prompt.md" {
 			t.Fatalf("SystemPromptFile = %q", got)
 		}
 	})
@@ -87,7 +87,7 @@ func TestSystemPromptFile(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().Expect([]string{"docker", "exec"}, "", nil)
 		s := New(fake, NewFakeDocker(), repo)
-		if got := s.SystemPromptFile(ctx); got != "/opt/mirabilis/config/sandbox-context.md" {
+		if got := s.SystemPromptFile(ctx); got != "/tmp/mirabilis-system-prompt.md" {
 			t.Fatalf("SystemPromptFile = %q", got)
 		}
 	})

@@ -18,6 +18,10 @@ import (
 func SessionStart() error {
 	_, _ = io.ReadAll(os.Stdin)
 
+	if err := runScript(context.Background(), "gh auth setup-git"); err != nil {
+		fmt.Fprintf(os.Stderr, "[hook] WARN: gh auth setup-git: %v\n", err)
+	}
+
 	proxyCtx, proxyCancel := context.WithTimeout(context.Background(), 75*time.Second)
 	defer proxyCancel()
 	ensureProxyForSession(proxyCtx)
