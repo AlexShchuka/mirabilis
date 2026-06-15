@@ -116,6 +116,7 @@ type MCPEntry struct {
 	Transport string   `json:"transport"`
 	URL       string   `json:"url,omitempty"`
 	Args      []string `json:"args,omitempty"`
+	Shrink    bool     `json:"shrink,omitempty"`
 }
 
 func ReadMCPCatalog(repo string) ([]MCPEntry, error) {

@@ -161,3 +161,22 @@ func TestAttachRunCancelled(t *testing.T) {
 		t.Fatalf("err = %v, want ErrCancelled", err)
 	}
 }
+
+// TestAttachSystemPromptWriteFailFast locks INV-FAILFAST/INV-NOSWALLOW: when the
+// SystemPromptFile write fails inside the container, AttachExec must surface the
+// error — it must NOT swallow it and proceed with a stale prompt path.
+func TestAttachSystemPromptWriteFailFast(t *testing.T) {
+	t.Parallel()
+	writeErr := errors.New("container exec: permission denied")
+	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret\n", nil).
+		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "", writeErr)
+	d := newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())
+	_, _, err := AttachExec(t.Context(), d)
+	if err == nil {
+		t.Fatal("AttachExec returned nil error when SystemPromptFile write failed (INV-FAILFAST violated)")
+	}
+	if !errors.Is(err, writeErr) {
+		t.Fatalf("AttachExec error = %v, want wrapping write error (INV-FAILFAST)", err)
+	}
+}

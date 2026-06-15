@@ -3,6 +3,7 @@ package pipeline_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -943,5 +944,199 @@ func TestTerminalStepStillSkipsWhenCheckSatisfied(t *testing.T) {
 	}
 	if _, ok := findEvent(evs, "terminal", pipeline.EvStepStarted); ok {
 		t.Fatal("Terminal step emitted EvStepStarted despite satisfied check (INV-2 violated)")
+	}
+}
+
+// TestParallelAutoStepsRunConcurrently locks INV-PAR: two independent Auto steps MUST
+// be able to run concurrently (the slower one must not block the faster one).
+func TestParallelAutoStepsRunConcurrently(t *testing.T) {
+	var aStarted, bStarted sync.WaitGroup
+	aStarted.Add(1)
+	bStarted.Add(1)
+	aRelease := make(chan struct{})
+
+	stepA := &fakeStep{
+		meta: pipeline.Meta{Name: "a", Parallel: true},
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+			aStarted.Done()
+			<-aRelease
+			return nil
+		},
+	}
+	stepB := &fakeStep{
+		meta: pipeline.Meta{Name: "b", Parallel: true},
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+			bStarted.Done()
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, stepA, stepB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errCh := make(chan error, 1)
+	go func() { errCh <- p.Run(context.Background()) }()
+
+	bDone := make(chan struct{})
+	go func() {
+		bStarted.Wait()
+		close(bDone)
+	}()
+	aStarted.Wait()
+
+	select {
+	case <-bDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stepB did not start while stepA was still running (INV-PAR violated — steps not parallel)")
+	}
+	close(aRelease)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("pipeline did not finish")
+	}
+}
+
+// TestInteractiveStepsNotConcurrent locks INV-RESUME: two Interactive steps must NOT
+// run at the same time — only one Resume slot exists.
+func TestInteractiveStepsNotConcurrent(t *testing.T) {
+	var concurrent int32
+	interactiveStep := func(name string) *fakeStep {
+		return &fakeStep{
+			meta: pipeline.Meta{Name: name, Kind: pipeline.Interactive},
+			runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+				n := atomic.AddInt32(&concurrent, 1)
+				if n > 1 {
+					return fmt.Errorf("concurrent interactive steps detected (INV-RESUME violated): %d concurrent", n)
+				}
+				out <- pipeline.Event{Kind: pipeline.EvWaiting, Payload: "prompt"}
+				<-in
+				atomic.AddInt32(&concurrent, -1)
+				return nil
+			},
+		}
+	}
+	p, err := pipeline.New(nil, interactiveStep("ask1"), interactiveStep("ask2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs, err := runPipeline(t, context.Background(), p, func(ev pipeline.Event) {
+		if ev.Kind == pipeline.EvWaiting {
+			if rerr := p.Resume(ev.Step, pipeline.Result{Value: "v"}); rerr != nil {
+				t.Errorf("resume %s: %v", ev.Step, rerr)
+			}
+		}
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	_ = evs
+}
+
+// TestAutoDepHonored locks INV-DEPS inside the parallel batch: a dep inside the batch
+// must finish before its dependent is allowed to start.
+func TestAutoDepHonored(t *testing.T) {
+	var order []string
+	var mu sync.Mutex
+	record := func(name string) {
+		mu.Lock()
+		order = append(order, name)
+		mu.Unlock()
+	}
+	stepA := &fakeStep{
+		meta: pipeline.Meta{Name: "a", Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			record("a")
+			return nil
+		},
+	}
+	stepB := &fakeStep{
+		meta: pipeline.Meta{Name: "b", Deps: []string{"a"}, Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			record("b")
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, stepA, stepB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPipeline(t, context.Background(), p, nil); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(order) != 2 || order[0] != "a" || order[1] != "b" {
+		t.Fatalf("order = %v, want [a b] (INV-DEPS violated)", order)
+	}
+}
+
+// TestMandatoryBatchFailFast locks INV-FAILFAST inside the parallel batch: a Mandatory
+// step failure inside the batch must surface as an error (not be swallowed).
+func TestMandatoryBatchFailFast(t *testing.T) {
+	errBoom := errors.New("boom")
+	stepA := &fakeStep{
+		meta: pipeline.Meta{Name: "a", Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			return errBoom
+		},
+	}
+	stepB := &fakeStep{
+		meta: pipeline.Meta{Name: "b", Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, stepA, stepB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs, err := runPipeline(t, context.Background(), p, nil)
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("run error = %v, want boom (INV-FAILFAST: mandatory batch failure must surface)", err)
+	}
+	if last := lastEvent(t, evs); !last.Failed {
+		t.Fatal("pipeline done Failed = false, want true (INV-FAILFAST)")
+	}
+}
+
+// TestOptionalBatchDegrade locks INV-DEGRADE (fault-injected): an Optional step failing
+// inside the parallel batch must emit EvSkipped and the batch proceeds.
+func TestOptionalBatchDegrade(t *testing.T) {
+	errBoom := errors.New("boom")
+	rec := &recorder{}
+	optStep := &fakeStep{
+		meta: pipeline.Meta{Name: "opt", Optional: true, Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			return errBoom
+		},
+	}
+	otherStep := &fakeStep{
+		meta: pipeline.Meta{Name: "other", Parallel: true},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			rec.add("other")
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, optStep, otherStep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs, err := runPipeline(t, context.Background(), p, nil)
+	if err != nil {
+		t.Fatalf("run error = %v, want nil (INV-DEGRADE: optional failure must not halt pipeline)", err)
+	}
+	skipped, ok := findEvent(evs, "opt", pipeline.EvSkipped)
+	if !ok || !errors.Is(skipped.Err, errBoom) {
+		t.Fatalf("opt skipped = %+v ok=%v, want EvSkipped with boom (INV-DEGRADE)", skipped, ok)
+	}
+	if got := rec.names(); len(got) != 1 || got[0] != "other" {
+		t.Fatalf("ran %v, want [other] (INV-DEGRADE: pipeline proceeded after optional failure)", got)
+	}
+	if last := lastEvent(t, evs); last.Failed {
+		t.Fatal("pipeline done Failed = true, want false (INV-DEGRADE)")
 	}
 }

@@ -226,7 +226,38 @@ func (m Model) smallGlyph() string {
 func (m Model) headerView() string {
 	glyph := m.smallGlyph()
 	glyphW := utf8.RuneCountInString(glyph)
-	left := " " + styles.Spinner.Render(glyph) + strings.Repeat(" ", max(2-glyphW, 0)) + styles.Header.Render(m.title)
+	leftZone := " " + styles.Spinner.Render(glyph) + strings.Repeat(" ", max(2-glyphW, 0))
+	centerZone := styles.SelTitle.Render(m.title)
+	rightZone := m.headerRight()
+	if rightZone != "" {
+		rightZone += " "
+	}
+
+	leftW := lipgloss.Width(leftZone)
+	centerW := lipgloss.Width(centerZone)
+	rightW := lipgloss.Width(rightZone)
+	total := leftW + centerW + rightW
+
+	row := ""
+	switch {
+	case total <= m.width:
+		gap := max(m.width-leftW-centerW-rightW, 1)
+		gapHalf := gap / 2
+		row = leftZone + strings.Repeat(" ", gapHalf) + centerZone + strings.Repeat(" ", gap-gapHalf) + rightZone
+	case leftW+centerW+rightW > m.width && centerW+rightW <= m.width:
+		row = centerZone + strings.Repeat(" ", max(m.width-centerW-rightW, 1)) + rightZone
+	case centerW+rightW > m.width && rightW <= m.width:
+		row = strings.Repeat(" ", max(m.width-rightW, 0)) + rightZone
+	default:
+		row = rightZone
+	}
+	row = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+	w := max(m.width, 0)
+	sep := styles.Off.Render(strings.Repeat("─", w))
+	return row + "\n" + sep
+}
+
+func (m Model) headerRight() string {
 	right := ""
 	if m.busy != "" {
 		right = styles.Spinner.Render(m.busy)
@@ -243,14 +274,7 @@ func (m Model) headerView() string {
 		}
 		right += sv
 	}
-	if right != "" {
-		right += " "
-	}
-	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	row := lipgloss.NewStyle().MaxWidth(m.width).Render(left + strings.Repeat(" ", gap) + right)
-	w := max(m.width, 0)
-	sep := styles.Off.Render(strings.Repeat("─", w))
-	return row + "\n" + sep
+	return right
 }
 
 func (m Model) menuView(h int) string {

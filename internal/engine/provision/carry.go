@@ -32,6 +32,7 @@ func carryCreate(d Deps) []pipeline.Command {
 		&gitIdentityStep{d: d},
 		&hudStep{d: d},
 		&mcpStep{d: d},
+		&caveShrinkStep{d: d},
 		&rtkStep{d: d},
 		&rtkConfigStep{d: d},
 	}
@@ -55,6 +56,7 @@ func carryMeta(name, title string) pipeline.Meta {
 		Title:    title,
 		Optional: true,
 		Kind:     pipeline.Auto,
+		Parallel: true,
 		Timeout:  carryTimeout,
 	}
 }

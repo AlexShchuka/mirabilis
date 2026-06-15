@@ -79,31 +79,124 @@ func (p *Pipeline) Run(ctx context.Context) error {
 
 	states := make(map[string]stepState, len(p.steps))
 	var firstErr error
-	for _, s := range p.steps {
+	i := 0
+	for i < len(p.steps) {
 		if ctx.Err() != nil {
 			p.emit(Event{Kind: EvPipelineDone, Failed: true})
 			return ctx.Err()
 		}
+		s := p.steps[i]
 		m := s.Meta()
 		if dep, blocked := failedDep(m, states); blocked {
 			states[m.Name] = stateSkipped
 			p.log.Info("step skipped", "step", m.Name, "failed_dep", dep)
 			p.emit(Event{Kind: EvSkipped, Step: m.Name, Line: "dependency failed: " + dep})
+			i++
 			continue
 		}
-		state, err := p.runStep(ctx, s, m)
-		states[m.Name] = state
-		if state == stateFailed && firstErr == nil {
-			firstErr = fmt.Errorf("pipeline: step %q: %w", m.Name, err)
+		if m.Kind != Auto || !m.Parallel {
+			state, err := p.runStep(ctx, s, m)
+			states[m.Name] = state
+			if state == stateFailed && firstErr == nil {
+				firstErr = fmt.Errorf("pipeline: step %q: %w", m.Name, err)
+			}
+			i++
+			continue
 		}
-		if ctx.Err() != nil {
-			p.emit(Event{Kind: EvPipelineDone, Failed: true})
-			return ctx.Err()
+		batch := p.collectAutoBatch(i, states)
+		if len(batch) == 0 {
+			state, err := p.runStep(ctx, s, m)
+			states[m.Name] = state
+			if state == stateFailed && firstErr == nil {
+				firstErr = fmt.Errorf("pipeline: step %q: %w", m.Name, err)
+			}
+			i++
+			continue
 		}
+		batchStates, batchErrs := p.runAutoBatch(ctx, batch, states)
+		for k, v := range batchStates {
+			states[k] = v
+		}
+		for name, err := range batchErrs {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("pipeline: step %q: %w", name, err)
+			}
+		}
+		i += len(batch)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		p.emit(Event{Kind: EvPipelineDone, Failed: true})
+		p.log.Info("pipeline done", "failed", true)
+		return ctxErr
 	}
 	p.emit(Event{Kind: EvPipelineDone, Failed: firstErr != nil})
 	p.log.Info("pipeline done", "failed", firstErr != nil)
 	return firstErr
+}
+
+func (p *Pipeline) collectAutoBatch(start int, states map[string]stepState) []int {
+	var batch []int
+	batchNames := make(map[string]bool)
+	for i := start; i < len(p.steps); i++ {
+		m := p.steps[i].Meta()
+		if m.Kind != Auto || !m.Parallel {
+			break
+		}
+		if _, blocked := failedDep(m, states); blocked {
+			break
+		}
+		crossDep := false
+		for _, dep := range m.Deps {
+			if batchNames[dep] {
+				crossDep = true
+				break
+			}
+		}
+		if crossDep {
+			break
+		}
+		batch = append(batch, i)
+		batchNames[m.Name] = true
+	}
+	return batch
+}
+
+type autoBatchResult struct {
+	name  string
+	state stepState
+	err   error
+}
+
+func (p *Pipeline) runAutoBatch(ctx context.Context, indices []int, states map[string]stepState) (map[string]stepState, map[string]error) {
+	results := make(chan autoBatchResult, len(indices))
+	var wg sync.WaitGroup
+	for _, idx := range indices {
+		s := p.steps[idx]
+		m := s.Meta()
+		wg.Add(1)
+		go func(s Command, m Meta) {
+			defer wg.Done()
+			if ctx.Err() != nil {
+				results <- autoBatchResult{name: m.Name, state: stateFailed, err: ctx.Err()}
+				return
+			}
+			state, err := p.runStep(ctx, s, m)
+			results <- autoBatchResult{name: m.Name, state: state, err: err}
+		}(s, m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	outStates := make(map[string]stepState, len(indices))
+	outErrs := make(map[string]error)
+	for r := range results {
+		outStates[r.name] = r.state
+		if r.state == stateFailed {
+			outErrs[r.name] = r.err
+		}
+	}
+	return outStates, outErrs
 }
 
 func (p *Pipeline) Resume(step string, r Result) error {

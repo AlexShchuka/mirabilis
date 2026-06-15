@@ -53,11 +53,15 @@ func TestSystemPromptFile(t *testing.T) {
 	ctx := context.Background()
 	repo := t.TempDir()
 
-	t.Run("always returns systemPromptOut", func(t *testing.T) {
+	t.Run("returns path on success", func(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().Expect([]string{"docker", "exec"}, "", nil)
 		s := New(fake, NewFakeDocker(), repo)
-		if got := s.SystemPromptFile(ctx); got != "/tmp/mirabilis-system-prompt.md" {
+		got, err := s.SystemPromptFile(ctx)
+		if err != nil {
+			t.Fatalf("SystemPromptFile error: %v", err)
+		}
+		if got != "/tmp/mirabilis-system-prompt.md" {
 			t.Fatalf("SystemPromptFile = %q", got)
 		}
 		calls := fake.Calls()
@@ -74,15 +78,20 @@ func TestSystemPromptFile(t *testing.T) {
 		}
 	})
 
-	t.Run("always returns systemPromptOut on exec error", func(t *testing.T) {
+	t.Run("surfaces exec error (INV-FAILFAST)", func(t *testing.T) {
 		t.Parallel()
-		fake := exec.NewFake().Expect([]string{"docker", "exec"}, "", errors.New("container down"))
+		execErr := errors.New("container down")
+		fake := exec.NewFake().Expect([]string{"docker", "exec"}, "", execErr)
 		s := New(fake, NewFakeDocker(), repo)
-		if got := s.SystemPromptFile(ctx); got != "/tmp/mirabilis-system-prompt.md" {
-			t.Fatalf("SystemPromptFile = %q, want systemPromptOut path", got)
+		_, err := s.SystemPromptFile(ctx)
+		if err == nil {
+			t.Fatal("SystemPromptFile returned nil error on exec failure (INV-FAILFAST violated: error must not be swallowed)")
+		}
+		if !errors.Is(err, execErr) {
+			t.Fatalf("SystemPromptFile error = %v, want wrapping %v", err, execErr)
 		}
 		if len(fake.Calls()) != 1 {
-			t.Fatalf("expected exec called once even on error, got %d calls", len(fake.Calls()))
+			t.Fatalf("expected exec called once, got %d calls", len(fake.Calls()))
 		}
 	})
 }

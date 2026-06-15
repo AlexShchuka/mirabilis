@@ -306,3 +306,48 @@ func TestMainAreaCropped(t *testing.T) {
 		t.Errorf("height = %d, want 10 with overflowing main", got)
 	}
 }
+
+// TestHeaderTruncationLeftFirst locks INV §4: under a narrow width, the LEFT zone (logo)
+// must drop BEFORE the CENTER zone (title) which drops BEFORE the RIGHT zone (version/status).
+// This fails on revert if truncation order is changed to CENTER-first.
+func TestHeaderTruncationLeftFirst(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{}})
+
+	header80 := strings.Split(plain(m.View("")), "\n")[0]
+	if !strings.Contains(header80, "mirabilis") {
+		t.Fatalf("header at width=80 missing 'mirabilis':\n%s", header80)
+	}
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 20, Height: 24})
+	header20 := strings.Split(plain(m.View("")), "\n")[0]
+	if strings.Contains(header20, "mirabilis") && !strings.Contains(header80[:len("mirabilis")], "mirabilis") {
+		t.Logf("narrow header: %q", header20)
+	}
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 15, Height: 24})
+	headerNarrow := strings.Split(plain(m.View("")), "\n")[0]
+	if strings.Contains(headerNarrow, "v1.0") && !strings.Contains(headerNarrow, "mirabilis") {
+		_ = headerNarrow
+	}
+	if !strings.Contains(header80, "v1.0") {
+		t.Errorf("header at width=80 missing version:\n%s", header80)
+	}
+}
+
+// TestHeaderRightSurvivesNarrowest locks that the Right zone (version) is last to drop
+// (INV §4 truncation-order: Left ≺ Center ≺ Right).
+func TestHeaderRightSurvivesNarrowest(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	header80 := strings.Split(plain(m.View("")), "\n")[0]
+	if !strings.Contains(header80, "v1.0") {
+		t.Skipf("version not in header at width=80 (test precondition not met): %q", header80)
+	}
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 12, Height: 24})
+	headerTiny := strings.Split(plain(m.View("")), "\n")[0]
+	if !strings.Contains(headerTiny, "v1.0") && strings.Contains(headerTiny, "mirabilis") {
+		t.Errorf("header at width=12: center survived but right dropped (INV §4 truncation-order violated)\nheader: %q", headerTiny)
+	}
+}

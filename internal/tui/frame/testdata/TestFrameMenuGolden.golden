@@ -1,8 +1,8 @@
- ⊕ mirabilis                v1.3.0 · ● container up · ● harness on · ● proxy on 
+ ⊕         mirabilis        v1.3.0 · ● container up · ● harness on · ● proxy on 
 ────────────────────────────────────────────────────────────────────────────────
-> Launch         │  ╲   ╱                                                       
-  Harness        │    ⊙                                                         
-  Telegram       │  ╱   ╲                                                       
+> Launch         │    │                                                         
+  Harness        │  ──○──                                                       
+  Telegram       │    │                                                         
   VS Code        │                                                              
   Reset          │ mirabilis                                                    
   Quit           │                                                              
