@@ -19,12 +19,24 @@ func TestLaunchRegistry(t *testing.T) {
 		timeout  time.Duration
 		retry    pipeline.RetryPolicy
 		optional bool
+		parallel bool
 	}{
 		{name: "preflight", kind: pipeline.Auto, timeout: 90 * time.Second},
 		{name: "claude-auth", deps: []string{"preflight"}, kind: pipeline.Terminal},
 		{name: "config", kind: pipeline.Interactive},
 		{name: "telegram", deps: []string{"config"}, kind: pipeline.Interactive, optional: true},
-		{name: "image", deps: []string{"preflight", "config"}, kind: pipeline.Auto, timeout: 15 * time.Minute},
+		{
+			name: "pull-build", deps: []string{"preflight"}, kind: pipeline.Auto,
+			timeout: 15 * time.Minute, parallel: true,
+		},
+		{
+			name: "pull-runtime", deps: []string{"preflight"}, kind: pipeline.Auto,
+			timeout: 15 * time.Minute, parallel: true,
+		},
+		{
+			name: "image", deps: []string{"preflight", "config", "pull-build", "pull-runtime"},
+			kind: pipeline.Auto, timeout: 15 * time.Minute,
+		},
 		{
 			name: "container", deps: []string{"image"}, kind: pipeline.Auto, timeout: 3 * time.Minute,
 			retry: pipeline.RetryPolicy{Attempts: 2, Delay: 2 * time.Second},
@@ -75,6 +87,9 @@ func TestLaunchRegistry(t *testing.T) {
 		}
 		if m.Optional != w.optional {
 			t.Errorf("%s: optional = %v, want %v", w.name, m.Optional, w.optional)
+		}
+		if m.Parallel != w.parallel {
+			t.Errorf("%s: parallel = %v, want %v", w.name, m.Parallel, w.parallel)
 		}
 		if m.Title == "" {
 			t.Errorf("%s: empty title", w.name)

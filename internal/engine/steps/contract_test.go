@@ -49,6 +49,20 @@ func TestLaunchContract(t *testing.T) {
 			},
 			resolve: func(any) pipeline.Result { return pipeline.Result{Value: "12345:token"} },
 		},
+		"pull-build": {
+			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
+				f.Expect([]string{"docker", "image", "inspect", sandbox.BaseImageBuild}, "", errors.New("not found")).
+					Expect([]string{"docker", "pull", sandbox.BaseImageBuild}, "", nil).
+					Expect([]string{"docker", "image", "inspect", sandbox.BaseImageBuild}, "", nil)
+			},
+		},
+		"pull-runtime": {
+			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
+				f.Expect([]string{"docker", "image", "inspect", sandbox.BaseImageRuntime}, "", errors.New("not found")).
+					Expect([]string{"docker", "pull", sandbox.BaseImageRuntime}, "", nil).
+					Expect([]string{"docker", "image", "inspect", sandbox.BaseImageRuntime}, "", nil)
+			},
+		},
 		"image": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, dk *sandbox.FakeDocker, _ pipeline.Command) {
 				dk.StubInspect(sandbox.Container{}, nil).

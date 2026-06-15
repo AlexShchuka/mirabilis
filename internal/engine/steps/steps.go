@@ -51,6 +51,8 @@ func Launch(d Deps) []pipeline.Command {
 		&claudeAuthStep{d: d},
 		newConfig(d),
 		newTelegram(d),
+		newPullBuild(d),
+		newPullRuntime(d),
 		&imageStep{d: d},
 		newContainer(d),
 		newProvision(d, phaseCreate),

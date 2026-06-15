@@ -254,3 +254,44 @@ func TestRunningAndStale(t *testing.T) {
 		}
 	})
 }
+
+func TestImagePresent(t *testing.T) {
+	t.Parallel()
+	t.Run("present", func(t *testing.T) {
+		t.Parallel()
+		fake := exec.NewFake().
+			Expect([]string{"docker", "image", "inspect", BaseImageBuild}, "", nil)
+		s := New(fake, NewFakeDocker(), t.TempDir())
+		if !s.ImagePresent(context.Background(), BaseImageBuild) {
+			t.Error("ImagePresent = false, want true")
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		t.Parallel()
+		fake := exec.NewFake().
+			Expect([]string{"docker", "image", "inspect", BaseImageBuild}, "", errors.New("not found"))
+		s := New(fake, NewFakeDocker(), t.TempDir())
+		if s.ImagePresent(context.Background(), BaseImageBuild) {
+			t.Error("ImagePresent = true, want false")
+		}
+	})
+}
+
+func TestPullImage(t *testing.T) {
+	t.Parallel()
+	fake := exec.NewFake().
+		Expect([]string{"docker", "pull", BaseImageBuild}, "Pulling from library/golang\n", nil)
+	s := New(fake, NewFakeDocker(), t.TempDir())
+	if err := drain(s.PullImage(context.Background(), BaseImageBuild)); err != nil {
+		t.Fatalf("PullImage: %v", err)
+	}
+	calls := fake.Calls()
+	if len(calls) != 1 {
+		t.Fatalf("got %d calls, want 1", len(calls))
+	}
+	want := []string{"docker", "pull", BaseImageBuild}
+	if !slices.Equal(calls[0].Argv, want) {
+		t.Fatalf("argv = %v, want %v", calls[0].Argv, want)
+	}
+}
