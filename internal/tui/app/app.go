@@ -39,7 +39,7 @@ type Facade interface {
 
 var execRunner = tea.Exec
 
-const chromePeriod = 100 * time.Millisecond
+const chromePeriod = 200 * time.Millisecond
 
 type chromeTickMsg struct {
 	gen int

@@ -1,16 +1,16 @@
- ⊕         mirabilis        v1.3.0 · ● container up · ● harness on · ● proxy on 
+    │    ┌┬┐┬┬─┐┌─┐┌┐ ┬ ┬  ┬┌─┐ v1.3.0 · ● container up · ● harness on · ● proxy
+  ──○──  │││││├┬┘├─┤├┴┐││  │└─┐                                                 
+    │    ┴ ┴┴┴└─┴ ┴└─┘┴─┘  ┴└─┘                                                 
 ────────────────────────────────────────────────────────────────────────────────
-> Launch         │    │                                                         
-  Harness        │  ──○──                                                       
-  VS Code        │    │                                                         
+> Launch         │ mirabilis                                                    
+  Harness        │                                                              
+  VS Code        │ pick an action ←                                             
   Reset          │                                                              
-  Quit           │ mirabilis                                                    
+  Quit           │                                                              
                  │                                                              
-setup pipeline + │ pick an action ←                                             
+setup pipeline + │                                                              
 Claude in        │                                                              
 container        │                                                              
-                 │                                                              
-                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              
