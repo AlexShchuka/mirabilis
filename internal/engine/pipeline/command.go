@@ -32,6 +32,7 @@ type Meta struct {
 	Timeout  time.Duration
 	Kind     Kind
 	Optional bool
+	Parallel bool
 }
 
 type Result struct {

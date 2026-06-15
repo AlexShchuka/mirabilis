@@ -68,7 +68,11 @@ func AttachExec(ctx context.Context, d Deps) (argv, env []string, err error) {
 	if terr != nil || token == "" {
 		return nil, nil, errors.New("GitHub token is not available — sign in with gh auth login first")
 	}
-	argv = sandbox.BuildAttachArgv(d.Sandbox.SystemPromptFile(ctx))
+	spf, serr := d.Sandbox.SystemPromptFile(ctx)
+	if serr != nil {
+		return nil, nil, fmt.Errorf("system prompt: %w", serr)
+	}
+	argv = sandbox.BuildAttachArgv(spf)
 	env = []string{"GITHUB_PERSONAL_ACCESS_TOKEN=" + token}
 	return argv, env, nil
 }

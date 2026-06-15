@@ -47,6 +47,11 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	"claude-hud": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		mustWrite(t, d.Cfg.HudConfigSeed(), "{}\n")
 	},
+	"cav-shrink": func(t *testing.T, d *Deps, f *exec.Fake) {
+		mustWrite(t, filepath.Join(d.Repo, "config", "mcp.json"),
+			`[{"name":"seq","transport":"stdio","args":["npx","-y","@mcp/seq"],"shrink":true}]`)
+		f.Expect([]string{"npx", "caveman-shrink", "--with-mcp-shrink=npx -y @mcp/seq"}, "", nil)
+	},
 	"mcp": func(t *testing.T, d *Deps, f *exec.Fake) {
 		mustWrite(t, filepath.Join(d.Repo, "config", "mcp.json"),
 			`[{"name":"context7","transport":"http","url":"https://mcp.context7.com/mcp"},`+
@@ -125,9 +130,7 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		}
 		gv := []string{"git", "version"}
 		f.Expect(gv, "", nil)
-		f.Expect(gv, "", nil)
 		f.Expect([]string{"git", "-C", dir, "pull", "--ff-only"}, "", nil)
-		f.Expect(gv, "", nil)
 	},
 	"headroom": func(t *testing.T, d *Deps, f *exec.Fake) {
 		d.ProxyAddr = "http://host.docker.internal:8788"

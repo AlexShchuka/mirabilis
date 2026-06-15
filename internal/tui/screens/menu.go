@@ -93,14 +93,22 @@ func quitCmd() tea.Msg {
 	return bus.MenuChosen{Action: ActionQuit}
 }
 
+var logoLargeFrames = []string{
+	uistr.LogoLargeFrameA,
+	uistr.LogoLargeFrameB,
+	uistr.LogoLargeFrameC,
+	uistr.LogoLargeFrameD,
+	uistr.LogoLargeFrameE,
+	uistr.LogoLargeFrameF,
+	uistr.LogoLargeFrameG,
+	uistr.LogoLargeFrameH,
+}
+
 func (m Menu) largeMark() string {
 	if a11y.ReducedMotion() {
 		return uistr.LogoLargeStatic
 	}
-	if m.chromeFrame%2 == 0 {
-		return uistr.LogoLargeFrameA
-	}
-	return uistr.LogoLargeFrameB
+	return logoLargeFrames[m.chromeFrame%len(logoLargeFrames)]
 }
 
 func (m Menu) showLargeMark() bool {

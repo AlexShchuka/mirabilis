@@ -102,6 +102,43 @@ func TestLargeMarkReducedMotion(t *testing.T) {
 	}
 }
 
+func TestLogoLargeFramesNoSolidDot(t *testing.T) {
+	frames := []string{
+		uistr.LogoLargeFrameA,
+		uistr.LogoLargeFrameB,
+		uistr.LogoLargeFrameC,
+		uistr.LogoLargeFrameD,
+		uistr.LogoLargeFrameE,
+		uistr.LogoLargeFrameF,
+		uistr.LogoLargeFrameG,
+		uistr.LogoLargeFrameH,
+		uistr.LogoLargeStatic,
+	}
+	for i, f := range frames {
+		if strings.Contains(f, "⊙") {
+			t.Errorf("frame %d contains ⊙ (center-dot) — must be ○ (INV §1)", i)
+		}
+		if !strings.Contains(f, "○") {
+			t.Errorf("frame %d does not contain ○ (ring) (INV §1)", i)
+		}
+	}
+}
+
+func TestLogoLargeRotatesNFrames(t *testing.T) {
+	if len(logoLargeFrames) < 8 {
+		t.Errorf("logoLargeFrames has %d frames, want >= 8 (INV §1 discrete spinner)", len(logoLargeFrames))
+	}
+	m := NewMenu("app/menu")
+	seen := make(map[string]bool)
+	for i := range logoLargeFrames {
+		m.chromeFrame = i
+		seen[m.largeMark()] = true
+	}
+	if len(seen) < 2 {
+		t.Error("largeMark() returns same frame for all chromeFrame values — not rotating (INV §1)")
+	}
+}
+
 func TestMenuItemsActions(t *testing.T) {
 	want := []string{ActionLaunch, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
 	items := MenuItems()

@@ -113,6 +113,11 @@ func (p *PTYTee) start(cmd *osexec.Cmd) (*os.File, error) {
 func (p *PTYTee) forwardWinch(master *os.File) func() {
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
+	if f, ok := p.stdout.(*os.File); ok {
+		if sz, err := pty.GetsizeFull(f); err == nil {
+			_ = pty.Setsize(master, sz)
+		}
+	}
 	go func() {
 		for range winch {
 			if f, ok := p.stdout.(*os.File); ok {

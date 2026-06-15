@@ -33,15 +33,17 @@ func BuildAttachArgv(systemPromptFile string) []string {
 	}
 }
 
-func (s *Sandbox) SystemPromptFile(ctx context.Context) string {
+func (s *Sandbox) SystemPromptFile(ctx context.Context) (string, error) {
 	base := contextContent()
 	script := fmt.Sprintf(
 		`printf %%s %q >%q; nm="$HOME/.neuro-matrix/CLAUDE.md"; if [ -f "$nm" ]; then cat "$nm" >>%q; fi`,
 		base, systemPromptOut, systemPromptOut,
 	)
-	_, _ = exec.Run(ctx, s.runner, exec.Spec{
+	if _, err := exec.Run(ctx, s.runner, exec.Spec{
 		Argv: []string{"docker", "exec", ContainerName, "bash", "-lc", script},
 		Dir:  s.repo,
-	})
-	return systemPromptOut
+	}); err != nil {
+		return "", fmt.Errorf("write system prompt: %w", err)
+	}
+	return systemPromptOut, nil
 }

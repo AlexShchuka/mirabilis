@@ -4,11 +4,17 @@ package strings
 const (
 	AppName = "mirabilis"
 
-	LogoSmallFrames = "⊕⊛※"
+	LogoSmallFrames = "⊕⊛※◈◉◎⊗⊘"
 
-	LogoLargeFrameA = "   │   \n ──⊙── \n   │   "
-	LogoLargeFrameB = " ╲   ╱ \n   ⊙   \n ╱   ╲ "
-	LogoLargeStatic = LogoLargeFrameB
+	LogoLargeFrameA = "   │   \n ──○── \n   │   "
+	LogoLargeFrameB = " ╲   ╱ \n   ○   \n ╱   ╲ "
+	LogoLargeFrameC = "   ╷   \n   ○   \n   ╵   "
+	LogoLargeFrameD = " ·   · \n   ○   \n ·   · "
+	LogoLargeFrameE = "  ─── \n  ○  \n  ─── "
+	LogoLargeFrameF = " ╱   ╲ \n   ○   \n ╲   ╱ "
+	LogoLargeFrameG = "   ·   \n ─ ○ ─ \n   ·   "
+	LogoLargeFrameH = " ─   ─ \n   ○   \n ─   ─ "
+	LogoLargeStatic = LogoLargeFrameA
 
 	GHAuthTitle         = "GitHub sign-in"
 	GHAuthLabelCode     = "  code:  "

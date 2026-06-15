@@ -7,16 +7,19 @@
   {
     "name": "sequential-thinking",
     "transport": "stdio",
-    "args": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"]
+    "args": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+    "shrink": true
   },
   {
     "name": "arxiv-mcp-server",
     "transport": "stdio",
-    "args": ["uvx", "arxiv-mcp-server"]
+    "args": ["uvx", "arxiv-mcp-server"],
+    "shrink": true
   },
   {
     "name": "docling",
     "transport": "stdio",
-    "args": ["uvx", "--from", "docling-mcp[local]", "docling-mcp-server", "--transport", "stdio"]
+    "args": ["uvx", "--from", "docling-mcp[local]", "docling-mcp-server", "--transport", "stdio"],
+    "shrink": true
   }
 ]

@@ -15,7 +15,30 @@ func TestOnboardingRunThenCheckTrue(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 	if !checkStep(t, step) {
-		t.Fatal("Check() = false after Run(), want true")
+		t.Fatal("Check() = false after Run(), want true (INV-GATEFREE)")
+	}
+}
+
+func TestOnboardingFullBeltPresent(t *testing.T) {
+	d, _ := testDeps(t)
+	step := &onboardingStep{d: d}
+
+	if err := runStep(t, step); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	m := mustReadJSON(t, d.claudeJSONPath())
+	for k, want := range onboardingBeltKeys {
+		if m[k] != want {
+			t.Errorf("belt key %q = %v, want %v (INV-GATEFREE)", k, m[k], want)
+		}
+	}
+	if m["skipDangerousModePermissionPrompt"] != true {
+		t.Error("skipDangerousModePermissionPrompt not set in .claude.json (INV-GATEFREE)")
+	}
+	sm := mustReadJSON(t, d.settingsPath())
+	if sm["skipDangerousModePermissionPrompt"] != true {
+		t.Error("skipDangerousModePermissionPrompt not set in settings.json (INV-GATEFREE)")
 	}
 }
 

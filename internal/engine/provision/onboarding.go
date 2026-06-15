@@ -2,6 +2,7 @@ package provision
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,14 @@ func (d Deps) claudeJSONPath() string {
 	return filepath.Join(filepath.Dir(d.claudeDir()), ".claude.json")
 }
 
+var onboardingBeltKeys = map[string]any{
+	"hasCompletedOnboarding":        true,
+	"hasCompletedProjectOnboarding": true,
+	"lastOnboardingVersion":         json.Number("1"),
+	"projectOnboardingSeenCount":    json.Number("1"),
+	"bypassPermissionsModeAccepted": true,
+}
+
 type onboardingStep struct {
 	d Deps
 }
@@ -26,14 +35,30 @@ func (s *onboardingStep) Check(_ context.Context) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	completed, _ := m["hasCompletedOnboarding"].(bool)
+	for k, want := range onboardingBeltKeys {
+		if m[k] != want {
+			return false, nil
+		}
+	}
 	projects, _ := m["projects"].(map[string]any)
-	if !completed || projects == nil {
+	if projects == nil {
 		return false, nil
 	}
 	proj, _ := projects[claudeWorkspaceDir].(map[string]any)
 	trusted, _ := proj["hasTrustDialogAccepted"].(bool)
-	return trusted, nil
+	if !trusted {
+		return false, nil
+	}
+	sdpp, _ := m["skipDangerousModePermissionPrompt"].(bool)
+	if !sdpp {
+		return false, nil
+	}
+	sm, err := readJSON(s.d.settingsPath())
+	if err != nil {
+		return false, nil
+	}
+	smSDPP, _ := sm["skipDangerousModePermissionPrompt"].(bool)
+	return smSDPP, nil
 }
 
 func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
@@ -45,7 +70,10 @@ func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-cha
 	if existing, err := readJSON(path); err == nil {
 		m = existing
 	}
-	m["hasCompletedOnboarding"] = true
+	for k, v := range onboardingBeltKeys {
+		m[k] = v
+	}
+	m["skipDangerousModePermissionPrompt"] = true
 	projects, _ := m["projects"].(map[string]any)
 	if projects == nil {
 		projects = map[string]any{}
@@ -57,5 +85,17 @@ func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-cha
 	proj["hasTrustDialogAccepted"] = true
 	projects[claudeWorkspaceDir] = proj
 	m["projects"] = projects
-	return writeJSON(path, m)
+	if err := writeJSON(path, m); err != nil {
+		return fmt.Errorf("write .claude.json: %w", err)
+	}
+	settingsPath := s.d.settingsPath()
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir for settings.json: %w", err)
+	}
+	sm := map[string]any{}
+	if existing, err := readJSON(settingsPath); err == nil {
+		sm = existing
+	}
+	sm["skipDangerousModePermissionPrompt"] = true
+	return writeJSON(settingsPath, sm)
 }
