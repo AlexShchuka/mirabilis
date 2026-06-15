@@ -9,8 +9,8 @@ import (
 func Contract(t *testing.T, step Command, resolve func(payload any) Result) {
 	t.Helper()
 	m := step.Meta()
-	if m.Kind == Terminal {
-		t.Skipf("pipeline: step %q is terminal: exempt from the idempotency contract", m.Name)
+	if m.Kind == Terminal || m.Kind == Handoff {
+		t.Skipf("pipeline: step %q is terminal/handoff: exempt from the idempotency contract", m.Name)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()

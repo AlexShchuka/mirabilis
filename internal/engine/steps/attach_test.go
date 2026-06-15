@@ -11,37 +11,72 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
 
-func TestAttachCheckFalseWhenNotRunning(t *testing.T) {
+// TestAttachCheckAlwaysFalse asserts that Check returns (false, nil) regardless of
+// docker/claude state — the hand-off is never pre-satisfied.
+func TestAttachCheckAlwaysFalse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("running container with claude", func(t *testing.T) {
+		t.Parallel()
+		fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
+		fake := exec.NewFake().
+			Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil)
+		s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
+		mustCheck(t, s, false)
+	})
+
+	t.Run("not running container", func(t *testing.T) {
+		t.Parallel()
+		fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: false}, nil)
+		s := &attachStep{d: newTestDeps(t, exec.NewFake(), fakeDocker, newFakeStore())}
+		mustCheck(t, s, false)
+	})
+}
+
+// TestAttachRunFailsWhenContainerNotRunning verifies INV-3: Run returns a non-nil error
+// when the sandbox container is not running.
+func TestAttachRunFailsWhenContainerNotRunning(t *testing.T) {
 	t.Parallel()
 	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: false}, nil)
 	s := &attachStep{d: newTestDeps(t, exec.NewFake(), fakeDocker, newFakeStore())}
-	mustCheck(t, s, false)
+	_, err := runStep(t, s, nil)
+	if err == nil {
+		t.Fatal("want error when container is not running, got nil")
+	}
+	if !strings.Contains(err.Error(), "not running") {
+		t.Fatalf("error %q does not mention 'not running'", err)
+	}
 }
 
-func TestAttachCheckTrueWhenRunningAndClaudeAccessible(t *testing.T) {
+// TestAttachRunFailsWhenClaudeMissing verifies INV-3: Run returns a wrapped non-nil error
+// when claude is not installed in the container.
+func TestAttachRunFailsWhenClaudeMissing(t *testing.T) {
 	t.Parallel()
+	innerErr := errors.New("claude: not found")
 	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
 	fake := exec.NewFake().
-		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil)
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "", innerErr)
 	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
-	mustCheck(t, s, true)
-}
-
-func TestAttachCheckFalseWhenClaudeNotAccessible(t *testing.T) {
-	t.Parallel()
-	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
-	fake := exec.NewFake().
-		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "", errors.New("not found"))
-	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
-	mustCheck(t, s, false)
+	_, err := runStep(t, s, nil)
+	if err == nil {
+		t.Fatal("want error when claude is not installed, got nil")
+	}
+	if !errors.Is(err, innerErr) {
+		t.Fatalf("error chain does not wrap inner cause: %v", err)
+	}
+	if !strings.Contains(err.Error(), "claude") {
+		t.Fatalf("error %q does not mention claude", err)
+	}
 }
 
 func TestAttachRunEmitsAttachArgv(t *testing.T) {
 	t.Parallel()
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
 	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret\n", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "/tmp/mirabilis-system-prompt.md", nil)
-	s := &attachStep{d: newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())}
+	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
 	evs, err := runStep(t, s, func(any) pipeline.Result { return pipeline.Result{} })
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -69,9 +104,11 @@ func TestAttachRunEmitsAttachArgv(t *testing.T) {
 
 func TestAttachRunWithoutGHToken(t *testing.T) {
 	t.Parallel()
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
 	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "", errors.New("not logged in"))
-	s := &attachStep{d: newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())}
+	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
 	if _, err := runStep(t, s, nil); err == nil {
 		t.Fatal("want missing-token error")
 	}
@@ -113,10 +150,12 @@ func TestAttachExecNoToken(t *testing.T) {
 
 func TestAttachRunCancelled(t *testing.T) {
 	t.Parallel()
+	fakeDocker := sandbox.NewFakeDocker().StubInspect(sandbox.Container{Running: true}, nil)
 	fake := exec.NewFake().
+		Expect([]string{"docker", "exec", "mirabilis", "claude", "--version"}, "claude 1.0", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "gh", "auth", "token"}, "gho_secret", nil).
 		Expect([]string{"docker", "exec", "mirabilis", "bash", "-lc"}, "/tmp/p.md", nil)
-	s := &attachStep{d: newTestDeps(t, fake, sandbox.NewFakeDocker(), newFakeStore())}
+	s := &attachStep{d: newTestDeps(t, fake, fakeDocker, newFakeStore())}
 	_, err := runStep(t, s, func(any) pipeline.Result { return pipeline.Result{Cancelled: true} })
 	if !errors.Is(err, pipeline.ErrCancelled) {
 		t.Fatalf("err = %v, want ErrCancelled", err)

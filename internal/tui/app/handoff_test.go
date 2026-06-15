@@ -49,10 +49,50 @@ func terminalStep(name string, argv []string) *syncCommand {
 	}
 }
 
+func handoffStep(name string, argv []string) *syncCommand {
+	return &syncCommand{
+		meta:    pipeline.Meta{Name: name, Title: "Attach", Kind: pipeline.Handoff},
+		checkFn: func(_ context.Context) (bool, error) { return true, nil },
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+			out <- pipeline.Event{Kind: pipeline.EvWaiting, Step: name, Argv: argv}
+			r := <-in
+			if r.Cancelled {
+				return pipeline.ErrCancelled
+			}
+			return nil
+		},
+	}
+}
+
 func TestHandoffRealExecRunsChildAndReturnsToMenu(t *testing.T) {
 	setRealExec(t)
 	f := newFakeFacade([]pipeline.Command{
 		terminalStep("attach", []string{"/bin/sh", "-c", "printf handoff-child-ok"}),
+	})
+	tm := newApp(t, f)
+
+	tm.Send(bus.MenuChosen{Action: "launch"})
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte("handoff-child-ok"))
+	}, teatest.WithDuration(10*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
+		return bytes.Contains(bts, []byte(uistr.WelcomeHint))
+	}, teatest.WithDuration(10*time.Second), teatest.WithCheckInterval(20*time.Millisecond))
+
+	tm.Send(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(10*time.Second))
+}
+
+// TestHandoffRunsThroughPipelineDespiteSatisfiedCheck locks INV-1 at the TUI/exec layer:
+// a Handoff step whose Check returns (true, nil) must still have its child process
+// executed — the pipeline must NOT skip-gate it. If the guard `if m.Kind != Handoff`
+// in pipeline.go is removed, the child never runs and this test times out.
+func TestHandoffRunsThroughPipelineDespiteSatisfiedCheck(t *testing.T) {
+	setRealExec(t)
+	f := newFakeFacade([]pipeline.Command{
+		handoffStep("attach", []string{"/bin/sh", "-c", "printf handoff-child-ok"}),
 	})
 	tm := newApp(t, f)
 

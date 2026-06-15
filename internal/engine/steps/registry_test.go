@@ -50,7 +50,7 @@ func TestLaunchRegistry(t *testing.T) {
 			name: "harness", deps: []string{"provision-start"}, kind: pipeline.Auto,
 			timeout: 5 * time.Minute, optional: true,
 		},
-		{name: "attach", deps: []string{"claude-auth", "provision-start"}, kind: pipeline.Terminal},
+		{name: "attach", deps: []string{"claude-auth", "provision-start"}, kind: pipeline.Handoff},
 	}
 	steps := Launch(newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), newFakeStore()))
 	if len(steps) != len(want) {
