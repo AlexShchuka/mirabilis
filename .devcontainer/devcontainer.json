@@ -1,8 +1,0 @@
-{
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
-  "remoteUser": "node",
-  "postCreateCommand": "gh auth setup-git"
-}
