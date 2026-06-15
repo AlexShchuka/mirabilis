@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -111,8 +112,7 @@ func TestLiveClientCountReadDirErrorDoesNotReap(t *testing.T) {
 	defer cancel()
 
 	done := make(chan struct{})
-	var logged bool
-	log := capturingLogger{fn: func() { logged = true }}
+	log := &capturingLogger{}
 	go func() {
 		reapLoopWith(ctx, dir, log, 10*time.Millisecond, 20*time.Millisecond)
 		close(done)
@@ -126,7 +126,7 @@ func TestLiveClientCountReadDirErrorDoesNotReap(t *testing.T) {
 	case <-ctx.Done():
 	}
 
-	if !logged {
+	if !log.logged() {
 		t.Error("error not logged when clients dir unreadable")
 	}
 }
@@ -212,7 +212,18 @@ type testLogger struct{}
 func (testLogger) Error(string, ...any) {}
 
 type capturingLogger struct {
-	fn func()
+	mu  sync.Mutex
+	saw bool
 }
 
-func (c capturingLogger) Error(_ string, _ ...any) { c.fn() }
+func (c *capturingLogger) Error(_ string, _ ...any) {
+	c.mu.Lock()
+	c.saw = true
+	c.mu.Unlock()
+}
+
+func (c *capturingLogger) logged() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.saw
+}

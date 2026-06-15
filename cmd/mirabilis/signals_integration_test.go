@@ -23,9 +23,9 @@ func buildBinary(t *testing.T) string {
 	return bin
 }
 
-func waitForLock(t *testing.T, repo string, deadline time.Duration) {
+func waitForServeLock(t *testing.T, repo string, deadline time.Duration) {
 	t.Helper()
-	lock := filepath.Join(repo, ".mirabilis", "mirabilis.lock")
+	lock := serveLockPath(repo)
 	end := time.Now().Add(deadline)
 	for time.Now().Before(end) {
 		if _, err := os.Stat(lock); err == nil {
@@ -46,7 +46,7 @@ func TestSIGHUPExitsAndReleasesFlock(t *testing.T) {
 	bin := buildBinary(t)
 	repo := t.TempDir()
 
-	cmd := exec.Command(bin)
+	cmd := exec.Command(bin, "serve")
 	cmd.Env = append(os.Environ(), "MIRABILIS_REPO="+repo, "MIRABILIS_VERSION=test")
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestSIGHUPExitsAndReleasesFlock(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ptmx.Close() })
 
-	waitForLock(t, repo, 10*time.Second)
+	waitForServeLock(t, repo, 10*time.Second)
 
 	if err := cmd.Process.Signal(syscall.SIGHUP); err != nil {
 		t.Fatalf("signal SIGHUP: %v", err)
@@ -70,10 +70,9 @@ func TestSIGHUPExitsAndReleasesFlock(t *testing.T) {
 		t.Fatal("process did not exit within deadline after SIGHUP")
 	}
 
-	lock := filepath.Join(repo, ".mirabilis", "mirabilis.lock")
-	f, ferr := tryFlock(lock)
+	f, ferr := tryFlock(serveLockPath(repo))
 	if ferr != nil {
-		t.Fatalf("flock not reacquirable after child exit: %v", ferr)
+		t.Fatalf("serve.lock not reacquirable after child exit: %v", ferr)
 	}
 	_ = f.Close()
 }

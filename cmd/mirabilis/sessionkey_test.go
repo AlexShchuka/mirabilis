@@ -96,7 +96,7 @@ func TestFacadeSessionKeyFallsBackToDisk(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = f.obs.Close() })
 
-	const diskKey = "dummy-session-key"
+	const diskKey = "test-session-key-for-disk-fallback"
 	if err := writeSessionKey(repo, diskKey); err != nil {
 		t.Fatalf("writeSessionKey: %v", err)
 	}
