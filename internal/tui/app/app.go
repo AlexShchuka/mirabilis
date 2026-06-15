@@ -195,17 +195,26 @@ func isOverlay(s router.Screen) bool {
 
 func (a App) View() tea.View {
 	var content string
+	var cx, cy int
 	if a.router.Depth() > 1 && a.winW > 0 && a.winH > 0 && isOverlay(a.router.Top()) {
-		content = a.overlayView()
+		var bx, by int
+		content, bx, by = a.overlayView()
+		cx, cy = bx+2, by+1
 	} else {
 		content = a.frame.View(a.router.View())
+		cx, cy = a.frame.MenuCursorCell()
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
+	v.Cursor = &tea.Cursor{
+		Position: tea.Position{X: cx, Y: cy},
+		Shape:    tea.CursorBar,
+		Blink:    false,
+	}
 	return v
 }
 
-func (a App) overlayView() string {
+func (a App) overlayView() (content string, boxX, boxY int) {
 	base := a.frame.View(a.router.Below().View())
 	box := styles.Overlay.Render(a.router.Top().View())
 
@@ -227,5 +236,5 @@ func (a App) overlayView() string {
 		lipgloss.NewLayer(base).Z(0),
 		lipgloss.NewLayer(box).X(cx).Y(cy).Z(1),
 	))
-	return canvas.Render()
+	return canvas.Render(), cx, cy
 }

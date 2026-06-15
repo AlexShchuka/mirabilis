@@ -336,6 +336,41 @@ func TestHeaderTruncationLeftFirst(t *testing.T) {
 	}
 }
 
+func TestMenuCursorCellFollowsSelection(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	hh := m.HeaderHeight()
+
+	x, y := m.MenuCursorCell()
+	if x != 0 {
+		t.Errorf("MenuCursorCell x = %d, want 0", x)
+	}
+	if y != hh {
+		t.Errorf("MenuCursorCell y = %d at initial selection (index 0), want HeaderHeight()=%d", y, hh)
+	}
+
+	m, _ = m.Update(key("down"))
+	_, y2 := m.MenuCursorCell()
+	if y2 != hh+2 {
+		t.Errorf("after skipping disabled, MenuCursorCell y = %d, want %d", y2, hh+2)
+	}
+
+	m, _ = m.Update(key("down"))
+	_, y3 := m.MenuCursorCell()
+	if y3 != hh+3 {
+		t.Errorf("after two downs, MenuCursorCell y = %d, want %d", y3, hh+3)
+	}
+}
+
+func TestMenuCursorCellTinyReturnsZero(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 20, Height: 5})
+	x, y := m.MenuCursorCell()
+	if x != 0 || y != 0 {
+		t.Errorf("MenuCursorCell tiny = (%d,%d), want (0,0)", x, y)
+	}
+}
+
 // TestHeaderRightSurvivesNarrowest locks that the Right zone (version) is last to drop
 // (INV §4 truncation-order: Left ≺ Center ≺ Right).
 func TestHeaderRightSurvivesNarrowest(t *testing.T) {

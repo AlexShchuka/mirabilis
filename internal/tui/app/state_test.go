@@ -1620,3 +1620,74 @@ func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
 		t.Fatal("busy = true after pipelineDoneMsg, want false")
 	}
 }
+
+func TestViewCursorNonNilAtMenu(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	v := a.View()
+	if v.Cursor == nil {
+		t.Fatal("View().Cursor is nil at menu (depth=1), want non-nil")
+	}
+	if v.Cursor.X != 0 {
+		t.Errorf("View().Cursor.X = %d, want 0", v.Cursor.X)
+	}
+	wantY := a.frame.HeaderHeight()
+	if v.Cursor.Y != wantY {
+		t.Errorf("View().Cursor.Y = %d at initial menu selection (index 0), want HeaderHeight()=%d", v.Cursor.Y, wantY)
+	}
+}
+
+func TestViewCursorTracksMenuNavigation(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	y0 := a.View().Cursor.Y
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	y1 := a.View().Cursor.Y
+	if y1 != y0+1 {
+		t.Errorf("after down: cursor Y = %d, want %d", y1, y0+1)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	y2 := a.View().Cursor.Y
+	if y2 != y0+2 {
+		t.Errorf("after two downs: cursor Y = %d, want %d", y2, y0+2)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
+	y3 := a.View().Cursor.Y
+	if y3 != y0+1 {
+		t.Errorf("after up: cursor Y = %d, want %d", y3, y0+1)
+	}
+}
+
+func TestViewCursorNonNilAtOverlay(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
+	if a.router.Depth() < 2 {
+		t.Fatal("telegram action did not push overlay screen")
+	}
+
+	v := a.View()
+	if v.Cursor == nil {
+		t.Fatal("View().Cursor is nil at overlay, want non-nil")
+	}
+	if v.Cursor.X < 0 || v.Cursor.Y < 0 {
+		t.Errorf("overlay cursor (%d,%d) has negative coordinate", v.Cursor.X, v.Cursor.Y)
+	}
+	menuV := func() tea.View {
+		b := a
+		b.router, _ = b.router.Update(bus.ScreenPop{})
+		return b.View()
+	}()
+	if v.Cursor.Y == menuV.Cursor.Y {
+		t.Errorf("overlay cursor Y = %d same as menu cursor Y; expected overlay to shift Y", v.Cursor.Y)
+	}
+}
