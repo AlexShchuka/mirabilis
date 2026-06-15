@@ -100,41 +100,9 @@ func (s *skillsStep) installGolangSkills(ctx context.Context, out chan<- pipelin
 	if s.golangSkillsPresent() {
 		return nil
 	}
-	tmpDir, err := os.MkdirTemp("", "cc-skills-golang-*")
-	if err != nil {
-		return fmt.Errorf("mkdirtemp: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	installScript := fmt.Sprintf(
-		`cd %q && npx --yes skills add --all 2>&1`,
-		tmpDir,
+	return s.d.stream(ctx, "skills", out,
+		"gh", "skill", "install", ccSkillsGolang, "--all", "-f", "--dir", s.skillsDir(),
 	)
-	if err := s.d.streamScript(ctx, "skills", out, installScript); err != nil {
-		return fmt.Errorf("npx skills add: %w", err)
-	}
-
-	agentsSkills := filepath.Join(tmpDir, ".agents", "skills")
-	entries, err := os.ReadDir(agentsSkills)
-	if err != nil {
-		return fmt.Errorf("read .agents/skills: %w", err)
-	}
-	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), "golang-") {
-			continue
-		}
-		src := filepath.Join(agentsSkills, e.Name())
-		dst := filepath.Join(s.skillsDir(), e.Name())
-		if exists(dst) {
-			continue
-		}
-		if err := os.Rename(src, dst); err != nil {
-			if rerr := s.d.streamScript(ctx, "skills", out, fmt.Sprintf(`cp -r %q %q`, src, dst)); rerr != nil {
-				return fmt.Errorf("install %s: %w", e.Name(), rerr)
-			}
-		}
-	}
-	return nil
 }
 
 func (s *skillsStep) installGitSkill(ctx context.Context, out chan<- pipeline.Event, entry string) error {

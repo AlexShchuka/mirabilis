@@ -49,7 +49,27 @@ func TestSkillsInstallGolangIdempotent(t *testing.T) {
 		t.Fatalf("Run returned error when skills already present (idempotency violated): %v", err)
 	}
 	if n := f.Remaining(); n != 0 {
-		t.Errorf("exec called %d time(s) when skills already present; want 0 (npx must not run again)", n)
+		t.Errorf("exec called %d time(s) when skills already present; want 0 (gh must not run again)", n)
+	}
+}
+
+func TestSkillsInstallGolangGhArgv(t *testing.T) {
+	t.Parallel()
+	d, f := testDeps(t)
+	mustWrite(t, d.Cfg.SkillsTxt(), ccSkillsGolang+"\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileSkills), ccSkillsGolang+"\n")
+	if err := os.MkdirAll(filepath.Join(d.claudeDir(), "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s := &skillsStep{d: d}
+	skillsDir := s.skillsDir()
+	expectedArgv := []string{"gh", "skill", "install", ccSkillsGolang, "--all", "-f", "--dir", skillsDir}
+	f.Expect(expectedArgv, "", nil)
+	if err := runStep(t, s); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if n := f.Remaining(); n != 0 {
+		t.Errorf("expected gh stub was not consumed: %d remaining", n)
 	}
 }
 
