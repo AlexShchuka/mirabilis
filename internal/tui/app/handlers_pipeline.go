@@ -144,6 +144,8 @@ func (a App) handlePipelineDone(msg pipelineDoneMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 	a.pipe = nil
+	a.busy = false
+	a.frame.SetBusy("")
 	switch {
 	case a.launchCancelled:
 		a.launchCancelled = false
