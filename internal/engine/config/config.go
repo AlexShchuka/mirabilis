@@ -21,6 +21,8 @@ const (
 	LocalLLMModel     = "local-model"
 	LocalLLMTimeout   = 60 * time.Second
 	LocalLLMMaxTokens = 2048
+
+	defaultChromePeriodMs = 100
 )
 
 type Config struct {
@@ -160,6 +162,15 @@ func LocalLLMEffectiveMaxTokens() int {
 		}
 	}
 	return LocalLLMMaxTokens
+}
+
+func ChromePeriodMs() int {
+	if v := os.Getenv("CHROME_PERIOD_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultChromePeriodMs
 }
 
 const defaultHeadroomMode = "cache"

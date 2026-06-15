@@ -1,4 +1,3 @@
-// Package styles defines the shared Lip Gloss style palette for the TUI.
 package styles
 
 import (
@@ -8,7 +7,8 @@ import (
 )
 
 const (
-	colSelected = "212"
+	colSelected = "#00FFC2"
+	colCyan     = "#00F5D4"
 	colNormal   = "252"
 	colDim      = "244"
 	colMuted    = "240"
@@ -24,12 +24,12 @@ var (
 	SelTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colSelected))
 	NormTitle = lipgloss.NewStyle().Foreground(lipgloss.Color(colNormal))
 
-	Header       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colNormal))
+	Header       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colSelected))
 	HeaderRight  = lipgloss.NewStyle().Foreground(lipgloss.Color(colDim))
 	MenuSelected = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colSelected))
 	MenuNormal   = lipgloss.NewStyle().Foreground(lipgloss.Color(colNormal))
 	MenuDisabled = lipgloss.NewStyle().Foreground(lipgloss.Color(colMuted))
-	MainBorder   = lipgloss.NewStyle().Foreground(lipgloss.Color(colMuted))
+	MainBorder   = lipgloss.NewStyle().Foreground(lipgloss.Color(colSelected))
 	CmdlogDim    = lipgloss.NewStyle().Foreground(lipgloss.Color(colMuted))
 	Degraded     = lipgloss.NewStyle().Foreground(lipgloss.Color(colDanger))
 	Danger       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colDanger))
@@ -45,6 +45,7 @@ var (
 func huhStyles(isDark bool) *huh.Styles {
 	s := huh.ThemeBase(isDark)
 	selected := lipgloss.Color(colSelected)
+	cyan := lipgloss.Color(colCyan)
 	normal := lipgloss.Color(colNormal)
 	dim := lipgloss.Color(colDim)
 	danger := lipgloss.Color(colDanger)
@@ -57,7 +58,7 @@ func huhStyles(isDark bool) *huh.Styles {
 	s.Focused.Option = s.Focused.Option.Foreground(normal)
 	s.Focused.ErrorIndicator = s.Focused.ErrorIndicator.Foreground(danger)
 	s.Focused.ErrorMessage = s.Focused.ErrorMessage.Foreground(danger)
-	s.Focused.FocusedButton = s.Focused.FocusedButton.Background(selected).Foreground(lipgloss.Color("0"))
+	s.Focused.FocusedButton = s.Focused.FocusedButton.Foreground(cyan)
 
 	s.Blurred.Title = s.Blurred.Title.Foreground(dim)
 	s.Blurred.Description = s.Blurred.Description.Foreground(dim)

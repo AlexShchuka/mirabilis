@@ -37,7 +37,27 @@ func (t *TTY) Run() error {
 	cmd.Stdout = t.stdout
 	cmd.Stderr = t.stderr
 	cmd.WaitDelay = ttyWaitDelay
-	return cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	stopWinch := t.forwardWinch(cmd.Process)
+	defer stopWinch()
+	return cmd.Wait()
+}
+
+func (t *TTY) forwardWinch(proc *os.Process) func() {
+	winch := make(chan os.Signal, 1)
+	signal.Notify(winch, syscall.SIGWINCH)
+	go func() {
+		_ = proc.Signal(syscall.SIGWINCH)
+		for range winch {
+			_ = proc.Signal(syscall.SIGWINCH)
+		}
+	}()
+	return func() {
+		signal.Stop(winch)
+		close(winch)
+	}
 }
 
 type PTYTee struct {

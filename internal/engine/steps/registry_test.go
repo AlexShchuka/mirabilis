@@ -3,7 +3,6 @@ package steps
 import (
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
@@ -12,72 +11,70 @@ import (
 
 func TestLaunchRegistry(t *testing.T) {
 	t.Parallel()
-	want := []struct {
-		name     string
-		deps     []string
-		kind     pipeline.Kind
-		timeout  time.Duration
-		retry    pipeline.RetryPolicy
-		optional bool
+	wantOuter := []struct {
+		name string
+		deps []string
+		kind pipeline.Kind
 	}{
-		{name: "preflight", kind: pipeline.Auto, timeout: 90 * time.Second},
-		{name: "claude-auth", deps: []string{"preflight"}, kind: pipeline.Terminal},
+		{name: "preflight", kind: pipeline.Auto},
 		{name: "config", kind: pipeline.Interactive},
-		{name: "telegram", deps: []string{"config"}, kind: pipeline.Interactive, optional: true},
-		{name: "image", deps: []string{"preflight", "config"}, kind: pipeline.Auto, timeout: 15 * time.Minute},
-		{
-			name: "container", deps: []string{"image"}, kind: pipeline.Auto, timeout: 3 * time.Minute,
-			retry: pipeline.RetryPolicy{Attempts: 2, Delay: 2 * time.Second},
-		},
-		{
-			name: "provision-create", deps: []string{"container"}, kind: pipeline.Auto, timeout: 5 * time.Minute,
-			retry: pipeline.RetryPolicy{Attempts: 2, Delay: 2 * time.Second},
-		},
-		{
-			name: "provision-start", deps: []string{"provision-create"}, kind: pipeline.Auto, timeout: 5 * time.Minute,
-			retry: pipeline.RetryPolicy{Attempts: 2, Delay: 2 * time.Second},
-		},
-		{name: "gh-auth", deps: []string{"container"}, kind: pipeline.Interactive},
-		{
-			name: "plugins", deps: []string{"provision-start", "config"}, kind: pipeline.Auto,
-			timeout: 5 * time.Minute, optional: true,
-		},
-		{
-			name: "skills", deps: []string{"provision-start", "config"}, kind: pipeline.Auto,
-			timeout: 5 * time.Minute, optional: true,
-		},
-		{
-			name: "harness", deps: []string{"provision-start"}, kind: pipeline.Auto,
-			timeout: 5 * time.Minute, optional: true,
-		},
-		{name: "attach", deps: []string{"claude-auth", "provision-start"}, kind: pipeline.Terminal},
+		{name: "telegram", deps: []string{"config"}, kind: pipeline.Interactive},
+		{name: "claude-auth", deps: []string{"preflight"}, kind: pipeline.Terminal},
+		{name: autoBatchName, deps: []string{"claude-auth", configStepName}, kind: pipeline.Auto},
+		{name: "gh-auth", deps: []string{autoBatchName}, kind: pipeline.Interactive},
+		{name: "attach", deps: []string{"claude-auth", autoBatchName}, kind: pipeline.Terminal},
 	}
+	wantInner := []struct {
+		name string
+		deps []string
+		kind pipeline.Kind
+	}{
+		{name: "image", deps: []string{"preflight", configStepName}, kind: pipeline.Auto},
+		{name: "container", deps: []string{"image"}, kind: pipeline.Auto},
+		{name: "provision-create", deps: []string{"container"}, kind: pipeline.Auto},
+		{name: "provision-start", deps: []string{"provision-create"}, kind: pipeline.Auto},
+		{name: "plugins", deps: []string{"provision-start", configStepName}, kind: pipeline.Auto},
+		{name: "skills", deps: []string{"provision-start", configStepName}, kind: pipeline.Auto},
+		{name: "harness", deps: []string{"provision-start"}, kind: pipeline.Auto},
+	}
+
 	steps := Launch(newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), newFakeStore()))
-	if len(steps) != len(want) {
-		t.Fatalf("got %d steps, want %d", len(steps), len(want))
+	if len(steps) != len(wantOuter) {
+		t.Fatalf("got %d outer steps, want %d", len(steps), len(wantOuter))
 	}
-	for i, w := range want {
+	for i, w := range wantOuter {
 		m := steps[i].Meta()
 		if m.Name != w.name {
-			t.Fatalf("step[%d] = %q, want %q", i, m.Name, w.name)
+			t.Fatalf("outer[%d] = %q, want %q", i, m.Name, w.name)
 		}
 		if !slices.Equal(m.Deps, w.deps) {
-			t.Errorf("%s: deps = %v, want %v", w.name, m.Deps, w.deps)
+			t.Errorf("outer %s: deps = %v, want %v", w.name, m.Deps, w.deps)
 		}
 		if m.Kind != w.kind {
-			t.Errorf("%s: kind = %v, want %v", w.name, m.Kind, w.kind)
-		}
-		if m.Timeout != w.timeout {
-			t.Errorf("%s: timeout = %v, want %v", w.name, m.Timeout, w.timeout)
-		}
-		if m.Retry != w.retry {
-			t.Errorf("%s: retry = %+v, want %+v", w.name, m.Retry, w.retry)
-		}
-		if m.Optional != w.optional {
-			t.Errorf("%s: optional = %v, want %v", w.name, m.Optional, w.optional)
+			t.Errorf("outer %s: kind = %v, want %v", w.name, m.Kind, w.kind)
 		}
 		if m.Title == "" {
-			t.Errorf("%s: empty title", w.name)
+			t.Errorf("outer %s: empty title", w.name)
+		}
+	}
+
+	batch := steps[4].(*batchStep)
+	if len(batch.cmds) != len(wantInner) {
+		t.Fatalf("batch has %d inner steps, want %d", len(batch.cmds), len(wantInner))
+	}
+	for i, w := range wantInner {
+		m := batch.cmds[i].Meta()
+		if m.Name != w.name {
+			t.Fatalf("inner[%d] = %q, want %q", i, m.Name, w.name)
+		}
+		if !slices.Equal(m.Deps, w.deps) {
+			t.Errorf("inner %s: deps = %v, want %v", w.name, m.Deps, w.deps)
+		}
+		if m.Kind != w.kind {
+			t.Errorf("inner %s: kind = %v, want %v", w.name, m.Kind, w.kind)
+		}
+		if m.Title == "" {
+			t.Errorf("inner %s: empty title", w.name)
 		}
 	}
 }

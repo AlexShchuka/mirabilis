@@ -90,17 +90,6 @@ func newTestDeps(t *testing.T, runner exec.Runner, docker sandbox.Docker, store 
 	}
 }
 
-func findStep(t *testing.T, cmds []pipeline.Command, name string) pipeline.Command {
-	t.Helper()
-	for _, c := range cmds {
-		if c.Meta().Name == name {
-			return c
-		}
-	}
-	t.Fatalf("step %q not found", name)
-	return nil
-}
-
 func runStep(t *testing.T, step pipeline.Command, resolve func(payload any) pipeline.Result) ([]pipeline.Event, error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())

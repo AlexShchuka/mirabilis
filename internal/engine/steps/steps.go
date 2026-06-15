@@ -45,20 +45,25 @@ type GHAuth struct {
 	URL  string
 }
 
+const autoBatchName = "auto-batch"
+
 func Launch(d Deps) []pipeline.Command {
-	return []pipeline.Command{
-		newPreflight(d),
-		&claudeAuthStep{d: d},
-		newConfig(d),
-		newTelegram(d),
+	autoBatch := newBatch(autoBatchName, "Setup", []string{"claude-auth", configStepName}, []pipeline.Command{
 		&imageStep{d: d},
 		newContainer(d),
 		newProvision(d, phaseCreate),
 		newProvision(d, phaseStart),
-		&ghAuthStep{d: d},
 		newPluginsApply(d),
 		newSkillsApply(d),
 		&harnessStep{d: d},
-		&attachStep{d: d},
+	})
+	return []pipeline.Command{
+		newPreflight(d),
+		newConfig(d),
+		newTelegram(d),
+		&claudeAuthStep{d: d},
+		autoBatch,
+		&ghAuthStep{d: d, deps: []string{autoBatchName}},
+		&attachStep{d: d, deps: []string{"claude-auth", autoBatchName}},
 	}
 }

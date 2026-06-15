@@ -11,14 +11,19 @@ import (
 )
 
 type attachStep struct {
-	d Deps
+	d    Deps
+	deps []string
 }
 
 func (s *attachStep) Meta() pipeline.Meta {
+	deps := s.deps
+	if len(deps) == 0 {
+		deps = []string{"claude-auth", "provision-start"}
+	}
 	return pipeline.Meta{
 		Name:  "attach",
 		Title: "Claude",
-		Deps:  []string{"claude-auth", "provision-start"},
+		Deps:  deps,
 		Kind:  pipeline.Terminal,
 	}
 }

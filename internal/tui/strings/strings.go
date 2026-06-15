@@ -6,8 +6,14 @@ const (
 
 	LogoSmallFrames = "⊕⊛※"
 
-	LogoLargeFrameA = "   │   \n ──⊙── \n   │   "
-	LogoLargeFrameB = " ╲   ╱ \n   ⊙   \n ╱   ╲ "
+	LogoLargeFrameA = "   │   \n ──○── \n   │   "
+	LogoLargeFrameB = " ╲   ╱ \n   ○   \n ╱   ╲ "
+	LogoLargeFrameC = "   ╷   \n ──○── \n   ╵   "
+	LogoLargeFrameD = " ╱   ╲ \n   ○   \n ╲   ╱ "
+	LogoLargeFrameE = " ·   · \n ──○── \n · · · "
+	LogoLargeFrameF = "   │   \n ╌ ○ ╌ \n   │   "
+	LogoLargeFrameG = " ╲ · ╱ \n · ○ · \n ╱ · ╲ "
+	LogoLargeFrameH = "   ╵   \n ──○── \n   ╷   "
 	LogoLargeStatic = LogoLargeFrameB
 
 	GHAuthTitle         = "GitHub sign-in"

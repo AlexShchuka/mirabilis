@@ -102,6 +102,46 @@ func TestLargeMarkReducedMotion(t *testing.T) {
 	}
 }
 
+func TestLogoLargeFrameCountIs8(t *testing.T) {
+	if got := len(logoLargeFrames); got != 8 {
+		t.Errorf("logoLargeFrames len = %d, want 8 (§1: 8-frame rotation)", got)
+	}
+}
+
+func TestLogoLargeFramesNoCircleDot(t *testing.T) {
+	frames := []struct {
+		name string
+		s    string
+	}{
+		{"FrameA", uistr.LogoLargeFrameA},
+		{"FrameB", uistr.LogoLargeFrameB},
+		{"FrameC", uistr.LogoLargeFrameC},
+		{"FrameD", uistr.LogoLargeFrameD},
+		{"FrameE", uistr.LogoLargeFrameE},
+		{"FrameF", uistr.LogoLargeFrameF},
+		{"FrameG", uistr.LogoLargeFrameG},
+		{"FrameH", uistr.LogoLargeFrameH},
+	}
+	for _, f := range frames {
+		if strings.ContainsRune(f.s, '⊙') {
+			t.Errorf("LogoLarge%s contains ⊙ (circled dot) — must use ○ (plain circle)", f.name)
+		}
+	}
+}
+
+func TestLargeMarkAllFramesDistinctUnderMotion(t *testing.T) {
+	seen := map[string]int{}
+	for i := range 8 {
+		m := NewMenu("app/menu")
+		m.chromeFrame = i
+		got := m.largeMark()
+		if prev, ok := seen[got]; ok {
+			t.Errorf("frame %d and %d produced the same output %q — frames must be distinct", prev, i, got)
+		}
+		seen[got] = i
+	}
+}
+
 func TestMenuItemsActions(t *testing.T) {
 	want := []string{ActionLaunch, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
 	items := MenuItems()

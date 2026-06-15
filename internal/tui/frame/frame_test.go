@@ -306,3 +306,38 @@ func TestMainAreaCropped(t *testing.T) {
 		t.Errorf("height = %d, want 10 with overflowing main", got)
 	}
 }
+
+func TestHeaderCenterAndRightSurviveNarrowWidth(t *testing.T) {
+	m := frame.New("mirabilis", "v1.3.0", items())
+	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{
+		"container": {State: obs.StateOK, Detail: "up"},
+	}})
+
+	widths := []int{80, 60, 50, 45, 42}
+	for _, w := range widths {
+		m, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
+		header := strings.Split(plain(m.View("")), "\n")[0]
+		if !strings.Contains(header, "mirabilis") {
+			t.Errorf("w=%d: header missing center title %q:\n%q", w, "mirabilis", header)
+		}
+		if !strings.Contains(header, "v1.3.0") {
+			t.Errorf("w=%d: header missing version %q:\n%q", w, "v1.3.0", header)
+		}
+	}
+}
+
+func TestHeaderFitsWithinTerminalWidth(t *testing.T) {
+	m := frame.New("mirabilis", "v1.3.0", items())
+	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{
+		"container": {State: obs.StateOK, Detail: "up"},
+		"harness":   {State: obs.StateOK, Detail: "on"},
+		"proxy":     {State: obs.StateOK, Detail: "on"},
+	}})
+	for _, w := range []int{120, 80, 60, 50, 42, 40} {
+		m, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: 24})
+		header := strings.Split(plain(m.View("")), "\n")[0]
+		if got := lipgloss.Width(header); got > w {
+			t.Errorf("w=%d: header width = %d overflows terminal", w, got)
+		}
+	}
+}

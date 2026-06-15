@@ -16,10 +16,27 @@ func (d Deps) claudeJSONPath() string {
 }
 
 type onboardingStep struct {
-	d Deps
+	d       Deps
+	version string
 }
 
 func (s *onboardingStep) Meta() pipeline.Meta { return carryMeta("onboarding", "Claude onboarding") }
+
+func (s *onboardingStep) claudeVersion() string {
+	if s.version != "" {
+		return s.version
+	}
+	v, err := s.d.output(context.Background(), "claude", "--version")
+	if err != nil || v == "" {
+		return ""
+	}
+	for i, c := range v {
+		if c == ' ' {
+			return v[:i]
+		}
+	}
+	return v
+}
 
 func (s *onboardingStep) Check(_ context.Context) (bool, error) {
 	m, err := readJSON(s.d.claudeJSONPath())
@@ -27,13 +44,15 @@ func (s *onboardingStep) Check(_ context.Context) (bool, error) {
 		return false, nil
 	}
 	completed, _ := m["hasCompletedOnboarding"].(bool)
+	skip, _ := m["skipDangerousModePermissionPrompt"].(bool)
 	projects, _ := m["projects"].(map[string]any)
-	if !completed || projects == nil {
+	if !completed || !skip || projects == nil {
 		return false, nil
 	}
 	proj, _ := projects[claudeWorkspaceDir].(map[string]any)
 	trusted, _ := proj["hasTrustDialogAccepted"].(bool)
-	return trusted, nil
+	projOnboard, _ := proj["hasCompletedProjectOnboarding"].(bool)
+	return trusted && projOnboard, nil
 }
 
 func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
@@ -46,6 +65,10 @@ func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-cha
 		m = existing
 	}
 	m["hasCompletedOnboarding"] = true
+	m["skipDangerousModePermissionPrompt"] = true
+	if ver := s.claudeVersion(); ver != "" {
+		m["lastOnboardingVersion"] = ver
+	}
 	projects, _ := m["projects"].(map[string]any)
 	if projects == nil {
 		projects = map[string]any{}
@@ -55,6 +78,7 @@ func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-cha
 		proj = map[string]any{}
 	}
 	proj["hasTrustDialogAccepted"] = true
+	proj["hasCompletedProjectOnboarding"] = true
 	projects[claudeWorkspaceDir] = proj
 	m["projects"] = projects
 	return writeJSON(path, m)

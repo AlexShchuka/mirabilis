@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -193,6 +194,85 @@ func (r *blockingReader) Read(_ []byte) (int, error) {
 	<-r.release
 	close(r.done)
 	return 0, io.EOF
+}
+
+func TestTTYForwardWinchNoLeakAfterRun(t *testing.T) {
+	tty := &TTY{Argv: []string{"/bin/sh", "-c", "exit 0"}}
+	tty.SetStdin(strings.NewReader(""))
+	tty.SetStdout(&syncBuffer{})
+	tty.SetStderr(&syncBuffer{})
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGWINCH)
+	defer signal.Stop(ch)
+
+	if err := tty.Run(); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGWINCH); err != nil {
+		t.Fatalf("kill SIGWINCH: %v", err)
+	}
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SIGWINCH not delivered to our channel after TTY.Run returned — signal.Stop may have affected it")
+	}
+}
+
+func TestTTYForwardWinchForwardsToChild(t *testing.T) {
+	script := `
+winch_count=0
+trap 'winch_count=$((winch_count+1)); printf "%d" "$winch_count"' WINCH
+printf ready
+read -r _line
+`
+	var out syncBuffer
+	tty := &TTY{Argv: []string{"/bin/sh", "-c", script}}
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pr.Close()
+	tty.SetStdin(pr)
+	tty.SetStdout(&out)
+	tty.SetStderr(&syncBuffer{})
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- tty.Run() }()
+
+	deadline := time.After(ptyTestDeadline)
+	for !strings.Contains(out.String(), "ready") {
+		select {
+		case <-deadline:
+			t.Fatal("child never printed 'ready'")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGWINCH); err != nil {
+		t.Fatalf("kill SIGWINCH self: %v", err)
+	}
+
+	deadline2 := time.After(ptyTestDeadline)
+	for !strings.Contains(out.String(), "1") {
+		select {
+		case <-deadline2:
+			_, _ = pw.WriteString("done\n")
+			_ = pw.Close()
+			t.Fatal("SIGWINCH not forwarded to child (child WINCH trap never fired)")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	_, _ = pw.WriteString("done\n")
+	_ = pw.Close()
+	select {
+	case err := <-runDone:
+		_ = err
+	case <-time.After(ptyTestDeadline):
+		t.Fatal("TTY.Run timed out")
+	}
 }
 
 func TestPTYTeeStdinReachesChild(t *testing.T) {

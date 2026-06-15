@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
@@ -42,7 +43,9 @@ type Facade interface {
 
 var execRunner = tea.Exec
 
-const chromePeriod = 700 * time.Millisecond
+func chromePeriod() time.Duration {
+	return time.Duration(config.ChromePeriodMs()) * time.Millisecond
+}
 
 type chromeTickMsg struct {
 	gen int
@@ -88,7 +91,7 @@ func startChromeTick(gen int) tea.Cmd {
 	if a11y.ReducedMotion() {
 		return nil
 	}
-	return tea.Tick(chromePeriod, func(time.Time) tea.Msg {
+	return tea.Tick(chromePeriod(), func(time.Time) tea.Msg {
 		return chromeTickMsg{gen: gen}
 	})
 }

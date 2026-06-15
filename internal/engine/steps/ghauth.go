@@ -27,14 +27,19 @@ func ghLoginArgv() []string {
 }
 
 type ghAuthStep struct {
-	d Deps
+	d    Deps
+	deps []string
 }
 
 func (s *ghAuthStep) Meta() pipeline.Meta {
+	deps := s.deps
+	if len(deps) == 0 {
+		deps = []string{"container"}
+	}
 	return pipeline.Meta{
 		Name:  "gh-auth",
 		Title: "GitHub sign-in",
-		Deps:  []string{"container"},
+		Deps:  deps,
 		Kind:  pipeline.Interactive,
 	}
 }

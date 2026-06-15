@@ -128,10 +128,15 @@ func TestLaunchContract(t *testing.T) {
 					Expect(harnessBash(harness.ProbeScript), "", nil)
 			},
 		},
-		"attach": {},
+		"attach":     {},
+		"auto-batch": {},
 	}
-	for _, step := range Launch(newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), newFakeStore())) {
+	allSteps := launchAllSteps(newTestDeps(t, exec.NewFake(), sandbox.NewFakeDocker(), newFakeStore()))
+	for _, step := range allSteps {
 		name := step.Meta().Name
+		if name == autoBatchName {
+			continue
+		}
 		tc, ok := cases[name]
 		if !ok {
 			t.Errorf("no contract case for step %q", name)
@@ -142,11 +147,33 @@ func TestLaunchContract(t *testing.T) {
 			f := exec.NewFake()
 			dk := sandbox.NewFakeDocker()
 			d := newTestDeps(t, f, dk, newFakeStore())
-			target := findStep(t, Launch(d), name)
+			target := findStepAll(t, launchAllSteps(d), name)
 			if tc.setup != nil {
 				tc.setup(t, d, f, dk, target)
 			}
 			pipeline.Contract(t, target, tc.resolve)
 		})
 	}
+}
+
+func launchAllSteps(d Deps) []pipeline.Command {
+	var all []pipeline.Command
+	for _, s := range Launch(d) {
+		all = append(all, s)
+		if b, ok := s.(*batchStep); ok {
+			all = append(all, b.cmds...)
+		}
+	}
+	return all
+}
+
+func findStepAll(t *testing.T, cmds []pipeline.Command, name string) pipeline.Command {
+	t.Helper()
+	for _, c := range cmds {
+		if c.Meta().Name == name {
+			return c
+		}
+	}
+	t.Fatalf("step %q not found", name)
+	return nil
 }
