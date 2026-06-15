@@ -3,6 +3,7 @@ package steps
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
@@ -19,20 +20,34 @@ func (s *attachStep) Meta() pipeline.Meta {
 		Name:  "attach",
 		Title: "Claude",
 		Deps:  []string{"claude-auth", "provision-start"},
-		Kind:  pipeline.Terminal,
+		Kind:  pipeline.Handoff,
 	}
 }
 
-func (s *attachStep) Check(ctx context.Context) (bool, error) {
+// Check is never a skip-gate for a hand-off: the pipeline runs it unconditionally
+// because Kind=Handoff. The idempotency contract exempts it (see pipeline/contract.go).
+func (s *attachStep) Check(context.Context) (bool, error) {
+	return false, nil
+}
+
+func (s *attachStep) preflight(ctx context.Context) error {
 	c, err := s.d.Docker.Inspect(ctx)
-	if err != nil || !c.Running {
-		return false, nil
+	if err != nil {
+		return fmt.Errorf("attach: sandbox container is not running: %w", err)
 	}
-	_, err = exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("claude", "--version")})
-	return err == nil, nil
+	if !c.Running {
+		return errors.New("attach: sandbox container is not running")
+	}
+	if _, err := exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("claude", "--version")}); err != nil {
+		return fmt.Errorf("attach: claude is not installed in the sandbox container: %w", err)
+	}
+	return nil
 }
 
 func (s *attachStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+	if err := s.preflight(ctx); err != nil {
+		return err
+	}
 	argv, env, err := AttachExec(ctx, s.d)
 	if err != nil {
 		return err

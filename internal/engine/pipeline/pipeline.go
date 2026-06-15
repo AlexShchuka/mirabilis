@@ -130,20 +130,22 @@ func failedDep(m Meta, states map[string]stepState) (string, bool) {
 }
 
 func (p *Pipeline) runStep(ctx context.Context, s Command, m Meta) (stepState, error) {
-	satisfied, err := p.check(ctx, s, m)
-	switch {
-	case err != nil && m.Optional:
-		p.log.Warn("optional step check failed", "step", m.Name, "err", err)
-		p.emit(Event{Kind: EvSkipped, Step: m.Name, Err: err})
-		return stateSkipped, nil
-	case err != nil:
-		p.log.Error("step check failed", "step", m.Name, "err", err)
-		p.emit(Event{Kind: EvFailed, Step: m.Name, Err: err})
-		return stateFailed, err
-	case satisfied:
-		p.log.Info("step satisfied", "step", m.Name)
-		p.emit(Event{Kind: EvDone, Step: m.Name, Line: LineSatisfied})
-		return stateDone, nil
+	if m.Kind != Handoff {
+		satisfied, err := p.check(ctx, s, m)
+		switch {
+		case err != nil && m.Optional:
+			p.log.Warn("optional step check failed", "step", m.Name, "err", err)
+			p.emit(Event{Kind: EvSkipped, Step: m.Name, Err: err})
+			return stateSkipped, nil
+		case err != nil:
+			p.log.Error("step check failed", "step", m.Name, "err", err)
+			p.emit(Event{Kind: EvFailed, Step: m.Name, Err: err})
+			return stateFailed, err
+		case satisfied:
+			p.log.Info("step satisfied", "step", m.Name)
+			p.emit(Event{Kind: EvDone, Step: m.Name, Line: LineSatisfied})
+			return stateDone, nil
+		}
 	}
 	p.log.Info("step started", "step", m.Name)
 	p.emit(Event{Kind: EvStepStarted, Step: m.Name})

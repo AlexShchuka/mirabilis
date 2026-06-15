@@ -15,6 +15,8 @@ const (
 	Auto Kind = iota
 	Interactive
 	Terminal
+	// Handoff is a terminal hand-off whose Check is NOT a skip-gate; the pipeline always runs it.
+	Handoff
 )
 
 type RetryPolicy struct {

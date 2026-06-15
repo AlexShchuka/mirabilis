@@ -865,3 +865,83 @@ func TestNoGoroutineLeaks(t *testing.T) {
 	n := runtime.Stack(buf, true)
 	t.Fatalf("goroutines: %d > %d before\n%s", runtime.NumGoroutine(), before, buf[:n])
 }
+
+// TestHandoffStepAlwaysRunsEvenWhenCheckSatisfied locks INV-1: a Handoff step whose
+// Check returns (true, nil) must still have Run invoked — the pipeline must NOT emit
+// EvDone{LineSatisfied} and skip it.
+func TestHandoffStepAlwaysRunsEvenWhenCheckSatisfied(t *testing.T) {
+	var runCalled bool
+	step := &fakeStep{
+		meta: pipeline.Meta{Name: "handoff", Kind: pipeline.Handoff},
+		checkFn: func(context.Context) (bool, error) {
+			return true, nil // Check says "satisfied" — must be ignored for Handoff
+		},
+		runFn: func(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {
+			runCalled = true
+			out <- pipeline.Event{Kind: pipeline.EvWaiting, Payload: "prompt"}
+			r := <-in
+			if r.Cancelled {
+				return pipeline.ErrCancelled
+			}
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs, err := runPipeline(t, context.Background(), p, func(ev pipeline.Event) {
+		if ev.Kind == pipeline.EvWaiting && ev.Step == "handoff" {
+			if rerr := p.Resume("handoff", pipeline.Result{}); rerr != nil {
+				t.Errorf("resume: %v", rerr)
+			}
+		}
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !runCalled {
+		t.Fatal("Handoff Run was not called despite Check returning true (INV-1 violated)")
+	}
+	// Must NOT emit EvDone with LineSatisfied for ANY event (that would mean the pipeline
+	// took the skip path instead of calling Run).
+	for _, ev := range evs {
+		if ev.Kind == pipeline.EvDone && ev.Line == pipeline.LineSatisfied {
+			t.Fatalf("event stream contains EvDone{LineSatisfied} — pipeline skipped Run (INV-1 violated): %+v", ev)
+		}
+	}
+	// Must emit EvStepStarted (pipeline entered Run path, not skip path).
+	if _, ok := findEvent(evs, "handoff", pipeline.EvStepStarted); !ok {
+		t.Fatal("Handoff step did not emit EvStepStarted")
+	}
+}
+
+// TestTerminalStepStillSkipsWhenCheckSatisfied locks INV-2: Terminal steps with a
+// satisfied Check must still be skipped (auth idempotency must not regress).
+func TestTerminalStepStillSkipsWhenCheckSatisfied(t *testing.T) {
+	step := &fakeStep{
+		meta: pipeline.Meta{Name: "terminal", Kind: pipeline.Terminal},
+		checkFn: func(context.Context) (bool, error) {
+			return true, nil
+		},
+		runFn: func(context.Context, chan<- pipeline.Event, <-chan pipeline.Result) error {
+			t.Error("Terminal Run called on satisfied check (INV-2 violated)")
+			return nil
+		},
+	}
+	p, err := pipeline.New(nil, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs, err := runPipeline(t, context.Background(), p, nil)
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	done, ok := findEvent(evs, "terminal", pipeline.EvDone)
+	if !ok || done.Line != pipeline.LineSatisfied {
+		t.Fatalf("Terminal satisfied check did not emit EvDone{LineSatisfied}: %+v", done)
+	}
+	if _, ok := findEvent(evs, "terminal", pipeline.EvStepStarted); ok {
+		t.Fatal("Terminal step emitted EvStepStarted despite satisfied check (INV-2 violated)")
+	}
+}
