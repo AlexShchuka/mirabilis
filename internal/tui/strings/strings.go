@@ -12,7 +12,7 @@ const (
 	LogoLargeFrameB = " ╲   ╱ \n   ○   \n ╱   ╲ "
 	LogoLargeFrameC = "   ╷   \n   ○   \n   ╵   "
 	LogoLargeFrameD = " ·   · \n   ○   \n ·   · "
-	LogoLargeFrameE = "  ─── \n  ○  \n  ─── "
+	LogoLargeFrameE = " ───── \n   ○   \n ───── "
 	LogoLargeFrameF = " ╱   ╲ \n   ○   \n ╲   ╱ "
 	LogoLargeFrameG = "   ·   \n ─ ○ ─ \n   ·   "
 	LogoLargeFrameH = " ─   ─ \n   ○   \n ─   ─ "

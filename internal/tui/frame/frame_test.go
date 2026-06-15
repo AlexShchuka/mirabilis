@@ -337,8 +337,6 @@ func TestHeaderTruncationLeftFirst(t *testing.T) {
 	}
 }
 
-// TestHeaderRightSurvivesNarrowest locks that the Right zone (version) is last to drop
-// (INV §4 truncation-order: Left ≺ Center ≺ Right).
 func TestHeaderRightSurvivesNarrowest(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0", items())
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
