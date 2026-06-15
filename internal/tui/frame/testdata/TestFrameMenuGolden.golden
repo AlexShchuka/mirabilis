@@ -2,14 +2,14 @@
 ────────────────────────────────────────────────────────────────────────────────
 > Launch         │    │                                                         
   Harness        │  ──○──                                                       
-  Telegram       │    │                                                         
-  VS Code        │                                                              
-  Reset          │ mirabilis                                                    
-  Quit           │                                                              
-                 │ pick an action ←                                             
-setup pipeline + │                                                              
+  VS Code        │    │                                                         
+  Reset          │                                                              
+  Quit           │ mirabilis                                                    
+                 │                                                              
+setup pipeline + │ pick an action ←                                             
 Claude in        │                                                              
 container        │                                                              
+                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              

@@ -140,7 +140,7 @@ func TestLogoLargeRotatesNFrames(t *testing.T) {
 }
 
 func TestMenuItemsActions(t *testing.T) {
-	want := []string{ActionLaunch, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
+	want := []string{ActionLaunch, ActionHarness, ActionVSCode, ActionReset, ActionQuit}
 	items := MenuItems()
 	if len(items) != len(want) {
 		t.Fatalf("MenuItems() len = %d, want %d", len(items), len(want))

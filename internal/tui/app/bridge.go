@@ -22,17 +22,6 @@ func (a App) rememberHarness(choice string) tea.Cmd {
 	}
 }
 
-func (a App) rememberTelegram() tea.Cmd {
-	f := a.facade
-	log := a.facade.Logger()
-	return func() tea.Msg {
-		if err := f.MarkTelegramConfigured(); err != nil {
-			log.Error(uistr.LogTelegramFailed, "err", err)
-		}
-		return nil
-	}
-}
-
 func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 	if !a.busy {
 		a.frame.SetBusy("")

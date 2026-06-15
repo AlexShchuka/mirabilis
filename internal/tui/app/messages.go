@@ -26,10 +26,6 @@ type resetDoneMsg struct {
 	err error
 }
 
-type telegramDoneMsg struct {
-	err error
-}
-
 type harnessStatusMsg struct {
 	current string
 	err     error

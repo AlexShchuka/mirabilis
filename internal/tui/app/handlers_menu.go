@@ -26,12 +26,6 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		var rc tea.Cmd
 		a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 		return a, tea.Batch(rc, scr.Init())
-	case screens.ActionTelegram:
-		a.menuAction = "telegram"
-		scr := screens.NewTelegram("app/telegram", a.facade.TelegramConfigured())
-		var rc tea.Cmd
-		a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
-		return a, tea.Batch(rc, scr.Init())
 	case screens.ActionHarness:
 		ctx := a.ctx
 		f := a.facade
@@ -92,17 +86,6 @@ func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd 
 					return resetDoneMsg{err: err}
 				}
 				return resetDoneMsg{err: f.ResetSandbox(ctx)}
-			})
-		}
-	case "telegram":
-		if token, ok := msg.Value.(string); ok && token != screens.TelegramSkip {
-			ctx := a.ctx
-			f := a.facade
-			a.busy = true
-			tick := a.startBusy()
-			m, _ := a.backToMenu(uistr.NoticeTelegramConfiguring)
-			return m, tea.Batch(tick, func() tea.Msg {
-				return telegramDoneMsg{err: f.ConfigureTelegram(ctx, token)}
 			})
 		}
 	case "harness":

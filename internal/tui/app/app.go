@@ -28,7 +28,6 @@ type Facade interface {
 	NewTokenTee() (io.Writer, func() (string, bool))
 	SaveMemory(ctx context.Context) error
 	ResetSandbox(ctx context.Context) error
-	ConfigureTelegram(ctx context.Context, token string) error
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
@@ -37,7 +36,6 @@ type Facade interface {
 	LastHarnessChoice() string
 	RememberHarnessChoice(choice string) error
 	TelegramConfigured() bool
-	MarkTelegramConfigured() error
 }
 
 var execRunner = tea.Exec
@@ -158,9 +156,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case resetDoneMsg:
 		return a.handleResetDone(msg)
-
-	case telegramDoneMsg:
-		return a.handleTelegramDone(msg)
 
 	case harnessStatusMsg:
 		return a.handleHarnessStatus(msg)
