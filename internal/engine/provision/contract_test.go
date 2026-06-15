@@ -13,6 +13,11 @@ import (
 
 var errStub = errors.New("stub failure")
 
+const (
+	golangCatalog = "golang samber/cc-skills-golang golang-naming golang-testing\n"
+	ghListBoth    = `[{"skillName":"golang-naming","sourceURL":"https://github.com/samber/cc-skills-golang"},{"skillName":"golang-testing","sourceURL":"https://github.com/samber/cc-skills-golang"}]`
+)
+
 var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	"settings": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		mustWriteJSON(t, d.Cfg.SettingsSeed(), map[string]any{
@@ -122,15 +127,18 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(list, "alpha 1.0 enabled", nil)
 	},
 	"skills": func(t *testing.T, d *Deps, f *exec.Fake) {
-		mustWrite(t, d.Cfg.SkillsTxt(), "owner/repo-a\n")
-		mustWrite(t, filepath.Join(d.claudeDir(), fileSkills), "owner/repo-a\n")
-		dir := filepath.Join(d.claudeDir(), "skills", "repo-a")
-		if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		gv := []string{"git", "version"}
-		f.Expect(gv, "", nil)
-		f.Expect([]string{"git", "-C", dir, "pull", "--ff-only"}, "", nil)
+		mustWrite(t, d.Cfg.SkillsTxt(), golangCatalog)
+		mustWrite(t, filepath.Join(d.claudeDir(), fileSkills), "golang\n")
+		ghv := []string{"gh", "--version"}
+		list := []string{"gh", "skill", "list"}
+		f.Expect(ghv, "gh version", nil)
+		f.Expect(list, "[]", nil)
+		f.Expect(ghv, "gh version", nil)
+		f.Expect(list, "[]", nil)
+		f.Expect([]string{"gh", "skill", "install", "samber/cc-skills-golang", "golang-naming"}, "", nil)
+		f.Expect([]string{"gh", "skill", "install", "samber/cc-skills-golang", "golang-testing"}, "", nil)
+		f.Expect(ghv, "gh version", nil)
+		f.Expect(list, ghListBoth, nil)
 	},
 	"headroom": func(t *testing.T, d *Deps, f *exec.Fake) {
 		d.ProxyAddr = "http://host.docker.internal:8788"

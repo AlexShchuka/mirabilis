@@ -1,2 +1,1 @@
-noamseg/interview-coach-skill
-samber/cc-skills-golang
+golang samber/cc-skills-golang golang-code-style golang-data-structures golang-design-patterns golang-error-handling golang-how-to golang-modernize golang-naming golang-safety golang-testing golang-troubleshooting golang-security golang-concurrency golang-lint golang-performance golang-project-layout golang-stay-updated

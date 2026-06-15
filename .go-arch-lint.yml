@@ -40,6 +40,12 @@ components:
     in: internal/engine/localllm
   engine-provision:
     in: internal/engine/provision
+  engine-provision-skills:
+    in: internal/engine/provision/skills
+  engine-provision-plugins:
+    in: internal/engine/provision/plugins
+  engine-provision-reconcile:
+    in: internal/engine/provision/reconcile
   engine-status:
     in: internal/engine/status
   engine-steps:
@@ -131,6 +137,24 @@ deps:
       - engine-config
       - engine-harness
       - engine-pipeline
+      - engine-provision-skills
+      - engine-provision-plugins
+
+  engine-provision-skills:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-config
+      - engine-pipeline
+      - engine-provision-reconcile
+
+  engine-provision-plugins:
+    anyVendorDeps: true
+    mayDependOn:
+      - engine-pipeline
+      - engine-provision-reconcile
+
+  engine-provision-reconcile:
+    anyVendorDeps: true
 
   engine-status:
     anyVendorDeps: true
