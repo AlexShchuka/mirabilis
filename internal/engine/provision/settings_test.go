@@ -176,21 +176,33 @@ func TestSettingsStepCheck(t *testing.T) {
 	}
 }
 
-func TestThemeStepAppliesOnlyWhenThemeFilePresent(t *testing.T) {
+func TestThemeStepDefaultAutoWhenNoFile(t *testing.T) {
 	d, _ := testDeps(t)
 	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
 	step := &themeStep{d: d}
-	if !checkStep(t, step) {
-		t.Error("check should be true without a theme file")
+	if checkStep(t, step) {
+		t.Error("check should be false when settings.json has no theme key")
 	}
 	if err := runStep(t, step); err != nil {
 		t.Fatal(err)
 	}
-	if _, has := mustReadJSON(t, d.settingsPath())["theme"]; has {
-		t.Error("run without theme file must not touch settings")
+	got := mustReadJSON(t, d.settingsPath())
+	if got["theme"] != defaultTheme {
+		t.Errorf("theme = %v, want %q (default)", got["theme"], defaultTheme)
 	}
+	if got["a"] != "1" {
+		t.Errorf("unrelated key lost: %v", got["a"])
+	}
+	if !checkStep(t, step) {
+		t.Error("check should be true after run with default theme")
+	}
+}
 
+func TestThemeStepFileOverridesDefault(t *testing.T) {
+	d, _ := testDeps(t)
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
 	mustWrite(t, d.themePath(), "tokyo-night\r\n")
+	step := &themeStep{d: d}
 	if checkStep(t, step) {
 		t.Error("check should be false when theme file differs from settings")
 	}
@@ -206,6 +218,34 @@ func TestThemeStepAppliesOnlyWhenThemeFilePresent(t *testing.T) {
 	}
 	if !checkStep(t, step) {
 		t.Error("check should be true after theme applied")
+	}
+}
+
+func TestThemeStepAlreadyAutoIsNoop(t *testing.T) {
+	d, _ := testDeps(t)
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"theme": "auto", "a": "1"})
+	step := &themeStep{d: d}
+	if !checkStep(t, step) {
+		t.Error("check should be true when settings.json already has default theme")
+	}
+}
+
+func TestThemeStepEmptyFileUsesDefault(t *testing.T) {
+	d, _ := testDeps(t)
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
+	mustWrite(t, d.themePath(), "\n")
+	step := &themeStep{d: d}
+	if checkStep(t, step) {
+		t.Error("check should be false when theme file is empty and settings has no theme key")
+	}
+	if err := runStep(t, step); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadJSON(t, d.settingsPath())["theme"]; got != defaultTheme {
+		t.Errorf("theme = %v, want %q for empty theme file", got, defaultTheme)
+	}
+	if !checkStep(t, step) {
+		t.Error("check should be true after run with empty theme file")
 	}
 }
 

@@ -116,19 +116,21 @@ func (s *themeStep) Meta() pipeline.Meta {
 	return m
 }
 
+const defaultTheme = "auto"
+
 func (s *themeStep) theme() string {
 	data, err := os.ReadFile(s.d.themePath())
 	if err != nil {
-		return ""
+		return defaultTheme
 	}
-	return strings.TrimRight(string(data), "\r\n")
+	if t := strings.TrimRight(string(data), "\r\n"); t != "" {
+		return t
+	}
+	return defaultTheme
 }
 
 func (s *themeStep) Check(_ context.Context) (bool, error) {
 	th := s.theme()
-	if th == "" {
-		return true, nil
-	}
 	dest := s.d.settingsPath()
 	if !exists(dest) {
 		return true, nil
@@ -142,9 +144,6 @@ func (s *themeStep) Check(_ context.Context) (bool, error) {
 
 func (s *themeStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
 	th := s.theme()
-	if th == "" {
-		return nil
-	}
 	dest := s.d.settingsPath()
 	if !exists(dest) {
 		return nil
