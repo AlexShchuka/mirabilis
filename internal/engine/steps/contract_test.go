@@ -43,7 +43,11 @@ func TestLaunchContract(t *testing.T) {
 			},
 		},
 		"telegram": {
-			resolve: func(any) pipeline.Result { return pipeline.Result{Value: "skip"} },
+			setup: func(t *testing.T, _ Deps, _ *exec.Fake, _ *sandbox.FakeDocker, step pipeline.Command) {
+				ts := newTelegramServer(t)
+				step.(*telegramStep).baseURL = ts.URL
+			},
+			resolve: func(any) pipeline.Result { return pipeline.Result{Value: "12345:token"} },
 		},
 		"image": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, dk *sandbox.FakeDocker, _ pipeline.Command) {
