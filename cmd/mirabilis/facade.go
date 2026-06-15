@@ -153,10 +153,6 @@ func (f *facade) ResetSandbox(ctx context.Context) error {
 	return drain(f.sb.Reset(ctx))
 }
 
-func (f *facade) ConfigureTelegram(ctx context.Context, token string) error {
-	return notify.Configure(ctx, f.store, "", f.repo, token)
-}
-
 func (f *facade) HarnessStatus(ctx context.Context) (string, error) {
 	return steps.HarnessStatus(ctx, f.deps)
 }
@@ -188,10 +184,6 @@ func (f *facade) RememberHarnessChoice(choice string) error {
 
 func (f *facade) TelegramConfigured() bool {
 	return config.TelegramConfigured(f.repo)
-}
-
-func (f *facade) MarkTelegramConfigured() error {
-	return config.WriteTelegramConfigured(f.repo, true)
 }
 
 func drain(events <-chan exec.Event) error {

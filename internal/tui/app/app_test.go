@@ -123,11 +123,6 @@ func (f *fakeFacade) ResetSandbox(_ context.Context) error {
 	return nil
 }
 
-func (f *fakeFacade) ConfigureTelegram(_ context.Context, _ string) error {
-	f.logCall("ConfigureTelegram")
-	return nil
-}
-
 func (f *fakeFacade) HarnessStatus(_ context.Context) (string, error) {
 	f.logCall("HarnessStatus")
 	return "", nil
@@ -161,11 +156,6 @@ func (f *fakeFacade) RememberHarnessChoice(_ string) error {
 }
 
 func (f *fakeFacade) TelegramConfigured() bool { return false }
-
-func (f *fakeFacade) MarkTelegramConfigured() error {
-	f.logCall("MarkTelegramConfigured")
-	return nil
-}
 
 func (f *fakeFacade) getCallLog() []string {
 	f.mu.Lock()

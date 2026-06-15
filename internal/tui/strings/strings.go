@@ -54,18 +54,16 @@ const (
 
 	ProgressSep = "/"
 
-	MenuActionLaunch   = "Launch"
-	MenuActionHarness  = "Harness"
-	MenuActionTelegram = "Telegram"
-	MenuActionVSCode   = "VS Code"
-	MenuActionReset    = "Reset"
-	MenuActionQuit     = "Quit"
+	MenuActionLaunch  = "Launch"
+	MenuActionHarness = "Harness"
+	MenuActionVSCode  = "VS Code"
+	MenuActionReset   = "Reset"
+	MenuActionQuit    = "Quit"
 
-	MenuDescLaunch   = "setup pipeline + Claude in container"
-	MenuDescHarness  = "neuro-matrix: on / off / reinstall"
-	MenuDescTelegram = "bot notifications: token, optional"
-	MenuDescVSCode   = "open container root in VS Code"
-	MenuDescReset    = "container, image and volumes — permanent"
+	MenuDescLaunch  = "setup pipeline + Claude in container"
+	MenuDescHarness = "neuro-matrix: on / off / reinstall"
+	MenuDescVSCode  = "open container root in VS Code"
+	MenuDescReset   = "container, image and volumes — permanent"
 
 	MenuHarnessOn      = "neuro-matrix: on"
 	MenuHarnessOff     = "neuro-matrix: off"
@@ -79,10 +77,9 @@ const (
 
 	BusyElapsedSep = " "
 
-	NoticeHarnessErr  = "harness: "
-	NoticeVSCodeErr   = "VS Code: "
-	NoticeTelegramErr = "telegram: "
-	NoticeResetDone   = "removed — relaunch to rebuild"
+	NoticeHarnessErr = "harness: "
+	NoticeVSCodeErr  = "VS Code: "
+	NoticeResetDone  = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
 	FormOptHarnessOn  = "Enable"
@@ -104,14 +101,11 @@ const (
 	NoticeResetFailed     = "reset failed"
 	LogResetFailed        = "reset failed"
 
-	NoticeTelegramConfiguring = "configuring telegram…"
-	NoticeTelegramDone        = "telegram: notifications enabled"
-	NoticeHarnessApplying     = "applying harness…"
-	NoticeHarnessDone         = "harness: done"
-	NoticeVSCodeOpening       = "opening VS Code…"
-	NoticeBusy                = "busy — wait"
-	NoticeVSCodeDone          = "VS Code: opened"
-	LogTelegramFailed         = "telegram setup failed"
-	LogHarnessFailed          = "harness apply failed"
-	LogVSCodeFailed           = "vscode open failed"
+	NoticeHarnessApplying = "applying harness…"
+	NoticeHarnessDone     = "harness: done"
+	NoticeVSCodeOpening   = "opening VS Code…"
+	NoticeBusy            = "busy — wait"
+	NoticeVSCodeDone      = "VS Code: opened"
+	LogHarnessFailed      = "harness apply failed"
+	LogVSCodeFailed       = "vscode open failed"
 )

@@ -27,8 +27,6 @@ type stubFacade struct {
 	mu               sync.Mutex
 	steps            []pipeline.Command
 	launchCalls      int
-	telegramTokens   []string
-	telegramErr      error
 	harnessCurrent   string
 	harnessStatusErr error
 	harnessApplied   []string
@@ -41,9 +39,6 @@ type stubFacade struct {
 	lastHarness      string
 	rememberedChoice string
 	rememberErr      error
-	telegramCfg      bool
-	telegramMarked   bool
-	markErr          error
 	statusSubs       int
 	openURLCalls     []string
 }
@@ -90,13 +85,6 @@ func (f *stubFacade) ResetSandbox(context.Context) error {
 	defer f.mu.Unlock()
 	f.resetCalls++
 	return f.resetErr
-}
-
-func (f *stubFacade) ConfigureTelegram(_ context.Context, token string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.telegramTokens = append(f.telegramTokens, token)
-	return f.telegramErr
 }
 
 func (f *stubFacade) HarnessStatus(context.Context) (string, error) {
@@ -149,29 +137,12 @@ func (f *stubFacade) RememberHarnessChoice(choice string) error {
 	return f.rememberErr
 }
 
-func (f *stubFacade) TelegramConfigured() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.telegramCfg
-}
-
-func (f *stubFacade) MarkTelegramConfigured() error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.telegramMarked = true
-	return f.markErr
-}
+func (f *stubFacade) TelegramConfigured() bool { return false }
 
 func (f *stubFacade) remembered() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.rememberedChoice
-}
-
-func (f *stubFacade) marked() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.telegramMarked
 }
 
 func (f *stubFacade) launches() int {
@@ -544,60 +515,6 @@ func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
 	}
 }
 
-func TestStateTelegramConfigure(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	if a.menuAction != "telegram" {
-		t.Fatalf("menuAction = %q, want telegram", a.menuAction)
-	}
-
-	a, cmd := step(t, a, bus.ScreenResult{Value: "123456:bot-token"})
-	if !a.busy {
-		t.Error("busy = false while telegram configure runs, want true")
-	}
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if a.busy {
-		t.Error("busy = true after telegram done, want false")
-	}
-	if got := menuNotice(t, a); got != uistr.NoticeTelegramDone {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeTelegramDone)
-	}
-	if len(f.telegramTokens) != 1 || f.telegramTokens[0] != "123456:bot-token" {
-		t.Errorf("ConfigureTelegram tokens = %v", f.telegramTokens)
-	}
-}
-
-func TestStateTelegramSkip(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	a, _ = step(t, a, bus.ScreenResult{Value: screens.TelegramSkip})
-	if a.menuAction != "" {
-		t.Errorf("menuAction = %q after skip, want empty", a.menuAction)
-	}
-	if a.busy {
-		t.Error("busy = true after skip, want false")
-	}
-	if len(f.telegramTokens) != 0 {
-		t.Errorf("ConfigureTelegram called on skip: %v", f.telegramTokens)
-	}
-}
-
-func TestStateTelegramFailure(t *testing.T) {
-	f := &stubFacade{telegramErr: errors.New("boom: channel not detected")}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	a, cmd := step(t, a, bus.ScreenResult{Value: "123456:bot-token"})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeTelegramErr+"boom: channel not detected" {
-		t.Errorf("notice = %q", got)
-	}
-}
-
 func TestStateResetConfirmRunsAndNotifies(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
@@ -864,8 +781,8 @@ func TestStateNavKeysDriveFrameCursorAtMenu(t *testing.T) {
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if got := frameSelected(t, a); got != screens.ActionTelegram {
-		t.Errorf("after j: selection = %q, want telegram", got)
+	if got := frameSelected(t, a); got != screens.ActionVSCode {
+		t.Errorf("after j: selection = %q, want vscode", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
@@ -1101,31 +1018,6 @@ func TestHarnessDoesNotRememberOnFailure(t *testing.T) {
 	}
 }
 
-func TestTelegramMarksConfiguredOnSuccess(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	a, cmd := step(t, a, bus.ScreenResult{Value: "123:token"})
-	_, doneCmd := step(t, a, runWorkMsg(t, cmd))
-	runMsg(t, doneCmd)
-	if !f.marked() {
-		t.Error("MarkTelegramConfigured not called after successful configure")
-	}
-}
-
-func TestTelegramDoesNotMarkOnFailure(t *testing.T) {
-	f := &stubFacade{telegramErr: errors.New("configure boom")}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	a, cmd := step(t, a, bus.ScreenResult{Value: "123:token"})
-	_, _ = step(t, a, runWorkMsg(t, cmd))
-	if f.marked() {
-		t.Error("MarkTelegramConfigured called after failed configure")
-	}
-}
-
 func TestHarnessStatusConsultsLastChoice(t *testing.T) {
 	f := &stubFacade{harnessCurrent: screens.HarnessOff, lastHarness: screens.HarnessReinstall}
 	a := newStateApp(t, f)
@@ -1144,8 +1036,8 @@ func TestMenuCursorSurvivesOverlay(t *testing.T) {
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	before := frameSelected(t, a)
-	if before != screens.ActionTelegram {
-		t.Fatalf("setup: selection = %q, want telegram", before)
+	if before != screens.ActionVSCode {
+		t.Fatalf("setup: selection = %q, want vscode", before)
 	}
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
@@ -1158,35 +1050,6 @@ func TestMenuCursorSurvivesOverlay(t *testing.T) {
 	}
 	if got := frameSelected(t, a); got != before {
 		t.Errorf("frame cursor changed across overlay round-trip: %q -> %q", before, got)
-	}
-}
-
-func TestTypeaheadNotDroppedOnScreenTransition(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionTelegram})
-	if _, ok := a.router.Top().(screens.Telegram); !ok {
-		t.Fatalf("setup: top screen = %T, want screens.Telegram", a.router.Top())
-	}
-	depthBefore := a.router.Depth()
-
-	for _, k := range []tea.KeyPressMsg{
-		{Code: 'a', Text: "a"},
-		{Code: 'b', Text: "b"},
-		{Code: 'c', Text: "c"},
-	} {
-		a, _ = step(t, a, k)
-	}
-
-	if a.router.Depth() != depthBefore {
-		t.Errorf("typed keys dropped the screen: depth %d -> %d", depthBefore, a.router.Depth())
-	}
-	if _, ok := a.router.Top().(screens.Telegram); !ok {
-		t.Errorf("top screen = %T after typed keys, want telegram screen still present (typeahead buffered, not dropped)", a.router.Top())
-	}
-	if a.menuAction != "telegram" {
-		t.Errorf("menuAction = %q after typeahead, want telegram (transition state preserved)", a.menuAction)
 	}
 }
 

@@ -12,16 +12,6 @@ import (
 
 const ghAuthNodeID = "app/launch/ghauth"
 
-func (a App) handleTelegramDone(msg telegramDoneMsg) (tea.Model, tea.Cmd) {
-	a.busy = false
-	if msg.err != nil {
-		a.facade.Logger().Error(uistr.LogTelegramFailed, "err", msg.err)
-		return a.failToMenu(uistr.NoticeTelegramErr + msg.err.Error())
-	}
-	m, _ := a.backToMenu(uistr.NoticeTelegramDone)
-	return m, a.rememberTelegram()
-}
-
 func (a App) handleHarnessStatus(msg harnessStatusMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	a.frame.SetBusy("")
