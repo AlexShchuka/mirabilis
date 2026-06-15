@@ -64,7 +64,7 @@ func (s *headroomStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-c
 		if upstream != "" {
 			startEnv = []string{"ANTHROPIC_TARGET_API_URL=" + upstream}
 		}
-		startScript := fmt.Sprintf(`setsid nohup %q proxy --mode %s >"$HOME/.headroom-proxy.log" 2>&1 &`,
+		startScript := fmt.Sprintf(`setsid nohup %q proxy --mode %q >"$HOME/.headroom-proxy.log" 2>&1 &`,
 			s.d.headroomBin(), config.HeadroomMode(s.d.Repo))
 		for ev := range s.d.Runner.Stream(ctx, exec.Spec{Argv: []string{"bash", "-lc", startScript}, Env: startEnv}) {
 			pipeline.Forward("headroom", out, ev)

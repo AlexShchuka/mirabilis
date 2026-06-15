@@ -106,8 +106,8 @@ func TestEnsureProxyForSession_ProxyUnreachable_StartsHeadroomAndPolls(t *testin
 	if !strings.Contains(start, filepath.Join(home, ".headroom-venv/bin/headroom")) {
 		t.Errorf("start script = %q, want headroom venv bin path", start)
 	}
-	if !strings.Contains(start, `proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`) {
-		t.Errorf("start script = %q, want --mode cache and log redirect", start)
+	if !strings.Contains(start, `proxy --mode "cache" >"$HOME/.headroom-proxy.log" 2>&1 &`) {
+		t.Errorf("start script = %q, want --mode \"cache\" and log redirect", start)
 	}
 	startEnv := calls[1].Env
 	found := false

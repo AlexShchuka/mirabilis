@@ -86,6 +86,22 @@ func TestMenuViewWelcomeAndNotice(t *testing.T) {
 	}
 }
 
+func TestLargeMarkReducedMotion(t *testing.T) {
+	for _, env := range []struct{ k, v string }{
+		{"NO_ANIMATE", "1"},
+		{"NO_COLOR", "1"},
+	} {
+		t.Run(env.k, func(t *testing.T) {
+			t.Setenv(env.k, env.v)
+			m := NewMenu("app/menu")
+			got := m.largeMark()
+			if got != uistr.LogoLargeStatic {
+				t.Errorf("largeMark() under %s=%s = %q, want LogoLargeStatic (%q)", env.k, env.v, got, uistr.LogoLargeStatic)
+			}
+		})
+	}
+}
+
 func TestMenuItemsActions(t *testing.T) {
 	want := []string{ActionLaunch, ActionHarness, ActionTelegram, ActionVSCode, ActionReset, ActionQuit}
 	items := MenuItems()

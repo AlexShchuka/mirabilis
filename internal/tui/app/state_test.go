@@ -1681,3 +1681,20 @@ func TestStateCopyDoneErrorFeedbackRouted(t *testing.T) {
 		t.Errorf("copyDone(err): ghauth view missing %q:\n%s", uistr.GHAuthCopyFailed, view)
 	}
 }
+
+func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
+	f := &stubFacade{steps: []pipeline.Command{&stateStep{
+		meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto},
+	}}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.busy {
+		t.Fatal("busy = false immediately after ActionLaunch, want true")
+	}
+
+	a = driveUntilDone(t, a)
+	if a.busy {
+		t.Fatal("busy = true after pipelineDoneMsg, want false")
+	}
+}

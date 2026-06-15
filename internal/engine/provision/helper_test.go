@@ -100,7 +100,7 @@ func headroomScripts(d Deps) map[string]string {
 		"pip":   `timeout 600 "$HOME/.headroom-venv/bin/pip" install "headroom-ai[mcp,proxy]"`,
 		"link":  `mkdir -p "$HOME/.local/bin" && ln -sf "$HOME/.headroom-venv/bin/headroom" "$HOME/.local/bin/headroom"`,
 		"curl":  `curl -fsS http://127.0.0.1:8787/stats >/dev/null 2>&1`,
-		"start": fmt.Sprintf(`setsid nohup %q proxy --mode cache >"$HOME/.headroom-proxy.log" 2>&1 &`, bin),
+		"start": fmt.Sprintf(`setsid nohup %q proxy --mode %q >"$HOME/.headroom-proxy.log" 2>&1 &`, bin, config.HeadroomMode(d.Repo)),
 		"poll":  `for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8787/stats >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1`,
 		"pkill": `pkill -f "headroom proxy" || true`,
 		"get":   `claude mcp get headroom`,
