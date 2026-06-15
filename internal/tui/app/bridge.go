@@ -37,9 +37,6 @@ func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 	if !a.busy {
 		a.frame.SetBusy("")
 	}
-	if notice == "" {
-		notice = a.baseNotice
-	}
 	menu := screens.NewMenu("app/menu")
 	if notice != "" {
 		menu = menu.WithNotice(notice)

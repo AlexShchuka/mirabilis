@@ -152,14 +152,6 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 	return a, tea.Batch(rc, ic, tick, pumpEvents(p.Events()))
 }
 
-func (a App) handlePromoted() (tea.Model, tea.Cmd) {
-	if !a.secondary {
-		return a, nil
-	}
-	a.promote()
-	return a.backToMenu("")
-}
-
 func (a App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":

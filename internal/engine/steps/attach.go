@@ -23,8 +23,13 @@ func (s *attachStep) Meta() pipeline.Meta {
 	}
 }
 
-func (s *attachStep) Check(context.Context) (bool, error) {
-	return false, nil
+func (s *attachStep) Check(ctx context.Context) (bool, error) {
+	c, err := s.d.Docker.Inspect(ctx)
+	if err != nil || !c.Running {
+		return false, nil
+	}
+	_, err = exec.Run(ctx, s.d.Runner, exec.Spec{Argv: containerArgv("claude", "--version")})
+	return err == nil, nil
 }
 
 func (s *attachStep) Run(ctx context.Context, out chan<- pipeline.Event, in <-chan pipeline.Result) error {

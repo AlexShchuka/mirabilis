@@ -1,4 +1,3 @@
-// Package app is the root Bubble Tea model that wires the TUI screens, pipeline, and facade.
 package app
 
 import (
@@ -17,7 +16,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
-	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
@@ -70,42 +68,19 @@ type App struct {
 	chromeFrame     int
 	chromeGen       int
 	harnessChoice   string
-	secondary       bool
-	baseNotice      string
 	errNotice       string
 }
 
-func New(ctx context.Context, f Facade, secondary bool) App {
+func New(ctx context.Context, f Facade) App {
 	ctx, cancel := context.WithCancel(ctx)
 	menu := screens.NewMenu("app/menu")
-	a := App{
+	return App{
 		ctx:      ctx,
 		cancel:   cancel,
 		facade:   f,
 		statusCh: f.StatusUpdates(),
 		frame:    frame.New("mirabilis", f.Version(), screens.MenuItems()),
 		router:   router.New(menu),
-	}
-	if secondary {
-		a.secondary = true
-		a.baseNotice = uistr.NoticeSecondary
-		a.applySecondary()
-		a.router = router.New(menu.WithNotice(a.baseNotice))
-	}
-	return a
-}
-
-func (a *App) applySecondary() {
-	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
-		a.frame.SetEnabled(action, false)
-	}
-}
-
-func (a *App) promote() {
-	a.secondary = false
-	a.baseNotice = ""
-	for _, action := range []string{screens.ActionLaunch, screens.ActionHarness, screens.ActionTelegram, screens.ActionReset} {
-		a.frame.SetEnabled(action, true)
 	}
 }
 
@@ -153,9 +128,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sc := bus.StatusChanged{Snapshot: snap}
 		a.frame, fc = a.frame.Update(sc)
 		return a, tea.Batch(fc, watchStatus(a.statusCh))
-
-	case promotedMsg:
-		return a.handlePromoted()
 
 	case tea.KeyPressMsg:
 		return a.handleKey(msg)

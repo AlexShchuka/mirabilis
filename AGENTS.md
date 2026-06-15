@@ -32,7 +32,10 @@ symlink to this file. Setup: `README.md`. Threat model: `SECURITY.md`.
 ## Layout
 
 ```
-cmd/mirabilis          dispatch: (no args→tui) | provision --phase | hook | notify send
+cmd/mirabilis          dispatch: (no args→tui) | serve | provision --phase | hook | notify send
+│                       serve: single-instance proxy+notify daemon; TUI spawns it detached on
+│                             start (single-instance flock guard makes multiple spawns harmless);
+│                             self-exits 30 s after last TUI pidfile disappears (I5 reap)
 │
 ├── internal/bus       message types + addressing (pure Go, no tea import)
 ├── internal/obs       slog sink + status registry: one log file, node-status aggregation

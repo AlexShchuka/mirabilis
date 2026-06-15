@@ -61,8 +61,6 @@ const (
 	MenuDescVSCode   = "open container root in VS Code"
 	MenuDescReset    = "container, image and volumes — permanent"
 
-	NoticeSecondary = "secondary — sandbox owned by another tab"
-
 	MenuHarnessOn      = "neuro-matrix: on"
 	MenuHarnessOff     = "neuro-matrix: off"
 	MenuHarnessMissing = "neuro-matrix: missing"

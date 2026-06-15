@@ -60,36 +60,6 @@ func TestReadSessionKeyMissing(t *testing.T) {
 	}
 }
 
-func TestPromotedKeyReadsPersisted(t *testing.T) {
-	repo := t.TempDir()
-	t.Setenv("MIRABILIS_REPO", repo)
-	const key = "cafebabecafebabecafebabecafebabe"
-	if err := writeSessionKey(repo, key); err != nil {
-		t.Fatalf("writeSessionKey: %v", err)
-	}
-	f, err := newFacade(repo)
-	if err != nil {
-		t.Fatalf("newFacade: %v", err)
-	}
-	t.Cleanup(func() { _ = f.obs.Close() })
-	if got := promotedKey(f, repo); got != key {
-		t.Fatalf("promotedKey = %q, want persisted %q", got, key)
-	}
-}
-
-func TestPromotedKeyMissingReturnsEmpty(t *testing.T) {
-	repo := t.TempDir()
-	t.Setenv("MIRABILIS_REPO", repo)
-	f, err := newFacade(repo)
-	if err != nil {
-		t.Fatalf("newFacade: %v", err)
-	}
-	t.Cleanup(func() { _ = f.obs.Close() })
-	if got := promotedKey(f, repo); got != "" {
-		t.Fatalf("promotedKey on missing file = %q, want empty (fresh-generate fallback)", got)
-	}
-}
-
 func TestFacadeNewProxyPersistsAndReturnsKey(t *testing.T) {
 	repo := t.TempDir()
 	t.Setenv("MIRABILIS_REPO", repo)

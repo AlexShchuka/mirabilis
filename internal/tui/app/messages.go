@@ -52,8 +52,6 @@ type copyDoneMsg struct {
 	err  error
 }
 
-type promotedMsg struct{}
-
 func watchStatus(ch <-chan obs.Snapshot) tea.Cmd {
 	return func() tea.Msg {
 		snap, ok := <-ch

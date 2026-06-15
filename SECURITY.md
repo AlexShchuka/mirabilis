@@ -131,6 +131,31 @@ gate. Poisoned content reaches the agent; the memory layer has no source attribu
 
 Do not point mirabilis at untrusted content sources without the harness-side gate in place.
 
+## Serve lifetime and proxy token window
+
+`mirabilis serve` is the single host process that runs the auth proxy and Telegram
+notify watcher. The proxy holds the live `TokenSource` connection and issues the
+per-session key that gates all in-container Anthropic API calls.
+
+**Token exposure window.** The proxy — and therefore the session key — lives as
+long as at least one TUI instance is registered as a live client. Each TUI writes a
+pidfile to `.mirabilis/clients/<pid>.pid` on startup and removes it on exit. The
+serve process polls every 5 seconds; after all clients have been gone for 30 seconds,
+serve exits and the proxy stops. A crash-exited TUI (no cleanup) leaves a stale
+pidfile; the next poll detects the dead PID via `kill -0` and removes it. The
+worst-case token-active window for a crash is therefore 5 s (poll interval) + 30 s
+(grace) = 35 seconds after the last live client exits.
+
+**Single-instance guard.** `serve` uses an exclusive `flock` on
+`.mirabilis/serve.lock` for its lifetime. A second `mirabilis serve` invocation (or
+a TUI spawning one while another is already running) immediately exits with no effect.
+Multiple TUI windows all share the same proxy, the same session key, and the same
+token exposure window.
+
+**Proxy binding and session-key auth.** See the *Secrets* section for the proxy
+binding address (loopback on macOS, `0.0.0.0` on Linux) and the 256-bit constant-time
+session key that is the auth gate for all proxy requests.
+
 ## Reporting
 
 Report suspected vulnerabilities privately via a GitHub Security Advisory on
