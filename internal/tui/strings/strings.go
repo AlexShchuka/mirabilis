@@ -4,6 +4,12 @@ package strings
 const (
 	AppName = "mirabilis"
 
+	LogoSmallFrames = "⊕⊛※"
+
+	LogoLargeFrameA = "   │   \n ──⊙── \n   │   "
+	LogoLargeFrameB = " ╲   ╱ \n   ⊙   \n ╱   ╲ "
+	LogoLargeStatic = LogoLargeFrameB
+
 	GHAuthTitle         = "GitHub sign-in"
 	GHAuthLabelCode     = "  code:  "
 	GHAuthLabelURL      = "  URL:   "

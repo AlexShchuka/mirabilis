@@ -4,11 +4,13 @@ package frame
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/components/statusbar"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
@@ -70,15 +72,18 @@ type Item struct {
 }
 
 type Model struct {
-	title   string
-	version string
-	items   []Item
-	status  statusbar.Model
-	cursor  int
-	width   int
-	height  int
-	busy    string
+	title       string
+	version     string
+	items       []Item
+	status      statusbar.Model
+	cursor      int
+	width       int
+	height      int
+	busy        string
+	chromeFrame int
 }
+
+func (m *Model) SetChrome(frame int) { m.chromeFrame = frame }
 
 func (m *Model) SetBusy(text string) { m.busy = text }
 
@@ -173,7 +178,7 @@ func (m *Model) SetEnabled(action string, enabled bool) {
 }
 
 func (m Model) MainSize() (int, int) {
-	return max(m.width-m.MenuWidth()-1, 0), max(m.height-2, 0)
+	return max(m.width-m.MenuWidth()-1, 0), max(m.height-3, 0)
 }
 
 func (m Model) MainOrigin() (int, int) {
@@ -206,8 +211,22 @@ func (m Model) tooSmallView() string {
 	return lipgloss.NewStyle().MaxWidth(m.width).MaxHeight(m.height).Render(placed)
 }
 
+func (m Model) smallGlyph() string {
+	frames := []rune(uistr.LogoSmallFrames)
+	if len(frames) == 0 {
+		return "⊕"
+	}
+	var idx int
+	if !a11y.ReducedMotion() {
+		idx = m.chromeFrame % len(frames)
+	}
+	return string(frames[idx])
+}
+
 func (m Model) headerView() string {
-	left := " " + styles.Header.Render(m.title)
+	glyph := m.smallGlyph()
+	glyphW := utf8.RuneCountInString(glyph)
+	left := " " + styles.Spinner.Render(glyph) + strings.Repeat(" ", max(2-glyphW, 0)) + styles.Header.Render(m.title)
 	right := ""
 	if m.busy != "" {
 		right = styles.Spinner.Render(m.busy)
@@ -228,7 +247,10 @@ func (m Model) headerView() string {
 		right += " "
 	}
 	gap := max(m.width-lipgloss.Width(left)-lipgloss.Width(right), 1)
-	return lipgloss.NewStyle().MaxWidth(m.width).Render(left + strings.Repeat(" ", gap) + right)
+	row := lipgloss.NewStyle().MaxWidth(m.width).Render(left + strings.Repeat(" ", gap) + right)
+	w := max(m.width, 0)
+	sep := styles.Off.Render(strings.Repeat("─", w))
+	return row + "\n" + sep
 }
 
 func (m Model) menuView(h int) string {

@@ -13,6 +13,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/obs"
+	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
@@ -43,6 +44,12 @@ type Facade interface {
 
 var execRunner = tea.Exec
 
+const chromePeriod = 700 * time.Millisecond
+
+type chromeTickMsg struct {
+	gen int
+}
+
 type App struct {
 	ctx             context.Context //nolint:containedctx
 	cancel          context.CancelFunc
@@ -60,6 +67,8 @@ type App struct {
 	busyStarted     time.Time
 	busyFrame       int
 	busyGen         int
+	chromeFrame     int
+	chromeGen       int
 	harnessChoice   string
 	secondary       bool
 	baseNotice      string
@@ -100,10 +109,31 @@ func (a *App) promote() {
 	}
 }
 
+func startChromeTick(gen int) tea.Cmd {
+	if a11y.ReducedMotion() {
+		return nil
+	}
+	return tea.Tick(chromePeriod, func(time.Time) tea.Msg {
+		return chromeTickMsg{gen: gen}
+	})
+}
+
+func (a *App) handleChromeTick(msg chromeTickMsg) (tea.Model, tea.Cmd) {
+	if msg.gen != a.chromeGen {
+		return a, nil
+	}
+	a.chromeFrame++
+	a.frame.SetChrome(a.chromeFrame)
+	ct := bus.ChromeTick{Frame: a.chromeFrame}
+	a.router, _ = a.router.Update(bus.Envelope{Msg: ct})
+	return a, startChromeTick(a.chromeGen)
+}
+
 func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.router.Init(),
 		watchStatus(a.statusCh),
+		startChromeTick(a.chromeGen),
 	)
 }
 
@@ -132,6 +162,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case busyTickMsg:
 		return a.handleBusyTick(msg)
+
+	case chromeTickMsg:
+		return a.handleChromeTick(msg)
 
 	case bus.MenuChosen:
 		return a.handleMenuChosen(msg)

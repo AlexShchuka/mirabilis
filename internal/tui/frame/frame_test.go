@@ -105,8 +105,8 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 80 {
 		t.Errorf("width = %d, want 80", got)
 	}
-	if w, h := m.MainSize(); w != 80-m.MenuWidth()-1 || h != 22 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,22)", w, h, 80-m.MenuWidth()-1)
+	if w, h := m.MainSize(); w != 80-m.MenuWidth()-1 || h != 21 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,21)", w, h, 80-m.MenuWidth()-1)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -117,8 +117,8 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 100 {
 		t.Errorf("width = %d, want 100", got)
 	}
-	if w, h := m.MainSize(); w != 100-m.MenuWidth()-1 || h != 28 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,28)", w, h, 100-m.MenuWidth()-1)
+	if w, h := m.MainSize(); w != 100-m.MenuWidth()-1 || h != 27 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,27)", w, h, 100-m.MenuWidth()-1)
 	}
 }
 
