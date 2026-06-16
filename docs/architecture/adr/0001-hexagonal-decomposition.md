@@ -1,10 +1,13 @@
 ---
-status: accepted
+status: superseded by ADR-0010
 date: 2026-06-16
 decision-makers: Owner
+superseded-by: 0010
 ---
 
 # Hexagonal (ports & adapters) is the component classification axis
+
+> **Superseded by [ADR-0010](0010-role-taxonomy.md).** The hexagonal axis is kept; ADR-0010 refines the four roles below into six (splitting the "driven" bucket into `driven` / `service` / `infrastructure`). The four-role partition recorded here is retained for history.
 
 ## Context and Problem Statement
 

@@ -6,28 +6,27 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
 
         user = person "Owner / Developer" "Single-owner operator who launches the sandbox and runs Claude Code with autonomy." "person"
 
-        claudecode = softwareSystem "Claude Code" "The inhabitant and brain of the home: the agent mirabilis exists to house and run; executes inside the provisioned dev-container and reaches Anthropic through the host auth proxy." "external"
+        claudecode = softwareSystem "Claude Code" "The inhabitant and brain of the home: the agent mirabilis exists to house and run; executes inside the provisioned dev-container and reaches Anthropic through the in-container headroom proxy and the host auth proxy." "external"
         docker = softwareSystem "Docker Engine" "Host container runtime: builds the image, runs the dev-container, streams events." "external"
         anthropic = softwareSystem "Anthropic API" "api.anthropic.com — Claude model + Claude Code backend." "external"
         telegram = softwareSystem "Telegram Bot API" "Outbound notifications + channel chat-id detection." "external"
         lmstudio = softwareSystem "LM Studio (host)" "host.docker.internal:1234 — host-local OpenAI-compatible model for prompt offload." "external"
         github = softwareSystem "GitHub" "gh auth + git remote; harness/skill/plugin sources." "external"
+        headroom = softwareSystem "headroom" "In-container proxy + MCP on :8787 (a Python package, headroom-ai): the agent's observability/compression MCP and the first hop of the Anthropic egress chain (per-session key gates it). mirabilis provisions it (pip install into a venv) but it runs as a separate process — not part of the Go binary, so not a component of the mirabilis container." "external"
 
         mirabilis = softwareSystem "mirabilis" "The habitat for the agent: builds and tends the dev-container home for Claude Code with the neuro-matrix harness, persistent memory and open egress; the frame within which the agent (the brain) works." {
 
-            !adrs adr
+            cli = container "mirabilis CLI" "A single multi-mode Go binary. The same artifact runs on the host (TUI, serve daemon) and inside the dev-container (provision, hook, localllm); see the deployment view for the planes. Components are grouped by hexagonal role (ADR-0010): core, ports, use-cases, driving adapters, services, driven adapters, infrastructure." "Go" "cli" {
 
-            cli = container "mirabilis CLI" "A single multi-mode Go binary. The same artifact runs on the host (TUI, serve daemon) and inside the dev-container (provision, hook, localllm); see the deployment view for the planes. Components are grouped by hexagonal role." "Go" "cli" {
+                !adrs adr
 
-                # ---- Domain core (no dependency on adapters; depends on nothing external) ----
-                group "Domain Core" {
+                group "Domain core" {
                     pipeline = component "Pipeline FSM" "Command contract (Meta/Check/Run) + ordered executor: deps, optional cascade-skip, retry, per-step timeout, streaming events, Resume/cancel. Idempotency contract Check->Run->Check (I3)." "internal/engine/pipeline" "core"
                     bus = component "Bus" "NodeID addressing algebra + message/event value types for the TUI (app and leaves); the engine emits its own event types and never imports bus (depguard engine-no-tui). Carries an obs.Snapshot in one event." "internal/bus" "core"
-                    provModel = component "Provisioning Model [TARGET]" "TARGET package (not yet in the tree): the desired-state of a provisioned sandbox as step contracts the use-cases compose into a pipeline. Pure domain." "internal/engine/provision/model" "core,target"
-                    inventory = component "Inventory Contract [TARGET]" "TARGET package (not yet in the tree): resolved opt-in selection {version, configured, skills, plugins} with an explicit configured-sentinel; host writes inventory.json, container reconciles." "internal/engine/inventory" "core,target"
+                    provModel = component "Provisioning model" "Target package: the desired state of a provisioned sandbox as step contracts the use-cases compose into a pipeline. Pure domain. Contract specified here; realization pending (README section 7)." "internal/engine/provision/model" "core,target"
+                    inventory = component "Inventory contract" "Target package: the resolved opt-in selection {version, configured, skills, plugins} with an explicit configured-sentinel; the host writes inventory.json, the container reconciles. Contract specified here (ADR-0006); realization pending (README section 7)." "internal/engine/inventory" "core,target"
                 }
 
-                # ---- Ports: interface types (not packages); the only legal use-case<->adapter coupling ----
                 group "Ports" {
                     runnerPort = component "Runner (port)" "Subprocess execution contract; every external command crosses it (I4). Interface in internal/engine/exec." "exec.Runner" "port"
                     storePort = component "Store (port)" "Secret get/set contract; one backend per platform (I7). Interface in internal/engine/secrets." "secrets.Store" "port"
@@ -37,52 +36,56 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
                     tokenSourcePort = component "TokenSource (port)" "Anthropic token provider, consumed by the auth proxy. Interface in internal/engine/authproxy." "authproxy.TokenSource" "port"
                 }
 
-                # ---- Application services (use-cases): compose pipelines from core + ports ----
-                group "Application Services" {
+                group "Application services (use-cases)" {
                     steps = component "Launch use-case" "Composes the host launch pipeline: preflight, claude-auth, config wizard, telegram, image, container, provision(create/start) via docker exec, gh-auth, plugins/skills apply, harness, attach." "internal/engine/steps" "useCase"
                     provision = component "Provision use-case" "Composes the idempotent in-container provisioning pipeline per phase (create | start | plugins | skills) from the model + installers." "internal/engine/provision" "useCase"
                 }
 
-                # ---- Driven adapters: implement a port and/or talk to the outside ----
-                group "Driven Adapters" {
-                    exec = component "Exec" "Runner implementations: Host (streamed, pgid-killed), TTY/PTYTee (interactive attach), Fake (tests)." "internal/engine/exec" "driven"
-                    obs = component "Obs sink" "Single observability destination: slog file + thread-safe node-status registry with watcher fan-out (G5). Concrete struct, injected; not an interface." "internal/obs" "driven"
-                    config = component "Config" "Reads tunables, catalogs and .env selections; the only writer of .env keys (G4)." "internal/engine/config" "driven"
-                    harness = component "Harness data" "neuro-matrix install actions, probe/relink scripts, provision markers, start-marker hash." "internal/engine/harness" "driven"
-                    reconcile = component "Reconcile" "Generic install-missing fold shared by the installers." "internal/engine/provision/reconcile" "driven"
-                    secrets = component "Secrets" "Store implementation: macOS Keychain / Linux-WSL 0600 file, one-time legacy migration (I7)." "internal/engine/secrets" "driven"
-                    claudeauth = component "Claude auth" "TokenSource implementation: cached host token + setup-token PTY extractor + background persistence." "internal/engine/claudeauth" "driven"
-                    authproxy = component "Auth proxy" "Reverse proxy for api.anthropic.com on a host goroutine; consumes TokenSource, exposes only a per-session key to the container (I1). Upstream hardcoded (SECURITY.md)." "internal/engine/authproxy" "driven"
-                    sandboxAdapter = component "Sandbox" "Docker implementation over the Moby SDK + compose: up/build/down/reset, inspect/events, fingerprint (sock changes fingerprint, I10), attach argv." "internal/engine/sandbox" "driven"
-                    status = component "Status watcher" "Owns the docker-events resubscribe loop for the session; maps container health into obs; degrades, never blocks the menu (I12)." "internal/engine/status" "driven"
-                    membackup = component "Memory backup" "Syncs the in-container memory dir to the host repo via docker cp. Exposes a Save function, not a port interface." "internal/engine/membackup" "driven"
-                    notify = component "Notify" "Notifier implementation: Telegram sender + file-backed outbox queue with retry and delivered-pruning." "internal/engine/notify" "driven"
-                    localllm = component "Local-LLM offload" "Completer implementation: OpenAI-compatible POST to the host LM Studio; also the local-offload MCP server. Deliberate egress edge (SECURITY.md). No in-project import." "internal/engine/localllm" "driven"
-                    skills = component "Skill installer" "Installs Claude skills via gh skill install (canon, D1); reconciles against gh skill list." "internal/engine/provision/skills" "driven"
-                    plugins = component "Plugin installer" "marketplace add + claude plugin install; writes enabled plugins to settings; carries the Plan.Configured sentinel." "internal/engine/provision/plugins" "driven"
-                }
-
-                # ---- Driving adapters: initiate work on the core ----
-                group "Driving Adapters" {
+                group "Driving adapters" {
                     tui = component "TUI app" "Bubble Tea root model: frame+router, engine-event<->bus bridge, tea.Exec handoff. UI thread does no I/O outside Cmd ctors (I2)." "internal/tui/app" "driving"
-                    tuiLeaves = component "TUI leaves" "Rendering and dispatch only: screens, components, frame, router, strings (English, I8), styles, a11y. Never import internal/engine (§4.2)." "internal/tui/{screens,components,frame,router,strings,styles,a11y}" "driving"
+                    tuiLeaves = component "TUI leaves" "Rendering and dispatch only: screens, components, frame, router, strings (English, I8), styles, a11y. Never import internal/engine (section 4.2)." "internal/tui/{screens,components,frame,router,strings,styles,a11y}" "driving"
                     cmd = component "CLI dispatch + composition root" "Parses subcommands (default TUI | serve | provision | hook | notify | localllm) and wires every adapter into the use-case Deps. The single composition root." "cmd/mirabilis" "driving"
                     hooks = component "Hooks" "Dispatches mirabilis hook <name> (session-start, telegram, post-tool-use-failure) as short-lived in-container processes; writes os.Stderr by deliberate I13 exemption." "internal/hooks" "driving"
+                }
+
+                group "Services" {
+                    authproxy = component "Auth proxy" "Long-lived reverse proxy for api.anthropic.com on a host goroutine; consumes the TokenSource port, exposes only a per-session key to the container (I1). Started by the serve daemon. A primary-side service: consumes a port, implements none. Upstream hardcoded (SECURITY.md)." "internal/engine/authproxy" "service"
+                    status = component "Status watcher" "Long-lived docker-events watcher for the session; maps container health into obs; degrades, never blocks the menu (I12). Consumes the Sandbox adapter; started by the composition root. A primary-side service." "internal/engine/status" "service"
+                    membackup = component "Memory backup" "One-shot facade: syncs the in-container memory dir to the host repo via docker cp. Consumes the Runner port; called by the composition root. Exposes a Save function, not a port. A primary-side service." "internal/engine/membackup" "service"
+                }
+
+                group "Driven adapters" {
+                    exec = component "Exec" "Runner implementations: Host (streamed, pgid-killed), TTY/PTYTee (interactive attach), Fake (tests). Implements the Runner port." "internal/engine/exec" "driven"
+                    secrets = component "Secrets" "Store implementation: macOS Keychain / Linux-WSL 0600 file, one-time legacy migration (I7). Implements the Store port." "internal/engine/secrets" "driven"
+                    claudeauth = component "Claude auth" "TokenSource implementation: cached host token + setup-token PTY extractor + background persistence. Implements the TokenSource port." "internal/engine/claudeauth" "driven"
+                    sandboxAdapter = component "Sandbox" "Docker implementation over the Moby SDK + compose: up/build/down/reset, inspect/events, fingerprint (sock changes fingerprint, I10), attach argv. Implements the Docker port." "internal/engine/sandbox" "driven"
+                    notify = component "Notify" "Notifier implementation: Telegram sender + file-backed outbox queue with retry and delivered-pruning. Implements the Notifier port." "internal/engine/notify" "driven"
+                    localllm = component "Local-LLM offload" "Completer implementation: the edge to the external LM Studio black box, offloading prompt completion to a host-local model (compute/cost, scope-reduction). Also serves the offload MCP to the agent over stdio. Deliberate egress edge (SECURITY.md)." "internal/engine/localllm" "driven"
+                    skills = component "Skill installer" "Installs Claude skills via gh skill install (canon, D1); reconciles against gh skill list. Port-less driven adapter: consumes the pipeline + reconcile, implements no port; driven by the provision use-case." "internal/engine/provision/skills" "driven"
+                    plugins = component "Plugin installer" "marketplace add + claude plugin install; writes enabled plugins to settings; carries the Plan.Configured sentinel. Port-less driven adapter: consumes the pipeline + reconcile, implements no port; driven by the provision use-case." "internal/engine/provision/plugins" "driven"
+                }
+
+                group "Infrastructure" {
+                    obs = component "Obs sink" "Single observability destination: slog file + thread-safe node-status registry with watcher fan-out (G5). Concrete struct, injected; cross-cutting, depended on by all; not a port." "internal/obs" "infra"
+                    config = component "Config" "Reads tunables, catalogs and .env selections from the filesystem and environment, and is the only writer of .env keys (G4): the seam through which the owner's desired state enters the system. Cross-cutting driven-side infrastructure." "internal/engine/config" "infra"
+                    harness = component "Harness data" "neuro-matrix install actions, probe/relink scripts, provision markers, start-marker hash. Cross-cutting data, depended on by provision." "internal/engine/harness" "infra"
+                    reconcile = component "Reconcile" "Generic install-missing fold shared by the installers; pure helper, no port." "internal/engine/provision/reconcile" "infra"
                 }
             }
         }
 
-        # ---- Context (L1) ----
         user -> mirabilis.cli.tui "Launches, configures, attaches"
         mirabilis -> claudecode "Provisions the sandbox and launches"
-        claudecode -> mirabilis.cli.authproxy "Claude traffic via per-session key" "HTTPS"
-        mirabilis.cli.authproxy -> anthropic "Proxies, injects real token" "HTTPS"
+        mirabilis -> headroom "Provisions in-container (pip install headroom-ai)"
+        claudecode -> headroom "Anthropic egress via per-session key" "HTTP :8787"
+        claudecode -> headroom "Observability + compression MCP" "stdio"
+        headroom -> mirabilis.cli.authproxy "Forwards Anthropic traffic" "HTTPS"
+        mirabilis.cli.authproxy -> anthropic "Proxies, injects the real token" "HTTPS"
         mirabilis.cli.notify -> telegram "Sends notifications; detects chat-id" "HTTPS"
         mirabilis.cli.sandboxAdapter -> docker "compose/build/run; inspect; events" "Docker SDK"
         mirabilis.cli.cmd -> github "gh auth / git remote" "HTTPS"
         mirabilis.cli.localllm -> lmstudio "Offloads prompts" "HTTP :1234"
 
-        # ---- Component (L3): driving -> use-case / driven ----
         mirabilis.cli.tui -> mirabilis.cli.steps "Runs the launch pipeline"
         mirabilis.cli.tui -> mirabilis.cli.tuiLeaves "Renders via"
         mirabilis.cli.tui -> mirabilis.cli.bus "Addressed envelopes"
@@ -93,16 +96,15 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
         mirabilis.cli.cmd -> mirabilis.cli.notify "Starts outbox watcher (serve)"
         mirabilis.cli.cmd -> mirabilis.cli.status "Starts container watcher"
         mirabilis.cli.cmd -> mirabilis.cli.membackup "Save memory"
-        mirabilis.cli.cmd -> mirabilis.cli.localllm "Serves offload MCP"
+        mirabilis.cli.cmd -> mirabilis.cli.localllm "Serves offload MCP (stdio child)"
         mirabilis.cli.hooks -> mirabilis.cli.provision "Invokes on session-start"
 
-        # ---- use-case -> domain core + ports ----
         mirabilis.cli.steps -> mirabilis.cli.pipeline "Composes & runs"
         mirabilis.cli.provision -> mirabilis.cli.pipeline "Composes & runs"
-        mirabilis.cli.steps -> mirabilis.cli.provModel "Realizes desired state [target]"
-        mirabilis.cli.provision -> mirabilis.cli.provModel "Realizes desired state [target]"
-        mirabilis.cli.cmd -> mirabilis.cli.inventory "Resolves & writes inventory.json [target]"
-        mirabilis.cli.provision -> mirabilis.cli.inventory "Reconciles against inventory.json [target]"
+        mirabilis.cli.steps -> mirabilis.cli.provModel "Realizes desired state (target)"
+        mirabilis.cli.provision -> mirabilis.cli.provModel "Realizes desired state (target)"
+        mirabilis.cli.cmd -> mirabilis.cli.inventory "Resolves & writes inventory.json (target)"
+        mirabilis.cli.provision -> mirabilis.cli.inventory "Reconciles against inventory.json (target)"
         mirabilis.cli.steps -> mirabilis.cli.runnerPort "uses"
         mirabilis.cli.steps -> mirabilis.cli.dockerPort "uses"
         mirabilis.cli.steps -> mirabilis.cli.tokenSourcePort "uses"
@@ -110,7 +112,6 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
         mirabilis.cli.steps -> mirabilis.cli.notifierPort "uses"
         mirabilis.cli.provision -> mirabilis.cli.runnerPort "uses"
 
-        # ---- driven adapters implement ports ----
         mirabilis.cli.exec -> mirabilis.cli.runnerPort "implements"
         mirabilis.cli.secrets -> mirabilis.cli.storePort "implements"
         mirabilis.cli.claudeauth -> mirabilis.cli.tokenSourcePort "implements"
@@ -118,7 +119,6 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
         mirabilis.cli.notify -> mirabilis.cli.notifierPort "implements"
         mirabilis.cli.localllm -> mirabilis.cli.completerPort "implements"
 
-        # ---- adapter / cross dependencies (real imports) ----
         mirabilis.cli.claudeauth -> mirabilis.cli.secrets "Reads cached token"
         mirabilis.cli.authproxy -> mirabilis.cli.tokenSourcePort "Consumes per request"
         mirabilis.cli.status -> mirabilis.cli.sandboxAdapter "inspect/events"
@@ -127,15 +127,16 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
         mirabilis.cli.steps -> mirabilis.cli.provision "docker exec provision (cross-process)"
         mirabilis.cli.skills -> mirabilis.cli.reconcile "install-missing"
         mirabilis.cli.plugins -> mirabilis.cli.reconcile "install-missing"
+        mirabilis.cli.skills -> mirabilis.cli.pipeline "Composes the install fold"
+        mirabilis.cli.plugins -> mirabilis.cli.pipeline "Composes the install fold"
+        mirabilis.cli.skills -> mirabilis.cli.config "Reads the skills catalog"
         mirabilis.cli.provision -> mirabilis.cli.skills "skills phase"
         mirabilis.cli.provision -> mirabilis.cli.plugins "plugins phase"
         mirabilis.cli.provision -> mirabilis.cli.harness "install actions/markers"
         mirabilis.cli.tuiLeaves -> mirabilis.cli.bus "Addressed delivery"
 
-        # ---- observability: obs is the single sink; cmd creates it, every component logs via it (per-component edges elided for clarity, see README section 4) ----
         mirabilis.cli.cmd -> mirabilis.cli.obs "Creates the sink; all components log and report status via it"
 
-        # ---- Deployment: the host vs in-container PLANES (one binary, two run locations) ----
         deploymentEnvironment "Runtime" {
             host = deploymentNode "Developer Host" "macOS / Linux / WSL" {
                 controlPlane = deploymentNode "mirabilis — control plane" "TUI + single-instance serve daemon (auth proxy, notify watcher, client reaper)" {
@@ -152,13 +153,16 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
                 deploymentNode "Claude Code" "the agent under autonomy" {
                     softwareSystemInstance claudecode
                 }
+                deploymentNode "headroom proxy + MCP" "Python process on :8787; first hop of the egress chain" {
+                    softwareSystemInstance headroom
+                }
             }
         }
     }
 
     views {
 
-        systemContext mirabilis "L1_Context" "The owner, Claude Code, and the external systems mirabilis integrates." {
+        systemContext mirabilis "L1_Context" "The owner, Claude Code, headroom, and the external systems mirabilis integrates." {
             include *
             autoLayout lr
         }
@@ -168,7 +172,7 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
             autoLayout
         }
 
-        component mirabilis.cli "L3_Components" "All components of the binary, grouped by hexagonal role: core, ports, application services, driven and driving adapters." {
+        component mirabilis.cli "L3_Components" "All components of the binary, grouped by hexagonal role: core, ports, use-cases, driving adapters, services, driven adapters, infrastructure." {
             include *
             autoLayout
         }
@@ -178,7 +182,7 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
             mirabilis.cli.tui -> mirabilis.cli.steps "Runs launch pipeline"
             mirabilis.cli.steps -> mirabilis.cli.sandboxAdapter "Builds image, starts container"
             mirabilis.cli.steps -> mirabilis.cli.provision "docker exec provision (cross-process)"
-            mirabilis.cli.provision -> mirabilis.cli.inventory "Reconciles selection [target]"
+            mirabilis.cli.provision -> mirabilis.cli.inventory "Reconciles selection (target)"
             autoLayout
         }
 
@@ -216,9 +220,19 @@ workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends
                 background #117864
                 color #ffffff
             }
+            element "service" {
+                shape RoundedBox
+                background #b9770e
+                color #ffffff
+            }
             element "driven" {
                 shape Component
                 background #2e86c1
+                color #ffffff
+            }
+            element "infra" {
+                shape Folder
+                background #5d6d7e
                 color #ffffff
             }
             element "driving" {

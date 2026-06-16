@@ -13,7 +13,7 @@ Four strict, machine-checkable artifacts, no ad-hoc notation:
 | `adr/*.md` | MADR | Architecture Decision Records — the decisions that *define* the target |
 | this file | DSM + traceability matrix | Layer proof + completeness map binding package → role → port → ADR |
 
-The C4 "C1–C4" levels are diagram zoom levels (Brown). They are **unrelated** to the legacy `C1–C4` refactor-stage labels in `../provision-templates-refactor.md`.
+The C4 "C1–C4" levels are diagram **zoom levels** (Context → Container → Component → Code, per Brown): a vocabulary for *depth of view*, not a sequence of changes. This document is a description of the target state — the diff against today's tree is derived by comparing the code to this spec, never authored here.
 
 ---
 
@@ -35,23 +35,36 @@ The spine is correctness from **first principles** — universal laws, mathemati
 
 ---
 
-## §3 — Hexagonal classification (target)
+## §3 — Hexagonal classification + node contracts (target)
 
-Every package is exactly one of: **domain-core**, **application-service (use-case)**, **driven-adapter**, **driving-adapter**. **Ports** are interface *types* (not packages) at the core boundary. Dependencies point inward: driving → use-case → core ← port ← driven.
+Every package has exactly one role (ADR-0010). The spine is hexagonal ports & adapters; each of the two sides carries one named refinement, and the inward dependency rule is unchanged — **the core depends on nothing**; everything points inward.
 
 ```
-   driving adapters ─────►  application services ─────►  DOMAIN CORE  ◄───── ports ◄───── driven adapters
-   tui · tui-leaves         steps · provision            pipeline · bus      Runner       exec · secrets · config
-   cmd · hooks                                            provModel*          Store        harness · reconcile
-        │                                                 inventory*          Docker       claudeauth · authproxy
-        └── reach some driven adapters directly ─────────────────────────────Notifier     sandbox · status · membackup
-            (cmd→status/membackup/localllm; serve daemon→authproxy/notify)    Completer    notify · localllm · skills · plugins
-                                                                              TokenSource   obs (concrete sink, not a port)
+  DRIVING SIDE (sources, reached by the root)   CORE         PORTS      DRIVEN SIDE (sinks)
+  driving:  tui · tui-leaves · cmd · hooks      pipeline     Runner     driven (implements a port):
+  service:  authproxy · status · membackup      bus          Store        exec · secrets · sandbox
+  use-case: steps · provision  ───────────────► provModel*   Docker       claudeauth · notify · localllm
+                                                inventory*   Notifier   driven (port-less executor):
+                                                             Completer    skills · plugins
+                                                             TokenSrc   infrastructure (cross-cutting):
+                                                                          obs · config · harness · reconcile
 ```
 
-- A **port** is the only legal use-case↔adapter coupling (G8: swap an adapter = new file + one registration). Ports: `Runner`, `Store`, `Docker`, `Notifier`, `Completer`, `TokenSource` (6). `obs` is the concrete observability sink injected directly — **not** a port (no `Obs` interface exists); making it a port is a possible future improvement, not part of this target.
-- Not every adapter is reached through a use-case: the composition root (`cmd`) and the serve daemon drive `status`, `membackup`, `localllm`, `authproxy`, `notify` directly (facade operations and long-lived services). The use-cases (`steps`, `provision`) mediate the *pipeline* adapters.
-- `*` `provModel` and `inventory` are **target** packages (not yet in the tree).
+The six roles (ADR-0010 supersedes the four-role ADR-0001):
+
+- **core** — `pipeline`, `bus`, `provModel*`, `inventory*`: pure domain + value types; depends on nothing.
+- **use-case** (application service) — `steps`, `provision`: compose pipelines from core + ports.
+- **driving adapter** — `tui`, `tui-leaves`, `cmd`, `hooks`: initiate work on the core.
+- **service** — `authproxy`, `status`, `membackup`: a refinement of the **driving** side — long-lived or one-shot *primary actors* started by the composition root (Cockburn); they **consume** a port and implement none. They sit on the source side, not the sink side — they are not driven adapters.
+- **driven adapter** — `exec`, `secrets`, `sandbox`, `claudeauth`, `notify`, `localllm` each **implement** exactly one of the six ports (a port↔adapter bijection); `skills` and `plugins` are **port-less** driven adapters — they do external install work through the pipeline, driven by the `provision` use-case.
+- **infrastructure** — `obs`, `config`, `harness`, `reconcile`: a refinement of the **driven** side — cross-cutting, injected, depended on by many, behind no port. `config` is the seam through which the owner's desired state enters (it reads/writes `.env` + env); `obs` is the single sink; both are deliberately port-free.
+
+`service` and `infrastructure` are **naming refinements of the two hexagon sides, not new directions the core may depend on** — promoting them to core-facing roles would bend the dependency rule and is the anti-pattern this taxonomy avoids.
+
+**Each node is a black-box contract `{goal, input → output}`** — the port *is* that contract (Parnas information-hiding: hide the decision most likely to change; Meyer design-by-contract: pre/post-conditions; Martin ISP: keep it narrow). A change to one node is provably local **because the contract is its only coupling**, and `go-arch-lint` (the reflexion model / fitness function, §7) fails the build if any import crosses a seam the contract forbids. That is what lets the owner swap a template, tool, or adapter by editing one contract, not the whole graph (G8).
+
+- A **port** is the only legal use-case↔adapter coupling. Ports (6): `Runner`, `Store`, `Docker`, `Notifier`, `Completer`, `TokenSource`. `obs` is injected directly — **not** a port (no `Obs` interface); making it one is a possible future improvement, not this target.
+- `*` `provModel` and `inventory` are **target** packages — the contract is specified here, the code is the convergence target (§7).
 
 ---
 
@@ -109,37 +122,37 @@ This is exactly the edge set of `.go-arch-lint.yml` (minus the unused `localllm�
 
 ## §5 — Traceability matrix (completeness)
 
-23 current packages (= the 23 `.go-arch-lint.yml` components) **+ 2 target packages** = **25 component rows**. The 6 ports are interface types living inside existing packages (the "Port" column), rendered as separate boxes in the DSL component view but not counted as packages. Every row has a verdict cell — that is the completeness guarantee.
+23 current packages (= the 23 `.go-arch-lint.yml` components) **+ 2 target packages** = **25 component rows**, each carrying exactly one of the six roles (ADR-0010). The 6 ports are interface types living inside existing packages (the "Port" column), rendered as separate boxes in the DSL component view but not counted as packages. Every row has a role + verdict cell — that is the completeness guarantee.
 
 | Component | Role | Runs in | Layer | Go package | Port | ADR |
 |---|---|---|---|---|---|---|
-| pipeline | core | both | L1 | `internal/engine/pipeline` | — | 0001,0005 |
-| bus | core | control | L0 | `internal/bus` | — | 0001 |
-| provModel \* | core (target) | both | — | `internal/engine/provision/model` | — | 0001,0005 |
-| inventory \* | core (target) | both | — | `internal/engine/inventory` | — | 0006 |
-| steps | use-case | control | L3 | `internal/engine/steps` | uses Runner/Docker/Store/TokenSource/Notifier | 0001,0005 |
-| provision | use-case | provision | L3 | `internal/engine/provision` | uses Runner | 0001,0005,0006 |
-| exec | driven | both | L0 | `internal/engine/exec` | implements Runner | 0003 |
-| obs | driven | both | L0 | `internal/obs` | — (concrete sink) | 0004 |
-| config | driven | both | L0 | `internal/engine/config` | — | 0001 |
-| harness | driven | both | L0 | `internal/engine/harness` | — | 0007 |
-| reconcile | driven | provision | L0 | `internal/engine/provision/reconcile` | — | 0001 |
+| pipeline | core | both | L1 | `internal/engine/pipeline` | — | 0010,0005 |
+| bus | core | control | L0 | `internal/bus` | — | 0010 |
+| provModel \* | core (target) | both | — | `internal/engine/provision/model` | — | 0010,0005 |
+| inventory \* | core (target) | both | — | `internal/engine/inventory` | — | 0006,0010 |
+| steps | use-case | control | L3 | `internal/engine/steps` | uses Runner/Docker/Store/TokenSource/Notifier | 0010,0005 |
+| provision | use-case | provision | L3 | `internal/engine/provision` | uses Runner | 0010,0005,0006 |
+| tui-app | driving | control | L4 | `internal/tui/app` | — | 0010 |
+| tui-leaves | driving | control | L1 | `internal/tui/{screens,components,frame,router,strings,styles,a11y}` | — | 0010 |
+| cmd | driving | both | L5 | `cmd/mirabilis` | composition root | 0003,0010 |
+| hooks | driving | provision | L4 | `internal/hooks` | — | 0008,0010 |
+| authproxy | service | control | L0 | `internal/engine/authproxy` | uses TokenSource | 0007,0010 |
+| status | service | control | L2 | `internal/engine/status` | uses Docker (via sandbox) | 0004,0010 |
+| membackup | service | control | L1 | `internal/engine/membackup` | uses Runner (Save fn, no port) | 0003,0010 |
+| exec | driven | both | L0 | `internal/engine/exec` | implements Runner | 0003,0010 |
 | secrets | driven | control | L1 | `internal/engine/secrets` | implements Store | 0003,0007 |
 | claudeauth | driven | control | L2 | `internal/engine/claudeauth` | implements TokenSource | 0007 |
-| authproxy | driven | control | L0 | `internal/engine/authproxy` | uses TokenSource | 0007 |
 | sandbox | driven | control | L1 | `internal/engine/sandbox` | implements Docker | 0003 |
-| status | driven | control | L2 | `internal/engine/status` | — | 0004 |
-| membackup | driven | control | L1 | `internal/engine/membackup` | — (Save fn, no interface) | 0003 |
 | notify | driven | control | L2 | `internal/engine/notify` | implements Notifier | 0003 |
 | localllm | driven | provision | L0 | `internal/engine/localllm` | implements Completer | 0007 |
-| prov-skills | driven | provision | L2 | `internal/engine/provision/skills` | — | 0007 |
-| prov-plugins | driven | provision | L2 | `internal/engine/provision/plugins` | — | 0006,0007 |
-| tui-app | driving | control | L4 | `internal/tui/app` | — | 0001 |
-| tui-leaves | driving | control | L1 | `internal/tui/{screens,components,frame,router,strings,styles,a11y}` | — | 0001 |
-| cmd | driving | both | L5 | `cmd/mirabilis` | composition root | 0003 |
-| hooks | driving | provision | L4 | `internal/hooks` | — | 0008 |
+| prov-skills | driven (port-less) | provision | L2 | `internal/engine/provision/skills` | — | 0007,0010 |
+| prov-plugins | driven (port-less) | provision | L2 | `internal/engine/provision/plugins` | — | 0006,0007,0010 |
+| obs | infrastructure | both | L0 | `internal/obs` | — (concrete sink) | 0004,0010 |
+| config | infrastructure | both | L0 | `internal/engine/config` | — (desired-state seam) | 0010 |
+| harness | infrastructure | both | L0 | `internal/engine/harness` | — | 0007,0010 |
+| reconcile | infrastructure | provision | L0 | `internal/engine/provision/reconcile` | — | 0010 |
 
-\* target package, not yet on disk. The DSL renders **31 boxes** = these 25 package-components + the 6 port interface elements.
+\* target package: the contract is specified here, the code is the convergence target. `go-arch-lint` maps the **23 realized** packages today; this matrix describes the **25-component** target, and the two target rows gain their `.go-arch-lint.yml` component when their code lands (§7). The DSL renders **31 boxes** = these 25 package-components + the 6 port interface elements.
 
 ---
 
@@ -174,7 +187,7 @@ Meta-goals **G0–G8** and invariants **I1–I13** are defined in `../../CLAUDE.
 - **Monotonicity.** Conformance rules only tighten; removing an allowed exception is permitted, adding a violation is not; each tightening is an ADR.
 - **ADR supersession.** A decision is never edited in place after acceptance; a reversal is a new ADR marked `superseded` referencing the old number.
 
-Target packages (`inventory`, `provModel`) are **not** yet in `.go-arch-lint.yml`; they are added there as the rewrite creates them, at which point the matrix count becomes 25/25. The live arch-lint config is never loosened ahead of the code.
+Target packages (`inventory`, `provModel`) are not in `.go-arch-lint.yml` until their code exists; each gains its component when its code lands, at which point the reflexion model maps 25/25. The live arch-lint config is never loosened ahead of the code, so the doc may describe more components than are executable today — that gap is precisely the convergence vector, not a divergence.
 
 ---
 
@@ -182,7 +195,7 @@ Target packages (`inventory`, `provModel`) are **not** yet in `.go-arch-lint.yml
 
 | # | Decision |
 |---|---|
-| [0001](adr/0001-hexagonal-decomposition.md) | Hexagonal (ports & adapters) is the classification axis; every package has exactly one role |
+| [0001](adr/0001-hexagonal-decomposition.md) | Hexagonal (ports & adapters) is the classification axis; every package has exactly one role — **superseded by [0010](adr/0010-role-taxonomy.md)** on the role count |
 | [0002](adr/0002-plane-split.md) | One container; host/in-container planes are deployment nodes (not containers, not a kernel library-container) |
 | [0003](adr/0003-ports-and-adapters.md) | Ports are the only use-case↔adapter coupling; adapters are replaceable (G8) |
 | [0004](adr/0004-single-obs-sink.md) | One observability sink; status + logs converge on `obs` (G5) |
@@ -191,3 +204,4 @@ Target packages (`inventory`, `provModel`) are **not** yet in `.go-arch-lint.yml
 | [0007](adr/0007-locked-boundaries.md) | Locked boundaries: gh-skill install (D1), token chain (I1), egress edges (§5) |
 | [0008](adr/0008-conformance-as-code.md) | go-arch-lint = reflexion model + fitness function; no comments in code (D10) |
 | [0009](adr/0009-system-essence.md) | System essence: a habitat for the agent; frame-not-brain; first-principles spine; peers across the wall |
+| [0010](adr/0010-role-taxonomy.md) | Six-role taxonomy (core, use-case, driving, service, driven, infrastructure); service/infrastructure are named refinements of the two hexagon sides, not core-facing directions; each node is a black-box contract enforced as a port + go-arch-lint (supersedes 0001) |

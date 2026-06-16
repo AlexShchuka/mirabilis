@@ -24,7 +24,27 @@ The host resolves the owner's selection (skills, plugins) and the container reco
 
 ## Decision Outcome
 
-Chosen: **the configured-sentinel struct** in the target package `internal/engine/inventory` (not yet on disk). The host writes `inventory.json` (names only, 0644, host-first mkdir); the container reads and reconciles level-triggered each launch; `configured=false ∨ absent ⇒ NotConfigured ⇒ explicit log`, never silent-healthy. `version` is a fail-fast guard (a reader on `version > known` fails loud), not a migration mechanism. In-repo precedent: `plugins.Plan.Configured`.
+Chosen: **the configured-sentinel struct** in the target package `internal/engine/inventory` (a target package: its contract is fixed here, its code is the convergence target — README §5/§7). The host writes `inventory.json` (names only, 0644, host-first mkdir); the container reads and reconciles level-triggered each launch; `configured=false ∨ absent ⇒ NotConfigured ⇒ explicit log`, never silent-healthy. `version` is a fail-fast guard (a reader on `version > known` fails loud), not a migration mechanism. In-repo precedent: `plugins.Plan.Configured`.
+
+**Wire contract.** The serialized form is the seam; field semantics live in prose (no struct comments, D10):
+
+```go
+package inventory
+
+type Inventory struct {
+	Version    int      `json:"version"`
+	Configured bool     `json:"configured"`
+	Skills     []string `json:"skills"`
+	Plugins    []string `json:"plugins"`
+}
+```
+
+- `version` — fail-fast guard; a reader on `version > known` fails loud. D4 forbids a dual-read window, so no fallback format exists.
+- `configured` — `false ∨ absent ⇒ NotConfigured`; `configured=true` with `skills:[]`/`plugins:[]` ⇒ *explicit none*. This is the third state that removes the empty=healthy mask.
+- `skills` — selected group-names ∈ catalog (opt-in).
+- `plugins` — enabled plugin-names ∈ catalog (opt-in); the host normalizes the legacy opt-out source as `pluginCatalog − PLUGINS_DISABLED`. The implicit `neuro-matrix@neuro-matrix` stays harness-governed, not stored in inventory.
+
+**Resolution runs host-side.** The container's config root is the image-baked `/opt/mirabilis/config`, which is *not* the `./.mirabilis` bind-mount; the host's working tree is the live source of templates and catalogs. So `resolve : template → inventory` runs host-side (the host reads its live config), and the container reads *only* `inventory.json` — never the catalog. This is what lets template/catalog edits take effect without rebuilding the image.
 
 ### Consequences
 
