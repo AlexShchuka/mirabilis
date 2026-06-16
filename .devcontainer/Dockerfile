@@ -1,4 +1,4 @@
-FROM golang:1.25-trixie@sha256:a6e25d7f1059dd305c4573dc6b4f3a7862d48bc8bcb7721308d983a81844eaec AS build
+FROM golang:1.26-trixie@sha256:bbf22ddccb3205344f2755ea8fa4fe39f7a8b2b77b9f7b764ec2aad31406f6fc AS build
 
 ARG MIRABILIS_VERSION=unknown
 
