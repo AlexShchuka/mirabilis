@@ -2,6 +2,8 @@
 
 **BLUF.** This is the complete, non-contradictory specification of *what mirabilis is* — every package, at every C4 level — as it should be. It describes the **target state**, not a change list. The repository is brought into conformance with this scheme; the scheme is not a log of fixes.
 
+**Essence (the why — [ADR-0009](adr/0009-system-essence.md)).** mirabilis is a **habitat** for the agent: it builds and tends the dev-container *home* in which Claude Code lives and works. Without an inhabitant the home is nothing; the inhabitant critically depends on the home. The home is nested in a larger environment — the developer host and the open external world — and aims to be the well-built one among the surrounding noise. The system is the **frame** (it shapes what is possible); the agent is the **brain** (it decides). The host side, the in-container side, and the external world are **peers** connected by explicit contracts, not a center over subordinates.
+
 Four strict, machine-checkable artifacts, no ad-hoc notation:
 
 | Artifact | Tool | Role |
@@ -17,7 +19,7 @@ The C4 "C1–C4" levels are diagram zoom levels (Brown). They are **unrelated** 
 
 ## §1 — Method
 
-`general → particular` is realized as the **dependency order**: the foundation (dependency *sinks* — depended upon, depending on little) is described first; the surfaces (the composition root and driving adapters — dependency *sources*) last. This is the same direction as the **hexagonal inward dependency rule** (everything depends inward toward core + ports), with one honest caveat: *driven* adapters are "particular" yet also sit at the dependency foundation (a driven adapter is a sink it implements a port and is imported by use-cases). So the two notions coincide for the core/ports/use-cases/driving spine and diverge only for driven-adapter infra, which is called out explicitly in the layer table (§4).
+The spine is correctness from **first principles** — universal laws, mathematics, and proven engineering best practices — then sound code architecture, then maximal information density; topology is not chosen by taste, it falls out of these, and the more statistically-standard a configuration the closer to target (ADR-0009). `general → particular` is realized as the **dependency order**: the foundation (dependency *sinks* — depended upon, depending on little) is described first; the surfaces (the composition root and driving adapters — dependency *sources*) last. This is the same direction as the **hexagonal inward dependency rule** (everything depends inward toward core + ports), with one honest caveat: *driven* adapters are "particular" yet also sit at the dependency foundation (a driven adapter is a sink it implements a port and is imported by use-cases). So the two notions coincide for the core/ports/use-cases/driving spine and diverge only for driven-adapter infra, which is called out explicitly in the layer table (§4).
 
 - **Completeness** is not asserted by the C4 diagrams (C4 deliberately does not require every element be drawn). It is proven by the **reflexion model**: `.go-arch-lint.yml` maps every package to exactly one component; an unmapped package is a literal gap, caught in CI.
 - **Non-contradiction** is held by: (1) the package graph is a **DAG** — block-triangular DSM, §4, no cycles, inward-only; (2) conformance rules are **monotone** — they may only get stricter; (3) any decision that revisits an earlier one **supersedes** it via a new ADR.
@@ -188,3 +190,4 @@ Target packages (`inventory`, `provModel`) are **not** yet in `.go-arch-lint.yml
 | [0006](adr/0006-inventory-contract.md) | Inventory configured-sentinel is the host→container provisioning contract (D2/D7) |
 | [0007](adr/0007-locked-boundaries.md) | Locked boundaries: gh-skill install (D1), token chain (I1), egress edges (§5) |
 | [0008](adr/0008-conformance-as-code.md) | go-arch-lint = reflexion model + fitness function; no comments in code (D10) |
+| [0009](adr/0009-system-essence.md) | System essence: a habitat for the agent; frame-not-brain; first-principles spine; peers across the wall |

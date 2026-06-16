@@ -1,4 +1,4 @@
-workspace "mirabilis" "Target architecture of the mirabilis dev-container controller, as a C4 model (Context, Container, Component, Code) of the desired state. mirabilis is a single multi-mode Go binary plus the dev-container it provisions; the host vs in-container split is a DEPLOYMENT concern, modeled as deployment nodes, not as separate containers. Conformance is enforced by go-arch-lint; decisions are recorded as ADRs under ./adr." {
+workspace "mirabilis" "mirabilis is a habitat for the agent: it builds and tends the dev-container home in which Claude Code lives, nested in the developer host and the open external world; the system is the frame, the agent is the brain (ADR-0009). Target architecture as a C4 model (Context, Container, Component, Code) of the desired state. One multi-mode Go binary plus the dev-container it provisions; the host vs in-container split is a deployment concern, modeled as deployment nodes. Conformance enforced by go-arch-lint; decisions recorded as ADRs under ./adr." {
 
     !identifiers hierarchical
 
@@ -6,14 +6,14 @@ workspace "mirabilis" "Target architecture of the mirabilis dev-container contro
 
         user = person "Owner / Developer" "Single-owner operator who launches the sandbox and runs Claude Code with autonomy." "person"
 
-        claudecode = softwareSystem "Claude Code" "The agent mirabilis exists to run; executes inside the provisioned dev-container and reaches Anthropic through the host auth proxy." "external"
+        claudecode = softwareSystem "Claude Code" "The inhabitant and brain of the home: the agent mirabilis exists to house and run; executes inside the provisioned dev-container and reaches Anthropic through the host auth proxy." "external"
         docker = softwareSystem "Docker Engine" "Host container runtime: builds the image, runs the dev-container, streams events." "external"
         anthropic = softwareSystem "Anthropic API" "api.anthropic.com — Claude model + Claude Code backend." "external"
         telegram = softwareSystem "Telegram Bot API" "Outbound notifications + channel chat-id detection." "external"
         lmstudio = softwareSystem "LM Studio (host)" "host.docker.internal:1234 — host-local OpenAI-compatible model for prompt offload." "external"
         github = softwareSystem "GitHub" "gh auth + git remote; harness/skill/plugin sources." "external"
 
-        mirabilis = softwareSystem "mirabilis" "Personal cross-platform dev-container that provisions and runs Claude Code with the neuro-matrix harness, persistent memory and open egress." {
+        mirabilis = softwareSystem "mirabilis" "The habitat for the agent: builds and tends the dev-container home for Claude Code with the neuro-matrix harness, persistent memory and open egress; the frame within which the agent (the brain) works." {
 
             !adrs adr
 
