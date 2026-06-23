@@ -97,33 +97,39 @@ func runScript(ctx context.Context, script string) error {
 	return err
 }
 
+func ghOnlyChain(got string) bool {
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	return len(lines) >= 2 && lines[0] == "" && strings.Contains(lines[len(lines)-1], "gh auth git-credential")
+}
+
 func ensureGHCredentialAuthority(ctx context.Context) error {
-	const ghSuffix = "gh auth git-credential"
 	got, _ := exec.Run(ctx, runner, exec.Spec{
-		Argv: []string{"git", "config", "--get-urlmatch", "credential.helper", "https://github.com"},
+		Argv: []string{"git", "config", "--get-all", "credential.https://github.com.helper"},
 	})
-	if strings.Contains(strings.TrimSpace(got), ghSuffix) {
+	if ghOnlyChain(got) {
 		return nil
 	}
-	ghHelper, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"bash", "-lc", `echo "!$(command -v gh) auth git-credential"`}})
+	ghHelper, err := exec.Run(ctx, runner, exec.Spec{
+		Argv: []string{"bash", "-lc", `gh_path=$(command -v gh) && [ -n "$gh_path" ] && echo "!$gh_path auth git-credential"`},
+	})
 	if err != nil {
 		return fmt.Errorf("locate gh binary: %w", err)
 	}
 	helper := strings.TrimSpace(ghHelper)
 	for _, host := range []string{"https://github.com", "https://gist.github.com"} {
 		key := "credential." + host + ".helper"
-		if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "config", "--global", key, ""}}); err != nil {
+		if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "config", "--global", "--replace-all", key, ""}}); err != nil {
 			return fmt.Errorf("reset credential helper for %s: %w", host, err)
 		}
-		if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "config", "--global", key, helper}}); err != nil {
+		if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "config", "--global", "--add", key, helper}}); err != nil {
 			return fmt.Errorf("set credential helper for %s: %w", host, err)
 		}
 	}
 	got2, _ := exec.Run(ctx, runner, exec.Spec{
-		Argv: []string{"git", "config", "--get-urlmatch", "credential.helper", "https://github.com"},
+		Argv: []string{"git", "config", "--get-all", "credential.https://github.com.helper"},
 	})
-	if !strings.Contains(strings.TrimSpace(got2), ghSuffix) {
-		return fmt.Errorf("github.com credential.helper still does not resolve to gh after reassertion; got %q", strings.TrimSpace(got2))
+	if !ghOnlyChain(got2) {
+		return fmt.Errorf("github.com credential.helper still does not resolve to gh-only after reassertion; got %q", strings.TrimSpace(got2))
 	}
 	return nil
 }
