@@ -217,8 +217,10 @@ func TestSessionStart_UpstreamPresent_ProbesViaRunner(t *testing.T) {
 	t.Setenv("MIRABILIS_REPO", t.TempDir())
 	writeUpstreamFile(t, home, "http://host.docker.internal:8788")
 
+	ghCheck := []string{"git", "config", "--get-all", "credential.https://github.com.helper"}
 	fake := exec.NewFake().
 		Expect(bashPrefix, "", nil).
+		Expect(ghCheck, "\n!/usr/bin/gh auth git-credential", nil).
 		Expect(bashPrefix, "", nil)
 	setRunner(t, fake)
 
@@ -231,11 +233,14 @@ func TestSessionStart_UpstreamPresent_ProbesViaRunner(t *testing.T) {
 	_ = getOut()
 
 	calls := fake.Calls()
-	if len(calls) != 2 {
-		t.Errorf("runner calls = %d, want 2 (gh auth setup-git + proxy probe)", len(calls))
+	if len(calls) != 3 {
+		t.Errorf("runner calls = %d, want 3 (gh auth setup-git + credential check + proxy probe)", len(calls))
 		return
 	}
 	if !strings.Contains(calls[0].Argv[2], "gh auth setup-git") {
 		t.Errorf("first call = %q, want gh auth setup-git", calls[0].Argv[2])
+	}
+	if calls[1].Argv[0] != "git" || !strings.Contains(strings.Join(calls[1].Argv, " "), "credential.https://github.com.helper") {
+		t.Errorf("second call = %v, want git config --get-all credential check", calls[1].Argv)
 	}
 }
