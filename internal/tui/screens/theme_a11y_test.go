@@ -29,7 +29,4 @@ func TestFormsConstructUnderAccessible(t *testing.T) {
 	if plain(NewHarness("app/harness", HarnessOff, "").View()) == "" {
 		t.Error("harness form view empty under ACCESSIBLE=1")
 	}
-	if plain(NewTelegram("app/telegram", false).View()) == "" {
-		t.Error("telegram form view empty under ACCESSIBLE=1")
-	}
 }

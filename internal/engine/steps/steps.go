@@ -38,8 +38,6 @@ type WizardResult struct {
 	Choices map[string][]string
 }
 
-type TelegramSetup struct{}
-
 type GHAuth struct {
 	Code string
 	URL  string
@@ -50,7 +48,6 @@ func Launch(d Deps) []pipeline.Command {
 		newPreflight(d),
 		&claudeAuthStep{d: d},
 		newConfig(d),
-		newTelegram(d),
 		&imageStep{d: d},
 		newContainer(d),
 		newProvision(d, phaseCreate),

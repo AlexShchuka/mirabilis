@@ -36,9 +36,20 @@ func (s *mcpStep) entries(ctx context.Context) ([]config.MCPEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	lo, loOK := s.d.loadout()
+	var allowed map[string]bool
+	if loOK && len(lo.MCP) > 0 {
+		allowed = make(map[string]bool, len(lo.MCP))
+		for _, name := range lo.MCP {
+			allowed[name] = true
+		}
+	}
 	hasUvx := s.d.scriptOK(ctx, "command -v uvx")
 	var entries []config.MCPEntry
 	for _, e := range all {
+		if allowed != nil && !allowed[e.Name] {
+			continue
+		}
 		if len(e.Args) > 0 && e.Args[0] == "uvx" && !hasUvx {
 			continue
 		}

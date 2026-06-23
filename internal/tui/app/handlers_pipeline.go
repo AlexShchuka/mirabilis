@@ -85,9 +85,6 @@ func (a *App) handleWaiting(ev pipeline.Event) tea.Cmd {
 			func() tea.Msg { return bus.ScreenPush{Model: scr} },
 			func() tea.Msg { return openURLDoneMsg{err: f.OpenURL(ctx, authURL)} },
 		)
-	case steps.TelegramSetup:
-		scr := screens.NewTelegram("app/launch/telegram", a.facade.TelegramConfigured())
-		return func() tea.Msg { return bus.ScreenPush{Model: scr} }
 	default:
 		return nil
 	}

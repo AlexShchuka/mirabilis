@@ -35,7 +35,6 @@ type Facade interface {
 	CopyText(ctx context.Context, text string) error
 	LastHarnessChoice() string
 	RememberHarnessChoice(choice string) error
-	TelegramConfigured() bool
 }
 
 var execRunner = tea.Exec

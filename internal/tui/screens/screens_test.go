@@ -16,51 +16,6 @@ func emit(cmd tea.Cmd) tea.Msg {
 	return cmd()
 }
 
-func TestTelegramID(t *testing.T) {
-	s := NewTelegram("app/telegram", false)
-	if s.ID() != "app/telegram" {
-		t.Fatalf("ID() = %q", s.ID())
-	}
-}
-
-func TestTelegramEscEmitsScreenPop(t *testing.T) {
-	s := NewTelegram("app/telegram", false)
-	_, cmd := s.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	msg := emit(cmd)
-	if _, ok := msg.(bus.ScreenPop); !ok {
-		t.Fatalf("esc: got %T, want bus.ScreenPop", msg)
-	}
-}
-
-func TestTelegramEnvelopeUnwrapEsc(t *testing.T) {
-	s := NewTelegram("app/telegram", false)
-	_, cmd := s.Update(bus.Envelope{To: "app/telegram", Msg: tea.KeyPressMsg{Code: tea.KeyEscape}})
-	msg := emit(cmd)
-	if _, ok := msg.(bus.ScreenPop); !ok {
-		t.Fatalf("envelope esc: got %T, want bus.ScreenPop", msg)
-	}
-}
-
-func TestTelegramTokenNotEchoedInView(t *testing.T) {
-	const secret = "1234567890:secret_token_value"
-	s := NewTelegram("app/telegram", false)
-	s2, _ := s.Update(tea.KeyPressMsg{Code: 0, Text: secret})
-	view := plain(s2.View())
-	if strings.Contains(view, secret) {
-		t.Errorf("token echoed in plaintext in View(): %q", view)
-	}
-	if strings.Contains(view, "secret_token_value") {
-		t.Errorf("token substring echoed in View(): %q", view)
-	}
-}
-
-func TestTelegramViewNotEmpty(t *testing.T) {
-	s := NewTelegram("app/telegram", false)
-	if plain(s.View()) == "" {
-		t.Error("View() is empty before any interaction")
-	}
-}
-
 func TestGHAuthID(t *testing.T) {
 	g := NewGHAuth("app/ghauth", "ABCD-1234", "https://github.com/login/device")
 	if g.ID() != "app/ghauth" {
@@ -219,18 +174,6 @@ func TestHarnessPrefillsLastChoice(t *testing.T) {
 	}
 }
 
-func TestTelegramSmartDefaultSkipWhenConfigured(t *testing.T) {
-	configured := NewTelegram("app/telegram", true)
-	if *configured.sel != TelegramSkip {
-		t.Errorf("configured telegram default sel = %q, want %q", *configured.sel, TelegramSkip)
-	}
-
-	fresh := NewTelegram("app/telegram", false)
-	if *fresh.sel == TelegramSkip {
-		t.Error("fresh telegram pre-selected Skip, want unset so Configure is reachable")
-	}
-}
-
 func TestHarnessConsts(t *testing.T) {
 	cases := []struct {
 		name string
@@ -239,7 +182,6 @@ func TestHarnessConsts(t *testing.T) {
 		{"HarnessOn", HarnessOn},
 		{"HarnessOff", HarnessOff},
 		{"HarnessReinstall", HarnessReinstall},
-		{"TelegramSkip", TelegramSkip},
 	}
 	for _, c := range cases {
 		if c.val == "" {
