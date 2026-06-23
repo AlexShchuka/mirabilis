@@ -211,9 +211,17 @@ func (s *loadoutStep) Check(_ context.Context) (bool, error) {
 }
 
 func (s *loadoutStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
-	path := filepath.Join(s.d.claudeDir(), fileLoadout)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := s.d.claudeDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(s.desired()+"\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, fileLoadout), []byte(s.desired()+"\n"), 0o644); err != nil {
+		return err
+	}
+	lo, ok := s.d.loadout()
+	hpref := harnessInstall
+	if ok && !lo.Harness {
+		hpref = harnessSkip
+	}
+	return os.WriteFile(filepath.Join(dir, fileHarness), []byte(hpref+"\n"), 0o644)
 }

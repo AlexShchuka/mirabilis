@@ -82,6 +82,38 @@ func TestHarnessRunFallsBackToMarketplaceUpdate(t *testing.T) {
 	}
 }
 
+func TestHarnessCheckSkipsInstallWhenLoadoutHarnessOff(t *testing.T) {
+	t.Parallel()
+	t.Run("pvp loadout written skip by provision", func(t *testing.T) {
+		t.Parallel()
+		fake := exec.NewFake().
+			Expect(harnessBash(harnessPrefScript), "skip\n", nil)
+		mustCheck(t, newHarnessForTest(t, fake), true)
+		if fake.Remaining() != 0 {
+			t.Fatalf("unexpected exec calls after skip: %d remaining", fake.Remaining())
+		}
+	})
+	t.Run("grind loadout written skip by provision", func(t *testing.T) {
+		t.Parallel()
+		fake := exec.NewFake().
+			Expect(harnessBash(harnessPrefScript), "skip\n", nil)
+		mustCheck(t, newHarnessForTest(t, fake), true)
+		if fake.Remaining() != 0 {
+			t.Fatalf("unexpected exec calls after skip: %d remaining", fake.Remaining())
+		}
+	})
+	t.Run("raid loadout written install by provision falls through to probe", func(t *testing.T) {
+		t.Parallel()
+		fake := exec.NewFake().
+			Expect(harnessBash(harnessPrefScript), "install\n", nil).
+			Expect(harnessBash(harness.ProbeScript), "", nil)
+		mustCheck(t, newHarnessForTest(t, fake), true)
+		if fake.Remaining() != 0 {
+			t.Fatalf("unexpected exec calls: %d remaining", fake.Remaining())
+		}
+	})
+}
+
 func TestHarnessCheckHonorsDeadline(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
