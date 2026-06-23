@@ -1,0 +1,4 @@
+effort xhigh
+harness off
+plugins caveman@caveman claude-hud@claude-hud commit-commands@claude-plugins-official claude-md-management@claude-plugins-official
+mcp

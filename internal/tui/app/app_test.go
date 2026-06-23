@@ -155,8 +155,6 @@ func (f *fakeFacade) RememberHarnessChoice(_ string) error {
 	return nil
 }
 
-func (f *fakeFacade) TelegramConfigured() bool { return false }
-
 func (f *fakeFacade) getCallLog() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

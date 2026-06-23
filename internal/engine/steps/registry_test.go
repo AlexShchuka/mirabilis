@@ -23,7 +23,6 @@ func TestLaunchRegistry(t *testing.T) {
 		{name: "preflight", kind: pipeline.Auto, timeout: 90 * time.Second},
 		{name: "claude-auth", deps: []string{"preflight"}, kind: pipeline.Terminal},
 		{name: "config", kind: pipeline.Interactive},
-		{name: "telegram", deps: []string{"config"}, kind: pipeline.Interactive, optional: true},
 		{name: "image", deps: []string{"preflight", "config"}, kind: pipeline.Auto, timeout: 15 * time.Minute},
 		{
 			name: "container", deps: []string{"image"}, kind: pipeline.Auto, timeout: 3 * time.Minute,

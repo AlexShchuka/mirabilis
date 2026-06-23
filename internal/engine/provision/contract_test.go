@@ -19,6 +19,11 @@ const (
 )
 
 var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
+	"loadout": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
+	"effort": func(t *testing.T, d *Deps, _ *exec.Fake) {
+		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
+		mustWriteJSON(t, d.settingsPath(), map[string]any{})
+	},
 	"settings": func(t *testing.T, d *Deps, _ *exec.Fake) {
 		mustWriteJSON(t, d.Cfg.SettingsSeed(), map[string]any{
 			"hooks":      map[string]any{"PreToolUse": []any{}},

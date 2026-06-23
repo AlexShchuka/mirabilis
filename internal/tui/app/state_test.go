@@ -137,8 +137,6 @@ func (f *stubFacade) RememberHarnessChoice(choice string) error {
 	return f.rememberErr
 }
 
-func (f *stubFacade) TelegramConfigured() bool { return false }
-
 func (f *stubFacade) remembered() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

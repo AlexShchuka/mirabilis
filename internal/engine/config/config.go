@@ -60,19 +60,6 @@ func ReadLastHarness(repo string) (string, bool) { return envRead(repo, "LAST_HA
 
 func WriteLastHarness(repo, val string) error { return envWrite(repo, "LAST_HARNESS", val) }
 
-func TelegramConfigured(repo string) bool {
-	v, _ := envRead(repo, "TELEGRAM_CONFIGURED")
-	return v == "1"
-}
-
-func WriteTelegramConfigured(repo string, on bool) error {
-	v := "0"
-	if on {
-		v = "1"
-	}
-	return envWrite(repo, "TELEGRAM_CONFIGURED", v)
-}
-
 func ReadSkills(repo string) (string, bool) { return envRead(repo, "SKILLS") }
 
 func WriteSkills(repo, csv string) error { return envWrite(repo, "SKILLS", csv) }
@@ -101,6 +88,61 @@ func ReadStackCatalog(repo string) []string {
 
 func ReadPluginCatalog(repo string) []string {
 	return readList(filepath.Join(repo, "config", "plugins.txt"))
+}
+
+const DefaultLoadout = "raid"
+
+type Loadout struct {
+	Name    string
+	Effort  string
+	Harness bool
+	Plugins []string
+	MCP     []string
+}
+
+func ReadLoadout(repo string) (string, bool) { return envRead(repo, "LOADOUT") }
+
+func WriteLoadout(repo, name string) error { return envWrite(repo, "LOADOUT", name) }
+
+func ReadLoadoutCatalog(repo string) []string {
+	ents, err := os.ReadDir(filepath.Join(repo, "config", "loadouts"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		if name, ok := strings.CutSuffix(e.Name(), ".txt"); ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func ReadLoadoutManifest(repo, name string) (Loadout, bool) {
+	path := filepath.Join(repo, "config", "loadouts", name+".txt")
+	if _, err := os.Stat(path); err != nil {
+		return Loadout{}, false
+	}
+	lo := Loadout{Name: name}
+	for _, line := range readList(path) {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		switch fields[0] {
+		case "effort":
+			if len(fields) > 1 {
+				lo.Effort = fields[1]
+			}
+		case "harness":
+			lo.Harness = len(fields) > 1 && fields[1] == "on"
+		case "plugins":
+			lo.Plugins = fields[1:]
+		case "mcp":
+			lo.MCP = fields[1:]
+		}
+	}
+	return lo, true
 }
 
 type SkillGroup struct {

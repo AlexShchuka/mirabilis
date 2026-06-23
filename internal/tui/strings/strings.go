@@ -89,12 +89,6 @@ const (
 	FormConfirmReset  = "Delete everything"
 	FormCancelReset   = "Cancel"
 
-	FormTitleTelegram        = "Telegram"
-	FormOptTelegramConfigure = "Configure"
-	FormOptTelegramSkip      = "Skip"
-	FormTitleTelegramToken   = "Bot token"
-	FormDescTelegramToken    = "From @BotFather. Stored host-side, never in git/image."
-
 	NoticeLaunchFailed    = "launch failed"
 	NoticeLaunchCanceled  = "launch canceled"
 	NoticeLaunchErrPrefix = "launch error: "

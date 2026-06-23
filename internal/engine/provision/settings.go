@@ -106,6 +106,54 @@ func (s *settingsStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan 
 	return copyFile(seed, dest)
 }
 
+type effortStep struct {
+	d Deps
+}
+
+func (s *effortStep) Meta() pipeline.Meta {
+	m := carryMeta("effort", "Effort level")
+	m.Deps = []string{"settings"}
+	return m
+}
+
+func (s *effortStep) effort() string {
+	lo, _ := s.d.loadout()
+	return lo.Effort
+}
+
+func (s *effortStep) Check(_ context.Context) (bool, error) {
+	ef := s.effort()
+	if ef == "" {
+		return true, nil
+	}
+	dest := s.d.settingsPath()
+	if !exists(dest) {
+		return true, nil
+	}
+	m, err := readJSON(dest)
+	if err != nil {
+		return true, nil
+	}
+	return m["effortLevel"] == ef, nil
+}
+
+func (s *effortStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+	ef := s.effort()
+	if ef == "" {
+		return nil
+	}
+	dest := s.d.settingsPath()
+	if !exists(dest) {
+		return nil
+	}
+	m, err := readJSON(dest)
+	if err != nil {
+		return nil
+	}
+	m["effortLevel"] = ef
+	return writeJSON(dest, m)
+}
+
 type themeStep struct {
 	d Deps
 }
