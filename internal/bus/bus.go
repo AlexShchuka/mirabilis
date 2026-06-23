@@ -68,7 +68,3 @@ type StatusChanged struct {
 type CopyRequest struct {
 	Text string
 }
-
-type ChromeTick struct {
-	Frame int
-}

@@ -1,10 +1,8 @@
-// Package frame provides the outer TUI chrome: status-bar, busy indicator, and main content area.
 package frame
 
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -177,12 +175,20 @@ func (m *Model) SetEnabled(action string, enabled bool) {
 	}
 }
 
+func (m Model) headerHeight() int {
+	if m.breakpoint() == bpNormal {
+		return 3
+	}
+	return 1
+}
+
 func (m Model) MainSize() (int, int) {
-	return max(m.width-m.MenuWidth()-1, 0), max(m.height-3, 0)
+	chrome := m.headerHeight() + 2
+	return max(m.width-m.MenuWidth()-1, 0), max(m.height-chrome, 0)
 }
 
 func (m Model) MainOrigin() (int, int) {
-	return m.MenuWidth() + 1, 1
+	return m.MenuWidth() + 1, m.headerHeight() + 1
 }
 
 func (m Model) View(main string) string {
@@ -211,50 +217,78 @@ func (m Model) tooSmallView() string {
 	return lipgloss.NewStyle().MaxWidth(m.width).MaxHeight(m.height).Render(placed)
 }
 
-func (m Model) smallGlyph() string {
-	frames := []rune(uistr.LogoSmallFrames)
-	if len(frames) == 0 {
-		return "⊕"
+var logoLargeFrames = []string{
+	uistr.LogoLargeFrameA,
+	uistr.LogoLargeFrameB,
+	uistr.LogoLargeFrameC,
+	uistr.LogoLargeFrameD,
+	uistr.LogoLargeFrameE,
+	uistr.LogoLargeFrameF,
+	uistr.LogoLargeFrameG,
+	uistr.LogoLargeFrameH,
+}
+
+func (m Model) largeMark() string {
+	if a11y.ReducedMotion() {
+		return uistr.LogoLargeStatic
 	}
-	var idx int
-	if !a11y.ReducedMotion() {
-		idx = m.chromeFrame % len(frames)
-	}
-	return string(frames[idx])
+	return logoLargeFrames[m.chromeFrame%len(logoLargeFrames)]
 }
 
 func (m Model) headerView() string {
-	glyph := m.smallGlyph()
-	glyphW := utf8.RuneCountInString(glyph)
-	leftZone := " " + styles.Spinner.Render(glyph) + strings.Repeat(" ", max(2-glyphW, 0))
-	centerZone := styles.SelTitle.Render(m.title)
 	rightZone := m.headerRight()
 	if rightZone != "" {
 		rightZone += " "
 	}
-
-	leftW := lipgloss.Width(leftZone)
-	centerW := lipgloss.Width(centerZone)
 	rightW := lipgloss.Width(rightZone)
-	total := leftW + centerW + rightW
-
-	row := ""
-	switch {
-	case total <= m.width:
-		gap := max(m.width-leftW-centerW-rightW, 1)
-		gapHalf := gap / 2
-		row = leftZone + strings.Repeat(" ", gapHalf) + centerZone + strings.Repeat(" ", gap-gapHalf) + rightZone
-	case leftW+centerW+rightW > m.width && centerW+rightW <= m.width:
-		row = centerZone + strings.Repeat(" ", max(m.width-centerW-rightW, 1)) + rightZone
-	case centerW+rightW > m.width && rightW <= m.width:
-		row = strings.Repeat(" ", max(m.width-rightW, 0)) + rightZone
-	default:
-		row = rightZone
-	}
-	row = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
 	w := max(m.width, 0)
 	sep := styles.Off.Render(strings.Repeat("─", w))
-	return row + "\n" + sep
+
+	if m.breakpoint() != bpNormal {
+		centerZone := styles.SelTitle.Render(m.title)
+		centerW := lipgloss.Width(centerZone)
+		row := ""
+		switch {
+		case centerW+rightW <= m.width:
+			gap := max(m.width-centerW-rightW, 1)
+			row = centerZone + strings.Repeat(" ", gap) + rightZone
+		case rightW <= m.width:
+			row = strings.Repeat(" ", max(m.width-rightW, 0)) + rightZone
+		default:
+			row = rightZone
+		}
+		row = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+		return row + "\n" + sep
+	}
+
+	logoLines := strings.Split(m.largeMark(), "\n")
+	bannerLines := strings.Split(uistr.TitleBanner, "\n")
+	nLines := len(logoLines)
+	if len(bannerLines) > nLines {
+		nLines = len(bannerLines)
+	}
+
+	rows := make([]string, nLines)
+	for i := range rows {
+		var logo, banner string
+		if i < len(logoLines) {
+			logo = " " + styles.Spinner.Render(logoLines[i]) + " "
+		}
+		if i < len(bannerLines) {
+			banner = styles.SelTitle.Render(bannerLines[i])
+		}
+		left := logo + banner
+		leftW := lipgloss.Width(left)
+
+		if i == 0 {
+			gap := max(m.width-leftW-rightW, 1)
+			row := left + strings.Repeat(" ", gap) + rightZone
+			rows[i] = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+		} else {
+			rows[i] = lipgloss.NewStyle().MaxWidth(m.width).Render(left)
+		}
+	}
+	return strings.Join(rows, "\n") + "\n" + sep
 }
 
 func (m Model) headerRight() string {

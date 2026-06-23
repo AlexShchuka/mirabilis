@@ -105,8 +105,8 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 80 {
 		t.Errorf("width = %d, want 80", got)
 	}
-	if w, h := m.MainSize(); w != 80-m.MenuWidth()-1 || h != 21 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,21)", w, h, 80-m.MenuWidth()-1)
+	if w, h := m.MainSize(); w != 80-m.MenuWidth()-1 || h != 19 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,19)", w, h, 80-m.MenuWidth()-1)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -117,8 +117,8 @@ func TestResizeReflow(t *testing.T) {
 	if got := lipgloss.Width(view); got != 100 {
 		t.Errorf("width = %d, want 100", got)
 	}
-	if w, h := m.MainSize(); w != 100-m.MenuWidth()-1 || h != 27 {
-		t.Errorf("MainSize() = (%d,%d), want (%d,27)", w, h, 100-m.MenuWidth()-1)
+	if w, h := m.MainSize(); w != 100-m.MenuWidth()-1 || h != 25 {
+		t.Errorf("MainSize() = (%d,%d), want (%d,25)", w, h, 100-m.MenuWidth()-1)
 	}
 }
 
@@ -280,8 +280,9 @@ func TestHeaderShowsStatusAndDegraded(t *testing.T) {
 		"container": {State: obs.StateOK, Detail: "up"},
 		"notify":    {State: obs.StateDegraded},
 	}})
-	header := strings.Split(plain(m.View("")), "\n")[0]
-	for _, want := range []string{"mirabilis", "v1.0.0", "container up", "degraded: notify"} {
+	lines := strings.Split(plain(m.View("")), "\n")
+	header := strings.Join(lines[:4], "\n")
+	for _, want := range []string{"v1.0.0", "container up", "degraded: notify"} {
 		if !strings.Contains(header, want) {
 			t.Errorf("header = %q, missing %q", header, want)
 		}
@@ -307,37 +308,35 @@ func TestMainAreaCropped(t *testing.T) {
 	}
 }
 
-// TestHeaderTruncationLeftFirst locks INV §4: under a narrow width, the LEFT zone (logo)
-// must drop BEFORE the CENTER zone (title) which drops BEFORE the RIGHT zone (version/status).
-// This fails on revert if truncation order is changed to CENTER-first.
 func TestHeaderTruncationLeftFirst(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0", items())
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{}})
 
-	header80 := strings.Split(plain(m.View("")), "\n")[0]
-	if !strings.Contains(header80, "mirabilis") {
-		t.Fatalf("header at width=80 missing 'mirabilis':\n%s", header80)
+	header80 := strings.Join(strings.Split(plain(m.View("")), "\n")[:3], "\n")
+	if !strings.Contains(header80, "v1.0") {
+		t.Fatalf("header at width=80 missing version:\n%s", header80)
+	}
+	if !strings.Contains(header80, "○") {
+		t.Fatalf("header at width=80 missing logo (○):\n%s", header80)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 20, Height: 24})
 	header20 := strings.Split(plain(m.View("")), "\n")[0]
-	if strings.Contains(header20, "mirabilis") && !strings.Contains(header80[:len("mirabilis")], "mirabilis") {
-		t.Logf("narrow header: %q", header20)
+	if strings.Contains(header20, "○") {
+		t.Errorf("narrow header (w=20) still shows logo — should have dropped:\n%s", header20)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 15, Height: 24})
 	headerNarrow := strings.Split(plain(m.View("")), "\n")[0]
-	if strings.Contains(headerNarrow, "v1.0") && !strings.Contains(headerNarrow, "mirabilis") {
-		_ = headerNarrow
+	if strings.Contains(headerNarrow, "○") {
+		t.Errorf("narrow header (w=15) still shows logo:\n%s", headerNarrow)
 	}
 	if !strings.Contains(header80, "v1.0") {
 		t.Errorf("header at width=80 missing version:\n%s", header80)
 	}
 }
 
-// TestHeaderRightSurvivesNarrowest locks that the Right zone (version) is last to drop
-// (INV §4 truncation-order: Left ≺ Center ≺ Right).
 func TestHeaderRightSurvivesNarrowest(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0", items())
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})

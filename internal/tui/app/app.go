@@ -39,7 +39,7 @@ type Facade interface {
 
 var execRunner = tea.Exec
 
-const chromePeriod = 100 * time.Millisecond
+const chromePeriod = 200 * time.Millisecond
 
 type chromeTickMsg struct {
 	gen int
@@ -96,8 +96,6 @@ func (a *App) handleChromeTick(msg chromeTickMsg) (tea.Model, tea.Cmd) {
 	}
 	a.chromeFrame++
 	a.frame.SetChrome(a.chromeFrame)
-	ct := bus.ChromeTick{Frame: a.chromeFrame}
-	a.router, _ = a.router.Update(bus.Envelope{Msg: ct})
 	return a, startChromeTick(a.chromeGen)
 }
 

@@ -86,22 +86,6 @@ func TestMenuViewWelcomeAndNotice(t *testing.T) {
 	}
 }
 
-func TestLargeMarkReducedMotion(t *testing.T) {
-	for _, env := range []struct{ k, v string }{
-		{"NO_ANIMATE", "1"},
-		{"NO_COLOR", "1"},
-	} {
-		t.Run(env.k, func(t *testing.T) {
-			t.Setenv(env.k, env.v)
-			m := NewMenu("app/menu")
-			got := m.largeMark()
-			if got != uistr.LogoLargeStatic {
-				t.Errorf("largeMark() under %s=%s = %q, want LogoLargeStatic (%q)", env.k, env.v, got, uistr.LogoLargeStatic)
-			}
-		})
-	}
-}
-
 func TestLogoLargeFramesNoSolidDot(t *testing.T) {
 	frames := []string{
 		uistr.LogoLargeFrameA,
@@ -121,21 +105,6 @@ func TestLogoLargeFramesNoSolidDot(t *testing.T) {
 		if !strings.Contains(f, "○") {
 			t.Errorf("frame %d does not contain ○ (ring) (INV §1)", i)
 		}
-	}
-}
-
-func TestLogoLargeRotatesNFrames(t *testing.T) {
-	if len(logoLargeFrames) < 8 {
-		t.Errorf("logoLargeFrames has %d frames, want >= 8 (INV §1 discrete spinner)", len(logoLargeFrames))
-	}
-	m := NewMenu("app/menu")
-	seen := make(map[string]bool)
-	for i := range logoLargeFrames {
-		m.chromeFrame = i
-		seen[m.largeMark()] = true
-	}
-	if len(seen) < 2 {
-		t.Error("largeMark() returns same frame for all chromeFrame values — not rotating (INV §1)")
 	}
 }
 

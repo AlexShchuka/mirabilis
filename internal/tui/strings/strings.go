@@ -1,16 +1,18 @@
-// Package strings holds UI copy constants: notices, log messages, and action labels.
 package strings
 
 const (
 	AppName = "mirabilis"
 
-	LogoSmallFrames = "⊕⊛※◈◉◎⊗⊘"
+	TitleBanner = "" +
+		"┌┬┐┬┬─┐┌─┐┌┐ ┬ ┬  ┬┌─┐\n" +
+		"│││││├┬┘├─┤├┴┐││  │└─┐\n" +
+		"┴ ┴┴┴└─┴ ┴└─┘┴─┘  ┴└─┘"
 
 	LogoLargeFrameA = "   │   \n ──○── \n   │   "
 	LogoLargeFrameB = " ╲   ╱ \n   ○   \n ╱   ╲ "
 	LogoLargeFrameC = "   ╷   \n   ○   \n   ╵   "
 	LogoLargeFrameD = " ·   · \n   ○   \n ·   · "
-	LogoLargeFrameE = "  ─── \n  ○  \n  ─── "
+	LogoLargeFrameE = " ───── \n   ○   \n ───── "
 	LogoLargeFrameF = " ╱   ╲ \n   ○   \n ╲   ╱ "
 	LogoLargeFrameG = "   ·   \n ─ ○ ─ \n   ·   "
 	LogoLargeFrameH = " ─   ─ \n   ○   \n ─   ─ "
