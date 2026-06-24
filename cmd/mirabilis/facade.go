@@ -121,6 +121,9 @@ func (f *facade) newProxy(key string) *authproxy.Proxy {
 }
 
 func (f *facade) LaunchSteps() []pipeline.Command {
+	if config.LaunchBatched(f.repo) {
+		return steps.LaunchBatched(f.deps)
+	}
 	return steps.Launch(f.deps)
 }
 
