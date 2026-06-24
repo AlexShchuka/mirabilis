@@ -12,6 +12,9 @@ import (
 const (
 	composeFile     = "docker-compose.yml"
 	composeSockFile = "compose.sock.yml"
+
+	BaseImageBuild   = "golang:1.26-trixie@sha256:bbf22ddccb3205344f2755ea8fa4fe39f7a8b2b77b9f7b764ec2aad31406f6fc"
+	BaseImageRuntime = "node:26-trixie-slim@sha256:191ef878ecb351d68b78219593de18bd8942afd59af59f29960dc4b24805a3f1"
 )
 
 type Sandbox struct {
@@ -26,6 +29,15 @@ func New(runner exec.Runner, docker Docker, repo string) *Sandbox {
 
 func (s *Sandbox) Build(ctx context.Context) <-chan exec.Event {
 	return s.compose(ctx, "build")
+}
+
+func (s *Sandbox) PullImage(ctx context.Context, image string) <-chan exec.Event {
+	return s.runner.Stream(ctx, exec.Spec{Argv: []string{"docker", "pull", image}})
+}
+
+func (s *Sandbox) ImagePresent(ctx context.Context, image string) bool {
+	_, err := exec.Run(ctx, s.runner, exec.Spec{Argv: []string{"docker", "image", "inspect", image}})
+	return err == nil
 }
 
 func (s *Sandbox) Up(ctx context.Context) <-chan exec.Event {
