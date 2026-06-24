@@ -191,6 +191,13 @@ func (m Model) MainOrigin() (int, int) {
 	return m.MenuWidth() + 1, m.headerHeight() + 1
 }
 
+func (m Model) MenuCursorCell() (x, y int) {
+	if m.breakpoint() == bpTiny {
+		return 0, 0
+	}
+	return 0, m.headerHeight() + m.cursor
+}
+
 func (m Model) View(main string) string {
 	if m.breakpoint() == bpTiny {
 		return m.tooSmallView()
