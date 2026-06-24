@@ -12,8 +12,8 @@ require (
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260608090822-c3ad58c6c9e5
 	github.com/creack/pty v1.1.24
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.54.2
-	github.com/moby/moby/client v0.4.1
+	github.com/moby/moby/api v1.55.0
+	github.com/moby/moby/client v0.5.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sync v0.20.0
