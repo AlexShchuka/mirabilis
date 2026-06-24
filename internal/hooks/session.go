@@ -34,14 +34,7 @@ func SessionStart() error {
 	idx, _ := memoryIndex(memDir)
 	tgCtx := sessionTelegramContext(repoRoot())
 
-	additionalContext := idx
-	if tgCtx != "" {
-		if additionalContext != "" {
-			additionalContext += "\n" + tgCtx
-		} else {
-			additionalContext = tgCtx
-		}
-	}
+	additionalContext := joinContext(idx, ecosystemContext(), tgCtx)
 
 	if idx != "" {
 		if err := os.WriteFile(filepath.Join(memDir, "MEMORY.md"), []byte(idx), 0o644); err != nil {
