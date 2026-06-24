@@ -184,6 +184,22 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(cv, "", nil)
 		f.Expect(get, "local-offload stdio "+self+" localllm serve", nil)
 	},
+	"mathtools": func(t *testing.T, d *Deps, f *exec.Fake) {
+		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"),
+			"effort max\nharness on\ntools sympy z3 lean coq\n")
+		sc := mathToolsScripts()
+		f.Expect(script(sc["venvProbe"]), "", errStub)
+		f.Expect(script(sc["venvProbe"]), "", errStub)
+		f.Expect(script(sc["venvMake"]), "", nil)
+		f.Expect(script(sc["pipInst"]), "", nil)
+		f.Expect(script(sc["pipLink"]), "", nil)
+		f.Expect(script(sc["leanProbe"]), "", errStub)
+		f.Expect(script(sc["leanInst"]), "", nil)
+		f.Expect(script(sc["coqProbe"]), "", errStub)
+		f.Expect(script(sc["coqInst"]), "", nil)
+		f.Expect(script(sc["venvProbe"]), "ok", nil)
+		f.Expect(script(sc["leanProbe"]), "ok", nil)
+	},
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"
 	},
