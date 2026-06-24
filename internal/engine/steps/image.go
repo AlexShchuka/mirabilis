@@ -15,7 +15,7 @@ func (s *imageStep) Meta() pipeline.Meta {
 	return pipeline.Meta{
 		Name:    "image",
 		Title:   "Image",
-		Deps:    []string{"preflight", configStepName},
+		Deps:    []string{"preflight", configStepName, "pull-build", "pull-runtime"},
 		Kind:    pipeline.Auto,
 		Timeout: 15 * time.Minute,
 	}
