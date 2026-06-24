@@ -15,24 +15,28 @@ func SessionEnd() error {
 	_, _ = io.ReadAll(os.Stdin)
 
 	ctx := context.Background()
-	committed := commitEcosystem(ctx)
+	committed, pushed := commitEcosystem(ctx)
 	if committed == 0 {
 		_, _ = fmt.Fprintln(os.Stdout, "[ecosystem] no local changes to commit")
 		return nil
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "[ecosystem] committed changes in %d repo(s) locally — review and push when ready\n", committed)
+	_, _ = fmt.Fprintf(os.Stdout, "[ecosystem] committed changes in %d repo(s), pushed %d to main\n", committed, pushed)
 	return nil
 }
 
-func commitEcosystem(ctx context.Context) int {
+// commitEcosystem commits and then pushes every dirty ecosystem repo, returning the
+// number committed and the number successfully pushed. Only repos that actually had a
+// commit this session are pushed. The push targets main non-force (HEAD:main); a
+// non-fast-forward rejection (or any push error) is logged and skipped — never forced —
+// so a diverged remote degrades the snapshot to local-only rather than clobbering it.
+func commitEcosystem(ctx context.Context) (committed, pushed int) {
 	root := ecosystemRoot()
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return 0
+		return 0, 0
 	}
 	stamp := time.Now().UTC().Format(time.RFC3339)
 	msg := "ecosystem auto-snapshot " + stamp
-	count := 0
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -41,11 +45,15 @@ func commitEcosystem(ctx context.Context) int {
 		if !isGitRepo(ctx, dir) || !hasChanges(ctx, dir) {
 			continue
 		}
-		if commitRepo(ctx, dir, msg) {
-			count++
+		if !commitRepo(ctx, dir, msg) {
+			continue
+		}
+		committed++
+		if pushRepo(ctx, dir) {
+			pushed++
 		}
 	}
-	return count
+	return committed, pushed
 }
 
 func isGitRepo(ctx context.Context, dir string) bool {
@@ -71,5 +79,18 @@ func commitRepo(ctx context.Context, dir, msg string) bool {
 		fmt.Fprintf(os.Stderr, "[ecosystem] WARN: git commit in %s: %v\n", dir, err)
 		return false
 	}
+	return true
+}
+
+// pushRepo pushes the freshly committed HEAD to origin/main without force. A failed push
+// (most commonly a non-fast-forward rejection against a diverged remote) is logged and
+// skipped: the commit stays local and is never force-pushed. Returns true only on a clean
+// push.
+func pushRepo(ctx context.Context, dir string) bool {
+	if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "push", "origin", "HEAD:main"}}); err != nil {
+		fmt.Fprintf(os.Stderr, "[ecosystem] WARN: git push in %s skipped (not fast-forward or remote error): %v\n", dir, err)
+		return false
+	}
+	_, _ = fmt.Fprintf(os.Stdout, "[ecosystem] pushed %s to origin/main\n", dir)
 	return true
 }

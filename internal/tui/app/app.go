@@ -31,6 +31,7 @@ type Facade interface {
 	HarnessStatus(ctx context.Context) (string, error)
 	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
+	UpdateEcosystem(ctx context.Context) error
 	OpenURL(ctx context.Context, url string) error
 	CopyText(ctx context.Context, text string) error
 	LastHarnessChoice() string
@@ -162,6 +163,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
+
+	case updateDoneMsg:
+		return a.handleUpdateDone(msg)
 
 	case bus.CopyRequest:
 		return a.handleCopyRequest(msg)

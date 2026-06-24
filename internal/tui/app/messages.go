@@ -39,6 +39,10 @@ type vscodeDoneMsg struct {
 	err error
 }
 
+type updateDoneMsg struct {
+	err error
+}
+
 type openURLDoneMsg struct {
 	err error
 }

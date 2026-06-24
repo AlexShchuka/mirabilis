@@ -24,7 +24,8 @@ const (
 )
 
 type mathToolsStep struct {
-	d Deps
+	d            Deps
+	coqAttempted bool
 }
 
 func (s *mathToolsStep) Meta() pipeline.Meta {
@@ -46,6 +47,14 @@ func (s *mathToolsStep) requested() map[string]bool {
 	return want
 }
 
+// Check returns false (install-needed) when any requested tool is still missing,
+// so Run fires and installs it. coq is best-effort: its apt install may fail in
+// constrained environments, and that failure is tolerated (logged, non-fatal) in
+// Run. To keep I3 (Run ⇒ Check=true) and avoid an install loop, once Run has
+// attempted coq, coqAttempted gates it out of Check — a tolerated coq failure no
+// longer blocks the step, so the other tools' success lets Check pass on a healthy
+// retry. coq still gates Check on the first pass (missing + not yet attempted), so a
+// fresh loadout requesting coq does trigger Run.
 func (s *mathToolsStep) Check(ctx context.Context) (bool, error) {
 	want := s.requested()
 	if len(want) == 0 {
@@ -55,6 +64,9 @@ func (s *mathToolsStep) Check(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	if want[mathToolLean] && !s.leanInstalled(ctx) {
+		return false, nil
+	}
+	if want[mathToolCoq] && !s.coqAttempted && !s.coqInstalled(ctx) {
 		return false, nil
 	}
 	return true, nil
@@ -82,6 +94,7 @@ func (s *mathToolsStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-
 		}
 	}
 	if want[mathToolCoq] && !s.coqInstalled(ctx) {
+		s.coqAttempted = true
 		if err := s.d.streamScript(ctx, "mathtools", out, mathCoqInst); err != nil {
 			s.d.Log.Warn("mathtools: coq install failed, continuing", "err", err)
 		}
