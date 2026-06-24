@@ -33,6 +33,8 @@ type stubFacade struct {
 	harnessApplyErr  error
 	vscodeCalls      int
 	vscodeErr        error
+	updateCalls      int
+	updateErr        error
 	saveCalls        int
 	resetCalls       int
 	resetErr         error
@@ -105,6 +107,13 @@ func (f *stubFacade) OpenVSCode(context.Context) error {
 	defer f.mu.Unlock()
 	f.vscodeCalls++
 	return f.vscodeErr
+}
+
+func (f *stubFacade) UpdateEcosystem(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updateCalls++
+	return f.updateErr
 }
 
 func (f *stubFacade) OpenURL(_ context.Context, url string) error {
@@ -715,6 +724,34 @@ func TestStateVSCodeFailure(t *testing.T) {
 	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeVSCodeErr+"VS Code not found" {
+		t.Errorf("notice = %q", got)
+	}
+}
+
+func TestStateUpdate(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
+	if got := menuNotice(t, a); got != uistr.NoticeUpdateRunning {
+		t.Errorf("notice = %q, want %q", got, uistr.NoticeUpdateRunning)
+	}
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuNotice(t, a); got != uistr.NoticeUpdateDone {
+		t.Errorf("notice = %q, want %q", got, uistr.NoticeUpdateDone)
+	}
+	if f.updateCalls != 1 {
+		t.Errorf("UpdateEcosystem calls = %d, want 1", f.updateCalls)
+	}
+}
+
+func TestStateUpdateFailure(t *testing.T) {
+	f := &stubFacade{updateErr: errors.New("gh not authed")}
+	a := newStateApp(t, f)
+
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+	if got := menuNotice(t, a); got != uistr.NoticeUpdateErr+"gh not authed" {
 		t.Errorf("notice = %q", got)
 	}
 }

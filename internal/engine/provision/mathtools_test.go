@@ -89,6 +89,17 @@ func TestMathToolsSkipsInstalled(t *testing.T) {
 	assertScriptCalls(t, f.Calls(), []string{sc["venvProbe"], sc["leanProbe"], sc["coqProbe"]})
 }
 
+func TestMathToolsCoqCheckFalseWhenMissing(t *testing.T) {
+	d, f := testDeps(t)
+	writeRaidTools(t, d, "coq")
+	sc := mathToolsScripts()
+	f.Expect(script(sc["coqProbe"]), "", errStub)
+	step := &mathToolsStep{d: d}
+	if checkStep(t, step) {
+		t.Error("check must be false (install-needed) when coq is requested but missing")
+	}
+}
+
 func TestMathToolsCoqFailureTolerated(t *testing.T) {
 	d, f := testDeps(t)
 	writeRaidTools(t, d, "coq")
@@ -99,9 +110,8 @@ func TestMathToolsCoqFailureTolerated(t *testing.T) {
 	if err := runStep(t, step); err != nil {
 		t.Fatalf("coq install failure must not fail the step: %v", err)
 	}
-	f.Expect(script(sc["coqProbe"]), "", errStub)
 	if !checkStep(t, step) {
-		t.Error("check must be satisfied even when coq (best-effort) is still absent")
+		t.Error("check must be satisfied even when coq (best-effort) is still absent after a tolerated install failure")
 	}
 }
 

@@ -46,6 +46,15 @@ func (a App) handleVSCodeDone(msg vscodeDoneMsg) (tea.Model, tea.Cmd) {
 	return a.backToMenu(uistr.NoticeVSCodeDone)
 }
 
+func (a App) handleUpdateDone(msg updateDoneMsg) (tea.Model, tea.Cmd) {
+	a.busy = false
+	if msg.err != nil {
+		a.facade.Logger().Error(uistr.LogUpdateFailed, "err", msg.err)
+		return a.failToMenu(uistr.NoticeUpdateErr + msg.err.Error())
+	}
+	return a.backToMenu(uistr.NoticeUpdateDone)
+}
+
 func (a App) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 	a.busy = false
 	if msg.err != nil {

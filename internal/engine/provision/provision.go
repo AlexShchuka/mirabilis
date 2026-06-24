@@ -55,6 +55,11 @@ func Plugins(d Deps) []pipeline.Command { return carryPlugins(d) }
 
 func Skills(d Deps) []pipeline.Command { return carrySkills(d) }
 
+// Update is the on-demand re-hydration phase: it re-runs only the ecosystem
+// clone-or-pull, the same step the start phase carries, so the four ecosystem repos
+// can be refreshed from a menu action without a full provision pass.
+func Update(d Deps) []pipeline.Command { return []pipeline.Command{&ecosystemStep{d: d}} }
+
 func RunPhase(ctx context.Context, d Deps, phase string) error {
 	var steps []pipeline.Command
 	switch phase {
@@ -66,6 +71,8 @@ func RunPhase(ctx context.Context, d Deps, phase string) error {
 		steps = Plugins(d)
 	case "skills":
 		steps = Skills(d)
+	case "update":
+		steps = Update(d)
 	default:
 		return fmt.Errorf("provision: unknown phase %q", phase)
 	}

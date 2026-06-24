@@ -138,6 +138,11 @@ func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	return nil
 }
 
+func (f *fakeFacade) UpdateEcosystem(_ context.Context) error {
+	f.logCall("UpdateEcosystem")
+	return nil
+}
+
 func (f *fakeFacade) OpenURL(_ context.Context, _ string) error {
 	f.logCall("OpenURL")
 	return nil

@@ -44,6 +44,15 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tick, func() tea.Msg {
 			return vscodeDoneMsg{err: f.OpenVSCode(ctx)}
 		})
+	case screens.ActionUpdate:
+		ctx := a.ctx
+		f := a.facade
+		a.busy = true
+		tick := a.startBusy()
+		m, _ := a.backToMenu(uistr.NoticeUpdateRunning)
+		return m, tea.Batch(tick, func() tea.Msg {
+			return updateDoneMsg{err: f.UpdateEcosystem(ctx)}
+		})
 	default:
 		return a, nil
 	}

@@ -59,12 +59,14 @@ const (
 	MenuActionLaunch  = "Launch"
 	MenuActionHarness = "Harness"
 	MenuActionVSCode  = "VS Code"
+	MenuActionUpdate  = "Update"
 	MenuActionReset   = "Reset"
 	MenuActionQuit    = "Quit"
 
 	MenuDescLaunch  = "setup pipeline + Claude in container"
 	MenuDescHarness = "neuro-matrix: on / off / reinstall"
 	MenuDescVSCode  = "open container root in VS Code"
+	MenuDescUpdate  = "re-hydrate the ecosystem repos (clone or pull)"
 	MenuDescReset   = "container, image and volumes — permanent"
 
 	MenuHarnessOn      = "neuro-matrix: on"
@@ -81,6 +83,7 @@ const (
 
 	NoticeHarnessErr = "harness: "
 	NoticeVSCodeErr  = "VS Code: "
+	NoticeUpdateErr  = "update: "
 	NoticeResetDone  = "removed — relaunch to rebuild"
 
 	FormTitleHarness  = "neuro-matrix harness"
@@ -102,6 +105,9 @@ const (
 	NoticeVSCodeOpening   = "opening VS Code…"
 	NoticeBusy            = "busy — wait"
 	NoticeVSCodeDone      = "VS Code: opened"
+	NoticeUpdateRunning   = "updating ecosystem repos…"
+	NoticeUpdateDone      = "ecosystem repos updated"
 	LogHarnessFailed      = "harness apply failed"
 	LogVSCodeFailed       = "vscode open failed"
+	LogUpdateFailed       = "ecosystem update failed"
 )
