@@ -47,6 +47,7 @@ func carryStart(d Deps) []pipeline.Command {
 		&harnessStep{d: d},
 		&pluginsStep{d: d},
 		&skillsStep{d: d},
+		&mathToolsStep{d: d},
 	}
 }
 

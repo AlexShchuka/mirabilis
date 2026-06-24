@@ -98,6 +98,7 @@ type Loadout struct {
 	Harness bool
 	Plugins []string
 	MCP     []string
+	Tools   []string
 }
 
 func ReadLoadout(repo string) (string, bool) { return envRead(repo, "LOADOUT") }
@@ -140,6 +141,8 @@ func ReadLoadoutManifest(repo, name string) (Loadout, bool) {
 			lo.Plugins = fields[1:]
 		case "mcp":
 			lo.MCP = fields[1:]
+		case "tools":
+			lo.Tools = fields[1:]
 		}
 	}
 	return lo, true

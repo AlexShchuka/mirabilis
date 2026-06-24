@@ -2,3 +2,4 @@ effort max
 harness on
 plugins caveman@caveman claude-hud@claude-hud claude-md-management@claude-plugins-official code-review@claude-plugins-official commit-commands@claude-plugins-official security-guidance@claude-plugins-official frontend-design@claude-plugins-official pyright-lsp@claude-plugins-official typescript-lsp@claude-plugins-official
 mcp sequential-thinking arxiv-mcp-server context7 docling
+tools sympy z3 lean coq
