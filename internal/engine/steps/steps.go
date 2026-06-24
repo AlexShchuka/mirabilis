@@ -59,3 +59,27 @@ func Launch(d Deps) []pipeline.Command {
 		&attachStep{d: d},
 	}
 }
+
+// LaunchBatched is an opt-in fast-path with identical step semantics to Launch
+// except that the independent post-provision steps (plugins, skills, harness) are
+// fanned out concurrently inside one batch node instead of running sequentially.
+// The facade selects it only when the active loadout opts in; the default launch
+// path stays Launch.
+func LaunchBatched(d Deps) []pipeline.Command {
+	return []pipeline.Command{
+		newPreflight(d),
+		&claudeAuthStep{d: d},
+		newConfig(d),
+		&imageStep{d: d},
+		newContainer(d),
+		newProvision(d, phaseCreate),
+		newProvision(d, phaseStart),
+		&ghAuthStep{d: d},
+		newBatch("apply-batch", "Apply", []pipeline.Command{
+			newPluginsApply(d),
+			newSkillsApply(d),
+			&harnessStep{d: d},
+		}),
+		&attachStep{d: d},
+	}
+}

@@ -96,12 +96,25 @@ type Loadout struct {
 	Name    string
 	Effort  string
 	Harness bool
+	Batch   bool
 	Plugins []string
 	MCP     []string
 	Tools   []string
 }
 
 func ReadLoadout(repo string) (string, bool) { return envRead(repo, "LOADOUT") }
+
+// LaunchBatched reports whether the active loadout opts the launch pipeline into
+// the concurrent batch fast-path. Default loadouts leave it off, so the sequential
+// launch path is unchanged unless a loadout sets "batch on".
+func LaunchBatched(repo string) bool {
+	name, ok := ReadLoadout(repo)
+	if !ok || name == "" {
+		name = DefaultLoadout
+	}
+	lo, ok := ReadLoadoutManifest(repo, name)
+	return ok && lo.Batch
+}
 
 func WriteLoadout(repo, name string) error { return envWrite(repo, "LOADOUT", name) }
 
@@ -137,6 +150,8 @@ func ReadLoadoutManifest(repo, name string) (Loadout, bool) {
 			}
 		case "harness":
 			lo.Harness = len(fields) > 1 && fields[1] == "on"
+		case "batch":
+			lo.Batch = len(fields) > 1 && fields[1] == "on"
 		case "plugins":
 			lo.Plugins = fields[1:]
 		case "mcp":
