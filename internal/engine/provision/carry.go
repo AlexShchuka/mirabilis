@@ -44,6 +44,7 @@ func carryCreate(d Deps) []pipeline.Command {
 
 func carryStart(d Deps) []pipeline.Command {
 	return []pipeline.Command{
+		&ecosystemStep{d: d},
 		&harnessStep{d: d},
 		&pluginsStep{d: d},
 		&skillsStep{d: d},

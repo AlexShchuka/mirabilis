@@ -2,6 +2,7 @@ package provision
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -185,6 +186,28 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	},
 	"settings-env": func(_ *testing.T, d *Deps, _ *exec.Fake) {
 		d.SessionKey = "sk-contract"
+	},
+	"ecosystem": func(t *testing.T, d *Deps, f *exec.Fake) {
+		root := filepath.Join(d.Home, ecosystemDirRel)
+		f.Expect([]string{"gh", "auth", "status"}, "", nil)
+		for _, name := range ecosystemRepos {
+			dir := filepath.Join(root, name)
+			mustWrite(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/main\n")
+			f.Expect(script(fmt.Sprintf(`test -d %q`, filepath.Join(dir, ".git"))), "", nil)
+		}
+		f.Expect([]string{"gh", "auth", "status"}, "", nil)
+		f.Expect(script(`gh auth setup-git`), "", nil)
+		f.Expect(script(fmt.Sprintf(`mkdir -p %q`, root)), "", nil)
+		for _, name := range ecosystemRepos {
+			dir := filepath.Join(root, name)
+			f.Expect(script(fmt.Sprintf(`test -d %q`, filepath.Join(dir, ".git"))), "", nil)
+			f.Expect(script(fmt.Sprintf(`git -C %q pull --ff-only`, dir)), "", nil)
+		}
+		f.Expect([]string{"gh", "auth", "status"}, "", nil)
+		for _, name := range ecosystemRepos {
+			dir := filepath.Join(root, name)
+			f.Expect(script(fmt.Sprintf(`test -d %q`, filepath.Join(dir, ".git"))), "", nil)
+		}
 	},
 	"create-marker":      func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
 	"claude-credentials": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},

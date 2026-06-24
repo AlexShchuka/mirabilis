@@ -23,6 +23,17 @@
         ]
       }
     ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mirabilis hook session-end",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
     "PostToolUseFailure": [
       {
         "hooks": [

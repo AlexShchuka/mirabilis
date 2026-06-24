@@ -32,6 +32,8 @@ func Dispatch(name string) error {
 		return Telegram()
 	case "session-start":
 		return SessionStart()
+	case "session-end":
+		return SessionEnd()
 	case "post-tool-use-failure":
 		return PostToolUseFailure()
 	default:
