@@ -82,7 +82,7 @@ const (
 
 	MenuDescLaunch = "setup pipeline + Claude in container"
 	MenuDescVSCode = "open container root in VS Code"
-	MenuDescUpdate = "re-hydrate the ecosystem repos (clone or pull)"
+	MenuDescUpdate = "fetch ecosystem repos and refresh the live harness"
 
 	WelcomeHint = "pick an action ←"
 
@@ -102,8 +102,8 @@ const (
 	NoticeVSCodeOpening = "opening VS Code…"
 	NoticeBusy          = "busy — wait"
 	NoticeVSCodeDone    = "VS Code: opened"
-	NoticeUpdateRunning = "updating ecosystem repos…"
-	NoticeUpdateDone    = "ecosystem repos updated"
+	NoticeUpdateRunning = "updating ecosystem and harness…"
+	NoticeUpdateDone    = "ecosystem and harness updated"
 	LogVSCodeFailed     = "vscode open failed"
-	LogUpdateFailed     = "ecosystem update failed"
+	LogUpdateFailed     = "ecosystem and harness update failed"
 )

@@ -242,6 +242,7 @@ func TestContractRegistries(t *testing.T) {
 		{name: "start", build: Start},
 		{name: "plugins", build: Plugins},
 		{name: "skills", build: Skills},
+		{name: "update", build: Update},
 	}
 	for _, reg := range registries {
 		t.Run(reg.name, func(t *testing.T) {

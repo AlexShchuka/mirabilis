@@ -55,10 +55,14 @@ func Plugins(d Deps) []pipeline.Command { return carryPlugins(d) }
 
 func Skills(d Deps) []pipeline.Command { return carrySkills(d) }
 
-// Update is the on-demand re-hydration phase: it re-runs only the ecosystem
-// clone-or-pull, the same step the start phase carries, so the four ecosystem repos
-// can be refreshed from a menu action without a full provision pass.
-func Update(d Deps) []pipeline.Command { return []pipeline.Command{&ecosystemStep{d: d}} }
+// Update is the on-demand re-hydration phase. It re-runs the ecosystem clone-or-pull
+// to fetch fresh source, then the harness step to refresh the live installed plugin
+// from that source, so a menu UPDATE actually refreshes the running harness — not just
+// the source on disk. Both steps are the ones the start phase carries, so they stay
+// idempotent: a repeat Update on a healthy system makes no changes.
+func Update(d Deps) []pipeline.Command {
+	return []pipeline.Command{&ecosystemStep{d: d}, &harnessStep{d: d}}
+}
 
 func RunPhase(ctx context.Context, d Deps, phase string) error {
 	var steps []pipeline.Command

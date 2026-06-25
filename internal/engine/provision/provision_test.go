@@ -2,8 +2,10 @@ package provision
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
@@ -96,5 +98,80 @@ func TestRunPhaseUnknownPhase(t *testing.T) {
 	d, _ := testDeps(t)
 	if err := RunPhase(t.Context(), d, "bogus"); err == nil {
 		t.Error("unknown phase must error")
+	}
+}
+
+func TestUpdateIncludesHarnessRefresh(t *testing.T) {
+	d, _ := testDeps(t)
+	var names []string
+	for _, c := range Update(d) {
+		names = append(names, c.Meta().Name)
+	}
+	wantEcosystem, wantHarness := false, false
+	for _, n := range names {
+		switch n {
+		case "ecosystem":
+			wantEcosystem = true
+		case "harness":
+			wantHarness = true
+		}
+	}
+	if !wantEcosystem {
+		t.Errorf("Update missing ecosystem fetch step: %v", names)
+	}
+	if !wantHarness {
+		t.Errorf("Update missing harness step: a menu UPDATE must refresh the live plugin, not just source: %v", names)
+	}
+}
+
+func TestRunPhaseUpdateRefreshesLiveHarness(t *testing.T) {
+	d, f := testDeps(t)
+
+	root := filepath.Join(d.Home, ecosystemDirRel)
+	f.Expect([]string{"gh", "auth", "status"}, "", nil)
+	for _, name := range ecosystemRepos {
+		dir := filepath.Join(root, name)
+		mustWrite(t, filepath.Join(dir, ".git", "HEAD"), "ref: refs/heads/main\n")
+		f.Expect(script(fmt.Sprintf(`test -d %q`, filepath.Join(dir, ".git"))), "", nil)
+	}
+
+	probe := script(harness.ProbeScript)
+	f.Expect(probe, "", errStub)
+	f.Expect(probe, "", errStub)
+	f.Expect(script("command -v claude"), "", nil)
+	f.Expect([]string{"claude", "plugin", "marketplace", "add", "AlexShchuka/neuro-matrix"}, "", nil)
+	f.Expect([]string{"claude", "plugin", "install", "neuro-matrix@neuro-matrix", "--scope", "user"}, "", nil)
+	f.Expect([]string{"claude", "plugin", "update", "neuro-matrix@neuro-matrix"}, "", nil)
+	f.Expect(probe, "", nil)
+	f.Expect(script(harness.RelinkScript), "", nil)
+
+	if err := RunPhase(t.Context(), d, "update"); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if n := f.Remaining(); n != 0 {
+		t.Errorf("update left %d unused stubs", n)
+	}
+
+	want := map[string]bool{
+		"claude plugin install neuro-matrix@neuro-matrix --scope user": false,
+		"claude plugin update neuro-matrix@neuro-matrix":               false,
+	}
+	relinked := false
+	for _, c := range f.Calls() {
+		joined := strings.Join(c.Argv, " ")
+		if _, ok := want[joined]; ok {
+			want[joined] = true
+		}
+		if len(c.Argv) >= 3 && c.Argv[2] == harness.RelinkScript {
+			relinked = true
+		}
+	}
+	for action, seen := range want {
+		if !seen {
+			t.Errorf("update did not refresh live plugin: missing %q", action)
+		}
+	}
+	if !relinked {
+		t.Error("update did not relink ~/.neuro-matrix to the refreshed plugin")
 	}
 }
