@@ -130,7 +130,10 @@ func (f *facade) Loadouts() []app.LoadoutChoice {
 	}
 	out := make([]app.LoadoutChoice, 0, len(names))
 	for _, name := range names {
-		lo, _ := config.ReadLoadoutManifest(f.repo, name)
+		lo, ok := config.ReadLoadoutManifest(f.repo, name)
+		if !ok {
+			continue
+		}
 		out = append(out, app.LoadoutChoice{
 			Key:     name,
 			Effort:  lo.Effort,

@@ -48,8 +48,12 @@ func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 	a.router, rc = a.router.Update(bus.ScreenPop{})
 	if a.awaitingRole {
 		a.awaitingRole = false
-		if name, ok := msg.Value.(string); ok {
-			_ = a.facade.SelectLoadout(name)
+		name, ok := msg.Value.(string)
+		if !ok {
+			return a.backToMenu("")
+		}
+		if err := a.facade.SelectLoadout(name); err != nil {
+			return a.failToMenu(uistr.NoticeLoadoutErrPrefix + err.Error())
 		}
 		return a.startLaunch()
 	}

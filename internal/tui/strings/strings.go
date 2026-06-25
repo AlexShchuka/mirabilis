@@ -94,9 +94,10 @@ const (
 	NoticeVSCodeErr = "VS Code: "
 	NoticeUpdateErr = "update: "
 
-	NoticeLaunchFailed    = "launch failed"
-	NoticeLaunchCanceled  = "launch canceled"
-	NoticeLaunchErrPrefix = "launch error: "
+	NoticeLaunchFailed     = "launch failed"
+	NoticeLaunchCanceled   = "launch canceled"
+	NoticeLaunchErrPrefix  = "launch error: "
+	NoticeLoadoutErrPrefix = "loadout error: "
 
 	NoticeVSCodeOpening = "opening VS Code…"
 	NoticeBusy          = "busy — wait"
