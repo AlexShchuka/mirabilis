@@ -66,6 +66,14 @@ func newFakeFacade(steps []pipeline.Command) *fakeFacade {
 	}
 }
 
+func (f *fakeFacade) Loadouts() []app.LoadoutChoice {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return nil
+}
+
+func (f *fakeFacade) SelectLoadout(string) error { return nil }
+
 func (f *fakeFacade) LaunchSteps() []pipeline.Command {
 	f.mu.Lock()
 	defer f.mu.Unlock()

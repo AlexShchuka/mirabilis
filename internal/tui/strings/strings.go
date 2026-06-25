@@ -56,6 +56,25 @@ const (
 
 	ProgressSep = "/"
 
+	RolePickerTitle = "Choose loadout"
+	RolePickerHint  = "↑↓ move · enter select · esc cancel"
+
+	RoleEmojiGrind   = "⚡"
+	RoleEmojiRaid    = "🎯"
+	RoleEmojiPvP     = "🏆"
+	RoleEmojiDefault = "•"
+
+	RoleLabelGrind = "grind"
+	RoleLabelRaid  = "raid"
+	RoleLabelPvP   = "pvp"
+
+	RoleFactEffort     = "effort "
+	RoleFactHarnessOn  = "harness on"
+	RoleFactHarnessOff = "harness off"
+	RoleFactBatch      = "batch"
+	RoleFactSep        = " · "
+	RoleDefaultSuffix  = " (default)"
+
 	MenuActionLaunch = "Launch"
 	MenuActionVSCode = "VS Code"
 	MenuActionUpdate = "Update"
@@ -75,9 +94,10 @@ const (
 	NoticeVSCodeErr = "VS Code: "
 	NoticeUpdateErr = "update: "
 
-	NoticeLaunchFailed    = "launch failed"
-	NoticeLaunchCanceled  = "launch canceled"
-	NoticeLaunchErrPrefix = "launch error: "
+	NoticeLaunchFailed     = "launch failed"
+	NoticeLaunchCanceled   = "launch canceled"
+	NoticeLaunchErrPrefix  = "launch error: "
+	NoticeLoadoutErrPrefix = "loadout error: "
 
 	NoticeVSCodeOpening = "opening VS Code…"
 	NoticeBusy          = "busy — wait"

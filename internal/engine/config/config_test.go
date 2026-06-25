@@ -504,3 +504,55 @@ func TestSkillGroupsFromMissing(t *testing.T) {
 		t.Fatalf("missing file: got %#v, want nil", got)
 	}
 }
+
+func TestReadLoadoutCatalog(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "grind.txt"), "effort xhigh\nharness off\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "notes.md"), "ignored")
+
+	got := ReadLoadoutCatalog(dir)
+	want := map[string]bool{"raid": true, "grind": true}
+	if len(got) != len(want) {
+		t.Fatalf("catalog = %v, want keys %v", got, want)
+	}
+	for _, name := range got {
+		if !want[name] {
+			t.Errorf("unexpected loadout %q in catalog %v", name, got)
+		}
+	}
+}
+
+func TestReadLoadoutCatalogMissingDir(t *testing.T) {
+	if got := ReadLoadoutCatalog(t.TempDir()); got != nil {
+		t.Errorf("missing loadouts dir: got %v, want nil", got)
+	}
+}
+
+func TestWriteLoadoutActivatesBatch(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "blitz.txt"), "effort max\nbatch on\n")
+
+	if LaunchBatched(dir) {
+		t.Fatal("default (raid, no batch) should not opt into batch path")
+	}
+
+	if err := WriteLoadout(dir, "blitz"); err != nil {
+		t.Fatalf("WriteLoadout: %v", err)
+	}
+	if name, ok := ReadLoadout(dir); !ok || name != "blitz" {
+		t.Fatalf("ReadLoadout = %q,%v want blitz", name, ok)
+	}
+	if !LaunchBatched(dir) {
+		t.Error("after selecting blitz (batch on), LaunchBatched should be true")
+	}
+}
+
+func TestLaunchBatchedDefaultsToRaidManifest(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
+	if LaunchBatched(dir) {
+		t.Error("raid manifest has no batch; LaunchBatched should be false by default")
+	}
+}

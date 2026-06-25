@@ -11,6 +11,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/frame"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
+	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
 var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;<=>?]*[ -/]*[@-~]")
@@ -36,4 +37,18 @@ func TestFrameMenuGolden(t *testing.T) {
 	menu = scr.(screens.Menu)
 
 	teatest.RequireEqualOutput(t, stripANSI([]byte(fr.View(menu.View()))))
+}
+
+func TestRolePickerGolden(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
+
+	rp := screens.NewRolePicker("app/launch/role", []screens.RoleOption{
+		{Key: "grind", Effort: "xhigh", Harness: false},
+		{Key: "raid", Effort: "max", Harness: true, Default: true},
+		{Key: "pvp", Effort: "max", Harness: false},
+	})
+
+	box := styles.Overlay.Render(rp.View())
+	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
 }

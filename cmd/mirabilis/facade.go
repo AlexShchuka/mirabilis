@@ -119,6 +119,36 @@ func (f *facade) newProxy(key string) *authproxy.Proxy {
 	return p
 }
 
+func (f *facade) Loadouts() []app.LoadoutChoice {
+	names := config.ReadLoadoutCatalog(f.repo)
+	if len(names) == 0 {
+		return nil
+	}
+	active, ok := config.ReadLoadout(f.repo)
+	if !ok || active == "" {
+		active = config.DefaultLoadout
+	}
+	out := make([]app.LoadoutChoice, 0, len(names))
+	for _, name := range names {
+		lo, ok := config.ReadLoadoutManifest(f.repo, name)
+		if !ok {
+			continue
+		}
+		out = append(out, app.LoadoutChoice{
+			Key:     name,
+			Effort:  lo.Effort,
+			Harness: lo.Harness,
+			Batch:   lo.Batch,
+			Default: name == active,
+		})
+	}
+	return out
+}
+
+func (f *facade) SelectLoadout(name string) error {
+	return config.WriteLoadout(f.repo, name)
+}
+
 func (f *facade) LaunchSteps() []pipeline.Command {
 	if config.LaunchBatched(f.repo) {
 		return steps.LaunchBatched(f.deps)
