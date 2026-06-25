@@ -98,7 +98,7 @@ RUN go install tool \
 RUN curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://golangci-lint.run/install.sh | sh -s -- -b /home/node/go/bin ${GOLANGCI_LINT_VERSION}
 
 ARG CLAUDE_CODE_VERSION=2.1.177
-ARG GH_VERSION=2.94.0
+ARG GH_VERSION=2.95.0
 ARG DOCKER_CE_CLI_VERSION=5:28.1.1-1~debian.13~trixie
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl --retry 3 --retry-delay 2 --retry-all-errors -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
