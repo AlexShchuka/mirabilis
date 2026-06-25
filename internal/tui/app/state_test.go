@@ -26,6 +26,9 @@ import (
 type stubFacade struct {
 	mu           sync.Mutex
 	steps        []pipeline.Command
+	loadouts     []LoadoutChoice
+	selectedRole string
+	selectErr    error
 	launchCalls  int
 	vscodeCalls  int
 	vscodeErr    error
@@ -33,6 +36,25 @@ type stubFacade struct {
 	updateErr    error
 	statusSubs   int
 	openURLCalls []string
+}
+
+func (f *stubFacade) Loadouts() []LoadoutChoice {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.loadouts
+}
+
+func (f *stubFacade) SelectLoadout(name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.selectedRole = name
+	return f.selectErr
+}
+
+func (f *stubFacade) selectedLoadout() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.selectedRole
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -1294,4 +1316,144 @@ func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
 	if a.busy {
 		t.Fatal("busy = true after pipelineDoneMsg, want false")
 	}
+}
+
+func roleLoadouts() []LoadoutChoice {
+	return []LoadoutChoice{
+		{Key: "grind", Effort: "xhigh", Harness: false},
+		{Key: "raid", Effort: "max", Harness: true, Default: true},
+		{Key: "pvp", Effort: "max", Harness: false},
+	}
+}
+
+func TestLaunchPresentsRolePickerBeforePipeline(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after ActionLaunch, want true")
+	}
+	if a.pipe != nil {
+		t.Fatal("pipe created before role chosen")
+	}
+	if f.launches() != 0 {
+		t.Errorf("LaunchSteps called %d times before role chosen, want 0", f.launches())
+	}
+	if _, ok := a.router.Top().(screens.RolePicker); !ok {
+		t.Fatalf("top screen is %T, want screens.RolePicker", a.router.Top())
+	}
+}
+
+func TestRoleSelectionPersistsLoadoutThenLaunches(t *testing.T) {
+	f := &stubFacade{
+		loadouts: roleLoadouts(),
+		steps:    []pipeline.Command{&stateStep{meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto}}},
+	}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, bus.ScreenResult{Value: "pvp"})
+
+	if a.awaitingRole {
+		t.Error("awaitingRole still true after selection")
+	}
+	if got := f.selectedLoadout(); got != "pvp" {
+		t.Errorf("SelectLoadout got %q, want pvp", got)
+	}
+	if f.launches() != 1 {
+		t.Errorf("LaunchSteps calls = %d, want 1", f.launches())
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after role chosen, want running pipeline")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestRoleSelectionEnterDrivesFullFlow(t *testing.T) {
+	f := &stubFacade{
+		loadouts: roleLoadouts(),
+		steps:    []pipeline.Command{&stateStep{meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto}}},
+	}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
+	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
+	res := runMsg(t, cmd)
+	sr, ok := res.(bus.ScreenResult)
+	if !ok {
+		t.Fatalf("enter on role picker produced %T, want bus.ScreenResult", res)
+	}
+	a, _ = step(t, a, sr)
+
+	if got := f.selectedLoadout(); got != "grind" {
+		t.Errorf("SelectLoadout got %q, want grind", got)
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after enter-selecting role")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestRoleSelectionCancelledReturnsToMenu(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: []pipeline.Command{&stateStep{
+		meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto},
+	}}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, bus.ScreenPop{})
+
+	if a.awaitingRole {
+		t.Error("awaitingRole still true after cancel")
+	}
+	if a.pipe != nil {
+		t.Error("pipe created after cancel, want none")
+	}
+	if f.launches() != 0 {
+		t.Errorf("LaunchSteps called %d times after cancel, want 0", f.launches())
+	}
+	if _, ok := a.router.Top().(screens.Menu); !ok {
+		t.Fatalf("top screen after cancel is %T, want screens.Menu", a.router.Top())
+	}
+}
+
+func TestRoleSelectionEscKeyCancelsToMenu(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if a.awaitingRole {
+		t.Error("awaitingRole still true after esc")
+	}
+	if a.pipe != nil {
+		t.Error("pipe created after esc cancel")
+	}
+	if _, ok := a.router.Top().(screens.Menu); !ok {
+		t.Fatalf("top screen after esc is %T, want screens.Menu", a.router.Top())
+	}
+}
+
+func TestLaunchSkipsRolePickerWhenNoLoadouts(t *testing.T) {
+	f := &stubFacade{steps: []pipeline.Command{&stateStep{
+		meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto},
+	}}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if a.awaitingRole {
+		t.Error("awaitingRole = true with empty loadout catalog, want false")
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil with empty catalog, want direct launch")
+	}
+	if f.selectedLoadout() != "" {
+		t.Errorf("SelectLoadout called with empty catalog: %q", f.selectedLoadout())
+	}
+	a = driveUntilDone(t, a)
 }

@@ -56,6 +56,25 @@ const (
 
 	ProgressSep = "/"
 
+	RolePickerTitle = "Choose loadout"
+	RolePickerHint  = "↑↓ move · enter select · esc cancel"
+
+	RoleEmojiGrind   = "⚡"
+	RoleEmojiRaid    = "🎯"
+	RoleEmojiPvP     = "🏆"
+	RoleEmojiDefault = "•"
+
+	RoleLabelGrind = "grind"
+	RoleLabelRaid  = "raid"
+	RoleLabelPvP   = "pvp"
+
+	RoleFactEffort     = "effort "
+	RoleFactHarnessOn  = "harness on"
+	RoleFactHarnessOff = "harness off"
+	RoleFactBatch      = "batch"
+	RoleFactSep        = " · "
+	RoleDefaultSuffix  = " (default)"
+
 	MenuActionLaunch = "Launch"
 	MenuActionVSCode = "VS Code"
 	MenuActionUpdate = "Update"

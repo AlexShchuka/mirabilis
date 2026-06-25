@@ -16,7 +16,7 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Action {
 	case screens.ActionLaunch:
-		return a.startLaunch()
+		return a.pickRole()
 	case screens.ActionQuit:
 		a.cancel()
 		return a, tea.Quit
@@ -46,6 +46,13 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPop{})
+	if a.awaitingRole {
+		a.awaitingRole = false
+		if name, ok := msg.Value.(string); ok {
+			_ = a.facade.SelectLoadout(name)
+		}
+		return a.startLaunch()
+	}
 	step := a.waiting
 	a.waiting = ""
 	if a.pipe != nil && step != "" {
@@ -59,6 +66,35 @@ func screenResultValue(msg bus.ScreenResult) any {
 		return steps.WizardResult{Choices: msg.Values}
 	}
 	return msg.Value
+}
+
+func (a App) pickRole() (tea.Model, tea.Cmd) {
+	if a.pipe != nil {
+		return a, nil
+	}
+	choices := a.facade.Loadouts()
+	if len(choices) == 0 {
+		return a.startLaunch()
+	}
+	opts := make([]screens.RoleOption, 0, len(choices))
+	for _, c := range choices {
+		opts = append(opts, screens.RoleOption{
+			Key:     c.Key,
+			Effort:  c.Effort,
+			Harness: c.Harness,
+			Batch:   c.Batch,
+			Default: c.Default,
+		})
+	}
+	a.awaitingRole = true
+	scr := screens.NewRolePicker("app/launch/role", opts)
+	var rc tea.Cmd
+	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
+	if a.winW > 0 || a.winH > 0 {
+		mw, mh := a.frame.MainSize()
+		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
+	}
+	return a, tea.Batch(rc, scr.Init())
 }
 
 func (a App) startLaunch() (tea.Model, tea.Cmd) {

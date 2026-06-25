@@ -19,7 +19,17 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/styles"
 )
 
+type LoadoutChoice struct {
+	Key     string
+	Effort  string
+	Harness bool
+	Batch   bool
+	Default bool
+}
+
 type Facade interface {
+	Loadouts() []LoadoutChoice
+	SelectLoadout(name string) error
 	LaunchSteps() []pipeline.Command
 	Version() string
 	Logger() *slog.Logger
@@ -52,6 +62,7 @@ type App struct {
 	winW            int
 	winH            int
 	launchCancelled bool
+	awaitingRole    bool
 	busy            bool
 	busyStarted     time.Time
 	busyFrame       int
