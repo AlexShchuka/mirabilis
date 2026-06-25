@@ -4,19 +4,19 @@ const (
 	AppName = "mirabilis"
 
 	TitleBanner = "" +
-		"┌┬┐┬┬─┐┌─┐┌┐ ┬ ┬  ┬┌─┐\n" +
-		"│││││├┬┘├─┤├┴┐││  │└─┐\n" +
-		"┴ ┴┴┴└─┴ ┴└─┘┴─┘  ┴└─┘"
+		"╔╦╗╦╦═╗╔═╗╔╗ ╦╦  ╦╔═╗\n" +
+		"║║║║╠╦╝╠═╣╠╩╗║║  ║╚═╗\n" +
+		"╩ ╩╩╩╚═╩ ╩╚═╝╩╩═╝╩╚═╝"
 
-	LogoLargeFrameA = "   │   \n ──○── \n   │   "
-	LogoLargeFrameB = " ╲   ╱ \n   ○   \n ╱   ╲ "
-	LogoLargeFrameC = "   ╷   \n   ○   \n   ╵   "
-	LogoLargeFrameD = " ·   · \n   ○   \n ·   · "
-	LogoLargeFrameE = " ───── \n   ○   \n ───── "
-	LogoLargeFrameF = " ╱   ╲ \n   ○   \n ╲   ╱ "
-	LogoLargeFrameG = "   ·   \n ─ ○ ─ \n   ·   "
-	LogoLargeFrameH = " ─   ─ \n   ○   \n ─   ─ "
-	LogoLargeStatic = LogoLargeFrameA
+	LogoLargeFrameA = "   ·   \n · ✧ · \n   ·   "
+	LogoLargeFrameB = "   ╷   \n   ✦   \n   ╵   "
+	LogoLargeFrameC = " ─   ─ \n ─ ✦ ─ \n ─   ─ "
+	LogoLargeFrameD = " ╲ ╷ ╱ \n ─ ✦ ─ \n ╱ ╵ ╲ "
+	LogoLargeFrameE = " ───── \n   ✦   \n ───── "
+	LogoLargeFrameF = " ╲   ╱ \n   ✦   \n ╱   ╲ "
+	LogoLargeFrameG = " ·   · \n · ✦ · \n ·   · "
+	LogoLargeFrameH = "   ╷   \n ─ ✧ ─ \n   ╵   "
+	LogoLargeStatic = LogoLargeFrameD
 
 	GHAuthTitle         = "GitHub sign-in"
 	GHAuthLabelCode     = "  code:  "
@@ -29,6 +29,10 @@ const (
 	FooterHints    = "enter select · esc back · tab log · q quit"
 	DegradedPrefix = "degraded: "
 	StatusSep      = " · "
+
+	VersionNode     = "version"
+	OutdatedPrefix  = "update "
+	OutdatedDefault = "available"
 
 	CmdlogTitle  = "commands"
 	CmdlogPrefix = "+ "

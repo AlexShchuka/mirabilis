@@ -37,6 +37,9 @@ func (m Model) View() string {
 	segments := make([]string, 0, len(nodes)+1)
 	var degraded []string
 	for _, node := range nodes {
+		if node == uistr.VersionNode {
+			continue
+		}
 		st := m.snap[node]
 		if st.State == obs.StateDegraded {
 			degraded = append(degraded, node)

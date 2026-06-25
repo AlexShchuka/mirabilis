@@ -295,6 +295,35 @@ func TestHeaderShowsStatusAndDegraded(t *testing.T) {
 	}
 }
 
+func TestOutdatedBadgeShownOnlyWhenBehind(t *testing.T) {
+	m := frame.New("mirabilis", "v1.0.0", items())
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+
+	noBadge := plain(m.View(""))
+	if strings.Contains(noBadge, "update ") {
+		t.Errorf("badge shown with no version node:\n%s", noBadge)
+	}
+
+	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{
+		"version": {State: obs.StateDegraded, Detail: "v1.4.0"},
+	}})
+	header := strings.Join(strings.Split(plain(m.View("")), "\n")[:4], "\n")
+	if !strings.Contains(header, "update v1.4.0") {
+		t.Errorf("header missing outdated badge:\n%s", header)
+	}
+	if strings.Contains(header, "degraded: version") {
+		t.Errorf("version node rendered as generic degraded entry, want dedicated badge:\n%s", header)
+	}
+
+	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{
+		"version": {State: obs.StateOK, Detail: "v1.4.0"},
+	}})
+	cleared := plain(m.View(""))
+	if strings.Contains(cleared, "update v1.4.0") {
+		t.Errorf("badge persisted after version node went OK:\n%s", cleared)
+	}
+}
+
 func TestFooterHints(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0.0", items())
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -323,19 +352,19 @@ func TestHeaderTruncationLeftFirst(t *testing.T) {
 	if !strings.Contains(header80, "v1.0") {
 		t.Fatalf("header at width=80 missing version:\n%s", header80)
 	}
-	if !strings.Contains(header80, "○") {
-		t.Fatalf("header at width=80 missing logo (○):\n%s", header80)
+	if !strings.Contains(header80, "✧") {
+		t.Fatalf("header at width=80 missing logo (✧):\n%s", header80)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 20, Height: 24})
 	header20 := strings.Split(plain(m.View("")), "\n")[0]
-	if strings.Contains(header20, "○") {
+	if strings.Contains(header20, "✧") {
 		t.Errorf("narrow header (w=20) still shows logo — should have dropped:\n%s", header20)
 	}
 
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 15, Height: 24})
 	headerNarrow := strings.Split(plain(m.View("")), "\n")[0]
-	if strings.Contains(headerNarrow, "○") {
+	if strings.Contains(headerNarrow, "✧") {
 		t.Errorf("narrow header (w=15) still shows logo:\n%s", headerNarrow)
 	}
 	if !strings.Contains(header80, "v1.0") {

@@ -99,11 +99,13 @@ func TestLogoLargeFramesNoSolidDot(t *testing.T) {
 		uistr.LogoLargeStatic,
 	}
 	for i, f := range frames {
-		if strings.Contains(f, "⊙") {
-			t.Errorf("frame %d contains ⊙ (center-dot) — must be ○ (INV §1)", i)
+		for _, solid := range []string{"⊙", "●", "•"} {
+			if strings.Contains(f, solid) {
+				t.Errorf("frame %d contains %q (solid mark) — center must be a star (INV §1)", i, solid)
+			}
 		}
-		if !strings.Contains(f, "○") {
-			t.Errorf("frame %d does not contain ○ (ring) (INV §1)", i)
+		if !strings.Contains(f, "✦") && !strings.Contains(f, "✧") {
+			t.Errorf("frame %d does not contain a star center (✦/✧) (INV §1)", i)
 		}
 	}
 }
