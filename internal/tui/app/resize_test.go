@@ -95,10 +95,8 @@ func TestRealBytesNavMovesCursorAndEnterDispatches(t *testing.T) {
 
 	waitContainsAfter(t, h.out, 0, uistr.WelcomeHint)
 
-	for range 2 {
-		_, _ = h.master.Write([]byte("\x1b[B"))
-		time.Sleep(20 * time.Millisecond)
-	}
+	_, _ = h.master.Write([]byte("\x1b[B"))
+	time.Sleep(20 * time.Millisecond)
 	_, _ = h.master.Write([]byte("\r"))
 
 	deadline := time.Now().Add(10 * time.Second)

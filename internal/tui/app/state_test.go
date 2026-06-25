@@ -24,25 +24,15 @@ import (
 )
 
 type stubFacade struct {
-	mu               sync.Mutex
-	steps            []pipeline.Command
-	launchCalls      int
-	harnessCurrent   string
-	harnessStatusErr error
-	harnessApplied   []string
-	harnessApplyErr  error
-	vscodeCalls      int
-	vscodeErr        error
-	updateCalls      int
-	updateErr        error
-	saveCalls        int
-	resetCalls       int
-	resetErr         error
-	lastHarness      string
-	rememberedChoice string
-	rememberErr      error
-	statusSubs       int
-	openURLCalls     []string
+	mu           sync.Mutex
+	steps        []pipeline.Command
+	launchCalls  int
+	vscodeCalls  int
+	vscodeErr    error
+	updateCalls  int
+	updateErr    error
+	statusSubs   int
+	openURLCalls []string
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -75,33 +65,6 @@ func (f *stubFacade) NewTokenTee() (io.Writer, func() (string, bool)) {
 	return io.Discard, func() (string, bool) { return "", false }
 }
 
-func (f *stubFacade) SaveMemory(context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.saveCalls++
-	return nil
-}
-
-func (f *stubFacade) ResetSandbox(context.Context) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.resetCalls++
-	return f.resetErr
-}
-
-func (f *stubFacade) HarnessStatus(context.Context) (string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.harnessCurrent, f.harnessStatusErr
-}
-
-func (f *stubFacade) ApplyHarness(_ context.Context, choice string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.harnessApplied = append(f.harnessApplied, choice)
-	return f.harnessApplyErr
-}
-
 func (f *stubFacade) OpenVSCode(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -132,25 +95,6 @@ func (f *stubFacade) openURLs() []string {
 }
 
 func (f *stubFacade) CopyText(context.Context, string) error { return nil }
-
-func (f *stubFacade) LastHarnessChoice() string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.lastHarness
-}
-
-func (f *stubFacade) RememberHarnessChoice(choice string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.rememberedChoice = choice
-	return f.rememberErr
-}
-
-func (f *stubFacade) remembered() string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.rememberedChoice
-}
 
 func (f *stubFacade) launches() int {
 	f.mu.Lock()
@@ -522,66 +466,6 @@ func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
 	}
 }
 
-func TestStateResetConfirmRunsAndNotifies(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	if a.menuAction != "reset" {
-		t.Fatalf("menuAction = %q, want reset", a.menuAction)
-	}
-
-	a, cmd := step(t, a, bus.ScreenResult{Value: true})
-	if !a.busy {
-		t.Error("busy = false while reset runs, want true")
-	}
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if a.busy {
-		t.Error("busy = true after reset done, want false")
-	}
-	if got := menuNotice(t, a); got != uistr.NoticeResetDone {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeResetDone)
-	}
-	if f.saveCalls != 1 || f.resetCalls != 1 {
-		t.Errorf("saveCalls=%d resetCalls=%d, want 1 and 1", f.saveCalls, f.resetCalls)
-	}
-}
-
-func TestStateResetFailureNotice(t *testing.T) {
-	f := &stubFacade{resetErr: errors.New("disk busy")}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	a, cmd := step(t, a, bus.ScreenResult{Value: true})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if a.busy {
-		t.Error("busy = true after failed reset, want false")
-	}
-	if got := menuNotice(t, a); got != uistr.NoticeResetFailed {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeResetFailed)
-	}
-	if f.resetCalls != 1 {
-		t.Errorf("resetCalls = %d, want 1", f.resetCalls)
-	}
-}
-
-func TestStateResetCancelMakesNoCalls(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	a, _ = step(t, a, bus.ScreenPop{})
-	if a.busy {
-		t.Error("busy = true after reset cancel, want false")
-	}
-	if f.saveCalls != 0 || f.resetCalls != 0 {
-		t.Errorf("saveCalls=%d resetCalls=%d after cancel, want 0 and 0", f.saveCalls, f.resetCalls)
-	}
-	if a.router.Depth() != 1 {
-		t.Errorf("router depth = %d after pop, want 1 (menu only)", a.router.Depth())
-	}
-}
-
 func menuErrText(t *testing.T, a App) string {
 	t.Helper()
 	m, ok := a.router.Top().(screens.Menu)
@@ -592,14 +476,13 @@ func menuErrText(t *testing.T, a App) string {
 }
 
 func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
-	f := &stubFacade{resetErr: errors.New("disk busy")}
+	f := &stubFacade{updateErr: errors.New("gh not authed")}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
 
-	wantErr := uistr.NoticeResetFailed
+	wantErr := uistr.NoticeUpdateErr + "gh not authed"
 	if got := menuErrText(t, a); got != wantErr {
 		t.Fatalf("error surface = %q, want %q right after failure", got, wantErr)
 	}
@@ -620,14 +503,14 @@ func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
 }
 
 func TestStateErrorSurfaceReplacedByNextError(t *testing.T) {
-	f := &stubFacade{resetErr: errors.New("disk busy"), vscodeErr: errors.New("code missing")}
+	f := &stubFacade{updateErr: errors.New("gh not authed"), vscodeErr: errors.New("code missing")}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	a, cmd := step(t, a, bus.ScreenResult{Value: true})
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuErrText(t, a); got != uistr.NoticeResetFailed {
-		t.Fatalf("first error = %q, want %q", got, uistr.NoticeResetFailed)
+	wantFirst := uistr.NoticeUpdateErr + "gh not authed"
+	if got := menuErrText(t, a); got != wantFirst {
+		t.Fatalf("first error = %q, want %q", got, wantFirst)
 	}
 
 	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
@@ -635,68 +518,6 @@ func TestStateErrorSurfaceReplacedByNextError(t *testing.T) {
 	want := uistr.NoticeVSCodeErr + "code missing"
 	if got := menuErrText(t, a); got != want {
 		t.Errorf("error surface = %q, want it replaced by the newer error %q", got, want)
-	}
-}
-
-func TestStateHarnessFlow(t *testing.T) {
-	f := &stubFacade{harnessCurrent: screens.HarnessOff}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	if !a.busy {
-		t.Error("busy = false while harness status runs, want true")
-	}
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if a.busy {
-		t.Error("busy = true after status arrived, want false")
-	}
-	if a.menuAction != "harness" {
-		t.Fatalf("menuAction = %q, want harness", a.menuAction)
-	}
-	if a.router.Depth() != 2 {
-		t.Fatalf("router depth = %d after harness screen push, want 2", a.router.Depth())
-	}
-
-	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessReinstall})
-	if !a.busy {
-		t.Error("busy = false while harness apply runs, want true")
-	}
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeHarnessDone {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeHarnessDone)
-	}
-	if len(f.harnessApplied) != 1 || f.harnessApplied[0] != screens.HarnessReinstall {
-		t.Errorf("ApplyHarness = %v, want [reinstall]", f.harnessApplied)
-	}
-}
-
-func TestStateHarnessStatusError(t *testing.T) {
-	f := &stubFacade{harnessStatusErr: errors.New("container claude unavailable")}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeHarnessErr+"container claude unavailable" {
-		t.Errorf("notice = %q", got)
-	}
-	if len(f.harnessApplied) != 0 {
-		t.Errorf("ApplyHarness called after status error: %v", f.harnessApplied)
-	}
-}
-
-func TestStateHarnessApplyError(t *testing.T) {
-	f := &stubFacade{harnessCurrent: "missing", harnessApplyErr: errors.New("plugin install failed")}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessOn})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeHarnessErr+"plugin install failed" {
-		t.Errorf("notice = %q", got)
-	}
-	if a.busy {
-		t.Error("busy = true after harness apply error, want false")
 	}
 }
 
@@ -773,9 +594,9 @@ func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 		t.Errorf("LaunchSteps called %d times while busy, want 0", f.launches())
 	}
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
 	if got := menuNotice(t, a); got != uistr.NoticeBusy {
-		t.Errorf("harness while busy: notice = %q, want %q", got, uistr.NoticeBusy)
+		t.Errorf("update while busy: notice = %q, want %q", got, uistr.NoticeBusy)
 	}
 
 	a, _ = step(t, a, runWorkMsg(t, vscodeCmd))
@@ -811,13 +632,13 @@ func TestStateNavKeysDriveFrameCursorAtMenu(t *testing.T) {
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
-	if got := frameSelected(t, a); got != screens.ActionHarness {
-		t.Errorf("after down: selection = %q, want harness", got)
+	if got := frameSelected(t, a); got != screens.ActionVSCode {
+		t.Errorf("after down: selection = %q, want vscode", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if got := frameSelected(t, a); got != screens.ActionVSCode {
-		t.Errorf("after j: selection = %q, want vscode", got)
+	if got := frameSelected(t, a); got != screens.ActionUpdate {
+		t.Errorf("after j: selection = %q, want update", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
@@ -838,18 +659,21 @@ func TestStateEnterAtMenuEmitsMenuChosen(t *testing.T) {
 	if !ok {
 		t.Fatalf("enter at menu produced %T, want bus.MenuChosen", msg)
 	}
-	if chosen.Action != screens.ActionHarness {
-		t.Errorf("enter emitted action %q, want harness", chosen.Action)
+	if chosen.Action != screens.ActionVSCode {
+		t.Errorf("enter emitted action %q, want vscode", chosen.Action)
 	}
 }
 
 func TestStateNavKeysIgnoredWhenOverlayUp(t *testing.T) {
-	f := &stubFacade{}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, nil)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	if a.router.Depth() != 2 {
-		t.Fatalf("router depth = %d after reset push, want 2", a.router.Depth())
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
+	if a.router.Depth() != 3 {
+		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
 	}
 	before := frameSelected(t, a)
 
@@ -865,35 +689,43 @@ func plainState(s string) string {
 }
 
 func TestOverlayCompositesOverBackground(t *testing.T) {
-	f := &stubFacade{}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, nil)}}
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	if a.router.Depth() != 2 {
-		t.Fatalf("router depth = %d after reset push, want 2", a.router.Depth())
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
+	if a.router.Depth() != 3 {
+		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
 	}
 
-	view := plainState(a.View().Content)
-	if !strings.Contains(view, uistr.WelcomeHint) {
-		t.Errorf("composited view lost the background welcome hint:\n%s", view)
+	v := a.View()
+	view := plainState(v.Content)
+	if !strings.Contains(view, "config") {
+		t.Errorf("composited view lost the launch steplist background:\n%s", view)
 	}
-	if !strings.Contains(view, uistr.AppName) {
-		t.Errorf("composited view lost the background frame header:\n%s", view)
-	}
-	if !strings.Contains(view, uistr.FormConfirmReset) {
+	if !strings.Contains(view, "choose-stacks") {
 		t.Errorf("composited view missing the overlay content:\n%s", view)
+	}
+	if v.Cursor == nil {
+		t.Error("overlay view has nil cursor; the form caret must show while an overlay is up")
 	}
 }
 
 func TestViewIsAltScreen(t *testing.T) {
-	f := &stubFacade{}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, nil)}}
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
 	if !a.View().AltScreen {
 		t.Error("View().AltScreen = false at menu depth, want true")
 	}
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
+	if a.View().Cursor != nil {
+		t.Error("menu view has a visible cursor; selection must be style-only (no caret)")
+	}
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
 	if !a.View().AltScreen {
 		t.Error("View().AltScreen = false with overlay up, want true")
 	}
@@ -1023,63 +855,25 @@ func TestBusyTickStaleGenIgnored(t *testing.T) {
 	}
 }
 
-func TestHarnessRemembersChoiceOnSuccess(t *testing.T) {
-	f := &stubFacade{harnessCurrent: screens.HarnessOff}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessReinstall})
-	a, doneCmd := step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeHarnessDone {
-		t.Fatalf("notice = %q, want harness done", got)
-	}
-	runMsg(t, doneCmd)
-	if got := f.remembered(); got != screens.HarnessReinstall {
-		t.Errorf("RememberHarnessChoice = %q, want reinstall", got)
-	}
-}
-
-func TestHarnessDoesNotRememberOnFailure(t *testing.T) {
-	f := &stubFacade{harnessCurrent: "missing", harnessApplyErr: errors.New("apply boom")}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	a, cmd = step(t, a, bus.ScreenResult{Value: screens.HarnessOn})
-	_, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := f.remembered(); got != "" {
-		t.Errorf("RememberHarnessChoice = %q after failure, want empty", got)
-	}
-}
-
-func TestHarnessStatusConsultsLastChoice(t *testing.T) {
-	f := &stubFacade{harnessCurrent: screens.HarnessOff, lastHarness: screens.HarnessReinstall}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionHarness})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if _, ok := a.router.Top().(screens.Harness); !ok {
-		t.Fatalf("top screen = %T, want screens.Harness", a.router.Top())
-	}
-}
-
 func TestMenuCursorSurvivesOverlay(t *testing.T) {
-	f := &stubFacade{}
+	payload := wizardOf("choose-stacks", []string{"alpha", "beta"})
+	f := &stubFacade{steps: []pipeline.Command{wizardStep("config", payload, nil)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	before := frameSelected(t, a)
 	if before != screens.ActionVSCode {
 		t.Fatalf("setup: selection = %q, want vscode", before)
 	}
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	if a.router.Depth() != 2 {
-		t.Fatalf("router depth = %d after push, want 2", a.router.Depth())
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = driveUntilFormUp(t, a)
+	if a.router.Depth() != 3 {
+		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
 	}
 	a, _ = step(t, a, bus.ScreenPop{})
+	a = driveUntilDone(t, a)
 	if a.router.Depth() != 1 {
 		t.Fatalf("router depth = %d after pop, want 1", a.router.Depth())
 	}
@@ -1350,23 +1144,6 @@ func TestStateMenuChosenUnknownIsNoop(t *testing.T) {
 	}
 	if a.busy || a.pipe != nil {
 		t.Error("unknown action mutated state")
-	}
-}
-
-func TestStateScreenPopClearsMenuAction(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReset})
-	if a.menuAction != "reset" {
-		t.Fatalf("menuAction = %q, want reset", a.menuAction)
-	}
-	a, _ = step(t, a, bus.ScreenPop{})
-	if a.menuAction != "" {
-		t.Errorf("menuAction = %q after pop, want empty", a.menuAction)
-	}
-	if f.saveCalls != 0 || f.resetCalls != 0 {
-		t.Error("facade called on declined reset")
 	}
 }
 

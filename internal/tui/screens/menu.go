@@ -13,21 +13,17 @@ import (
 )
 
 const (
-	ActionLaunch  = "launch"
-	ActionHarness = "harness"
-	ActionVSCode  = "vscode"
-	ActionUpdate  = "update"
-	ActionReset   = "reset"
-	ActionQuit    = "quit"
+	ActionLaunch = "launch"
+	ActionVSCode = "vscode"
+	ActionUpdate = "update"
+	ActionQuit   = "quit"
 )
 
 func MenuItems() []frame.Item {
 	return []frame.Item{
 		{Title: uistr.MenuActionLaunch, Desc: uistr.MenuDescLaunch, Action: ActionLaunch, Enabled: true},
-		{Title: uistr.MenuActionHarness, Desc: uistr.MenuDescHarness, Action: ActionHarness, Enabled: true},
 		{Title: uistr.MenuActionVSCode, Desc: uistr.MenuDescVSCode, Action: ActionVSCode, Enabled: true},
 		{Title: uistr.MenuActionUpdate, Desc: uistr.MenuDescUpdate, Action: ActionUpdate, Enabled: true},
-		{Title: uistr.MenuActionReset, Desc: uistr.MenuDescReset, Action: ActionReset, Enabled: true},
 		{Title: uistr.MenuActionQuit, Action: ActionQuit, Enabled: true},
 	}
 }

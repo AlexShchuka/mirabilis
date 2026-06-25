@@ -56,23 +56,14 @@ const (
 
 	ProgressSep = "/"
 
-	MenuActionLaunch  = "Launch"
-	MenuActionHarness = "Harness"
-	MenuActionVSCode  = "VS Code"
-	MenuActionUpdate  = "Update"
-	MenuActionReset   = "Reset"
-	MenuActionQuit    = "Quit"
+	MenuActionLaunch = "Launch"
+	MenuActionVSCode = "VS Code"
+	MenuActionUpdate = "Update"
+	MenuActionQuit   = "Quit"
 
-	MenuDescLaunch  = "setup pipeline + Claude in container"
-	MenuDescHarness = "neuro-matrix: on / off / reinstall"
-	MenuDescVSCode  = "open container root in VS Code"
-	MenuDescUpdate  = "re-hydrate the ecosystem repos (clone or pull)"
-	MenuDescReset   = "container, image and volumes — permanent"
-
-	MenuHarnessOn      = "neuro-matrix: on"
-	MenuHarnessOff     = "neuro-matrix: off"
-	MenuHarnessMissing = "neuro-matrix: missing"
-	MenuHarnessUnknown = "neuro-matrix: unknown"
+	MenuDescLaunch = "setup pipeline + Claude in container"
+	MenuDescVSCode = "open container root in VS Code"
+	MenuDescUpdate = "re-hydrate the ecosystem repos (clone or pull)"
 
 	WelcomeHint = "pick an action ←"
 
@@ -81,33 +72,18 @@ const (
 
 	BusyElapsedSep = " "
 
-	NoticeHarnessErr = "harness: "
-	NoticeVSCodeErr  = "VS Code: "
-	NoticeUpdateErr  = "update: "
-	NoticeResetDone  = "removed — relaunch to rebuild"
-
-	FormTitleHarness  = "neuro-matrix harness"
-	FormOptHarnessOn  = "Enable"
-	FormOptHarnessOff = "Disable"
-	FormOptHarnessRe  = "Reinstall"
-	FormTitleReset    = "Delete everything?"
-	FormConfirmReset  = "Delete everything"
-	FormCancelReset   = "Cancel"
+	NoticeVSCodeErr = "VS Code: "
+	NoticeUpdateErr = "update: "
 
 	NoticeLaunchFailed    = "launch failed"
 	NoticeLaunchCanceled  = "launch canceled"
 	NoticeLaunchErrPrefix = "launch error: "
-	NoticeResetFailed     = "reset failed"
-	LogResetFailed        = "reset failed"
 
-	NoticeHarnessApplying = "applying harness…"
-	NoticeHarnessDone     = "harness: done"
-	NoticeVSCodeOpening   = "opening VS Code…"
-	NoticeBusy            = "busy — wait"
-	NoticeVSCodeDone      = "VS Code: opened"
-	NoticeUpdateRunning   = "updating ecosystem repos…"
-	NoticeUpdateDone      = "ecosystem repos updated"
-	LogHarnessFailed      = "harness apply failed"
-	LogVSCodeFailed       = "vscode open failed"
-	LogUpdateFailed       = "ecosystem update failed"
+	NoticeVSCodeOpening = "opening VS Code…"
+	NoticeBusy          = "busy — wait"
+	NoticeVSCodeDone    = "VS Code: opened"
+	NoticeUpdateRunning = "updating ecosystem repos…"
+	NoticeUpdateDone    = "ecosystem repos updated"
+	LogVSCodeFailed     = "vscode open failed"
+	LogUpdateFailed     = "ecosystem update failed"
 )

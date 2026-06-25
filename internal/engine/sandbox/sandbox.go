@@ -48,10 +48,6 @@ func (s *Sandbox) Down(ctx context.Context) <-chan exec.Event {
 	return s.compose(ctx, "down")
 }
 
-func (s *Sandbox) Reset(ctx context.Context) <-chan exec.Event {
-	return s.compose(ctx, "down", "--rmi", "local", "-v")
-}
-
 func (s *Sandbox) compose(ctx context.Context, args ...string) <-chan exec.Event {
 	argv := []string{"docker", "compose", "-f", composeFile}
 	if config.Sock(s.repo) {

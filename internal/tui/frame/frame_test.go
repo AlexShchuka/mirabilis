@@ -178,8 +178,11 @@ func TestNarrowCollapsesMenuToGlyphs(t *testing.T) {
 	if strings.Contains(view, "Launch") || strings.Contains(view, "Harness") {
 		t.Errorf("narrow menu still shows full titles:\n%s", view)
 	}
-	if !strings.Contains(view, "> L") {
-		t.Errorf("narrow menu missing collapsed selected glyph:\n%s", view)
+	if strings.Contains(view, "> L") {
+		t.Errorf("narrow menu still renders the removed selector glyph:\n%s", view)
+	}
+	if !strings.Contains(view, "  L") {
+		t.Errorf("narrow menu missing collapsed glyph with 2-space pad:\n%s", view)
 	}
 	if m.MenuWidth() != frame.NarrowMenu {
 		t.Errorf("narrow MenuWidth = %d, want %d", m.MenuWidth(), frame.NarrowMenu)
@@ -204,7 +207,7 @@ func TestTooSmallState(t *testing.T) {
 	}
 }
 
-func TestMenuPanelRendersItemTitlesAndCursor(t *testing.T) {
+func TestMenuPanelRendersItemTitlesWithoutSelectorGlyph(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0.0", items())
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	view := plain(m.View("main area"))
@@ -213,8 +216,11 @@ func TestMenuPanelRendersItemTitlesAndCursor(t *testing.T) {
 			t.Errorf("frame view missing menu item %q:\n%s", title, view)
 		}
 	}
-	if !strings.Contains(view, "> Launch") {
-		t.Errorf("frame view missing cursor on the selected item:\n%s", view)
+	if strings.Contains(view, "> Launch") {
+		t.Errorf("frame view still renders the removed selector glyph:\n%s", view)
+	}
+	if !strings.Contains(view, "  Launch") {
+		t.Errorf("frame view missing selected item with 2-space pad (selection is style-only):\n%s", view)
 	}
 }
 

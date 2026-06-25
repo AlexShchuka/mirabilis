@@ -113,26 +113,6 @@ func (f *fakeFacade) logCall(name string) {
 	f.callLog = append(f.callLog, name)
 }
 
-func (f *fakeFacade) SaveMemory(_ context.Context) error {
-	f.logCall("SaveMemory")
-	return nil
-}
-
-func (f *fakeFacade) ResetSandbox(_ context.Context) error {
-	f.logCall("ResetSandbox")
-	return nil
-}
-
-func (f *fakeFacade) HarnessStatus(_ context.Context) (string, error) {
-	f.logCall("HarnessStatus")
-	return "", nil
-}
-
-func (f *fakeFacade) ApplyHarness(_ context.Context, _ string) error {
-	f.logCall("ApplyHarness")
-	return nil
-}
-
 func (f *fakeFacade) OpenVSCode(_ context.Context) error {
 	f.logCall("OpenVSCode")
 	return nil
@@ -150,13 +130,6 @@ func (f *fakeFacade) OpenURL(_ context.Context, _ string) error {
 
 func (f *fakeFacade) CopyText(_ context.Context, _ string) error {
 	f.logCall("CopyText")
-	return nil
-}
-
-func (f *fakeFacade) LastHarnessChoice() string { return "" }
-
-func (f *fakeFacade) RememberHarnessChoice(_ string) error {
-	f.logCall("RememberHarnessChoice")
 	return nil
 }
 

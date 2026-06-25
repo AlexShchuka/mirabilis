@@ -2,16 +2,16 @@
   ──○──  │││││├┬┘├─┤├┴┐││  │└─┐                                                 
     │    ┴ ┴┴┴└─┴ ┴└─┘┴─┘  ┴└─┘                                                 
 ────────────────────────────────────────────────────────────────────────────────
-> Launch         │ mirabilis                                                    
-  Harness        │                                                              
-  VS Code        │ pick an action ←                                             
-  Update         │                                                              
-  Reset          │                                                              
+  Launch         │ mirabilis                                                    
+  VS Code        │                                                              
+  Update         │ pick an action ←                                             
   Quit           │                                                              
                  │                                                              
 setup pipeline + │                                                              
 Claude in        │                                                              
 container        │                                                              
+                 │                                                              
+                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              

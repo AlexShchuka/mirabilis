@@ -26,16 +26,10 @@ type Facade interface {
 	StatusUpdates() <-chan obs.Snapshot
 	OnTokenExtracted(token string)
 	NewTokenTee() (io.Writer, func() (string, bool))
-	SaveMemory(ctx context.Context) error
-	ResetSandbox(ctx context.Context) error
-	HarnessStatus(ctx context.Context) (string, error)
-	ApplyHarness(ctx context.Context, choice string) error
 	OpenVSCode(ctx context.Context) error
 	UpdateEcosystem(ctx context.Context) error
 	OpenURL(ctx context.Context, url string) error
 	CopyText(ctx context.Context, text string) error
-	LastHarnessChoice() string
-	RememberHarnessChoice(choice string) error
 }
 
 var execRunner = tea.Exec
@@ -55,7 +49,6 @@ type App struct {
 	router          router.Model
 	pipe            *pipeline.Pipeline
 	waiting         string
-	menuAction      string
 	winW            int
 	winH            int
 	launchCancelled bool
@@ -65,7 +58,6 @@ type App struct {
 	busyGen         int
 	chromeFrame     int
 	chromeGen       int
-	harnessChoice   string
 	errNotice       string
 }
 
@@ -152,15 +144,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case execDoneMsg:
 		return a.handleExecDone(msg)
 
-	case resetDoneMsg:
-		return a.handleResetDone(msg)
-
-	case harnessStatusMsg:
-		return a.handleHarnessStatus(msg)
-
-	case harnessDoneMsg:
-		return a.handleHarnessDone(msg)
-
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
 
@@ -190,19 +173,15 @@ func isOverlay(s router.Screen) bool {
 }
 
 func (a App) View() tea.View {
-	var content string
-	var cx, cy int
-	if a.router.Depth() > 1 && a.winW > 0 && a.winH > 0 && isOverlay(a.router.Top()) {
-		var bx, by int
-		content, bx, by = a.overlayView()
-		cx, cy = bx+2, by+1
-	} else {
-		content = a.frame.View(a.router.View())
-		cx, cy = a.frame.MenuCursorCell()
-	}
-	v := tea.NewView(content)
+	v := tea.NewView("")
 	v.AltScreen = true
-	v.Cursor = &tea.Cursor{Position: tea.Position{X: cx, Y: cy}, Shape: tea.CursorBar, Blink: false}
+	if a.router.Depth() > 1 && a.winW > 0 && a.winH > 0 && isOverlay(a.router.Top()) {
+		content, bx, by := a.overlayView()
+		v.Content = content
+		v.Cursor = &tea.Cursor{Position: tea.Position{X: bx + 2, Y: by + 1}, Shape: tea.CursorBar, Blink: false}
+		return v
+	}
+	v.Content = a.frame.View(a.router.View())
 	return v
 }
 

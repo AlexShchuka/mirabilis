@@ -53,7 +53,6 @@ func TestComposeArgv(t *testing.T) {
 		{"build", (*Sandbox).Build, []string{"build"}},
 		{"up", (*Sandbox).Up, []string{"up", "-d"}},
 		{"down", (*Sandbox).Down, []string{"down"}},
-		{"reset", (*Sandbox).Reset, []string{"down", "--rmi", "local", "-v"}},
 	}
 	for _, sock := range []bool{false, true} {
 		for _, op := range ops {
