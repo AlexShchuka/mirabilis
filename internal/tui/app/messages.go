@@ -22,19 +22,6 @@ type execDoneMsg struct {
 	err  error
 }
 
-type resetDoneMsg struct {
-	err error
-}
-
-type harnessStatusMsg struct {
-	current string
-	err     error
-}
-
-type harnessDoneMsg struct {
-	err error
-}
-
 type vscodeDoneMsg struct {
 	err error
 }

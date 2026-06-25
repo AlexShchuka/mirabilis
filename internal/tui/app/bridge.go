@@ -8,19 +8,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/components/steplist"
 	"github.com/AlexShchuka/mirabilis/internal/tui/router"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
-	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
-
-func (a App) rememberHarness(choice string) tea.Cmd {
-	f := a.facade
-	log := a.facade.Logger()
-	return func() tea.Msg {
-		if err := f.RememberHarnessChoice(choice); err != nil {
-			log.Error(uistr.LogHarnessFailed, "err", err)
-		}
-		return nil
-	}
-}
 
 func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 	if !a.busy {

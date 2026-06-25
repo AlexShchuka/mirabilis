@@ -15,7 +15,6 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/claudeauth"
 	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
-	"github.com/AlexShchuka/mirabilis/internal/engine/membackup"
 	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
@@ -148,22 +147,6 @@ func (f *facade) NewTokenTee() (io.Writer, func() (string, bool)) {
 	return e, e.Token
 }
 
-func (f *facade) SaveMemory(ctx context.Context) error {
-	return membackup.Save(ctx, f.runner, f.repo)
-}
-
-func (f *facade) ResetSandbox(ctx context.Context) error {
-	return drain(f.sb.Reset(ctx))
-}
-
-func (f *facade) HarnessStatus(ctx context.Context) (string, error) {
-	return steps.HarnessStatus(ctx, f.deps)
-}
-
-func (f *facade) ApplyHarness(ctx context.Context, choice string) error {
-	return steps.HarnessApply(ctx, f.deps, choice)
-}
-
 func (f *facade) OpenVSCode(ctx context.Context) error {
 	return f.sb.OpenVSCode(ctx)
 }
@@ -178,25 +161,6 @@ func (f *facade) OpenURL(ctx context.Context, url string) error {
 
 func (f *facade) CopyText(ctx context.Context, text string) error {
 	return sandbox.CopyText(ctx, f.runner, text)
-}
-
-func (f *facade) LastHarnessChoice() string {
-	v, _ := config.ReadLastHarness(f.repo)
-	return v
-}
-
-func (f *facade) RememberHarnessChoice(choice string) error {
-	return config.WriteLastHarness(f.repo, choice)
-}
-
-func drain(events <-chan exec.Event) error {
-	var err error
-	for ev := range events {
-		if ev.Kind == exec.KindExited {
-			err = ev.Err
-		}
-	}
-	return err
 }
 
 func resolveRepo() string {

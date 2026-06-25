@@ -20,21 +20,6 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 	case screens.ActionQuit:
 		a.cancel()
 		return a, tea.Quit
-	case screens.ActionReset:
-		a.menuAction = "reset"
-		scr := screens.NewReset("app/reset")
-		var rc tea.Cmd
-		a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
-		return a, tea.Batch(rc, scr.Init())
-	case screens.ActionHarness:
-		ctx := a.ctx
-		f := a.facade
-		a.busy = true
-		tick := a.startBusy()
-		return a, tea.Batch(tick, func() tea.Msg {
-			current, err := f.HarnessStatus(ctx)
-			return harnessStatusMsg{current: current, err: err}
-		})
 	case screens.ActionVSCode:
 		ctx := a.ctx
 		f := a.facade
@@ -61,11 +46,6 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPop{})
-	if a.menuAction != "" {
-		action := a.menuAction
-		a.menuAction = ""
-		return a.handleMenuScreenResult(action, msg, rc)
-	}
 	step := a.waiting
 	a.waiting = ""
 	if a.pipe != nil && step != "" {
@@ -79,38 +59,6 @@ func screenResultValue(msg bus.ScreenResult) any {
 		return steps.WizardResult{Choices: msg.Values}
 	}
 	return msg.Value
-}
-
-func (a App) handleMenuScreenResult(action string, msg bus.ScreenResult, popCmd tea.Cmd) (tea.Model, tea.Cmd) {
-	switch action {
-	case "reset":
-		if v, ok := msg.Value.(bool); ok && v {
-			ctx := a.ctx
-			f := a.facade
-			a.busy = true
-			tick := a.startBusy()
-			m, _ := a.backToMenu("")
-			return m, tea.Batch(tick, func() tea.Msg {
-				if err := f.SaveMemory(ctx); err != nil {
-					return resetDoneMsg{err: err}
-				}
-				return resetDoneMsg{err: f.ResetSandbox(ctx)}
-			})
-		}
-	case "harness":
-		if choice, ok := msg.Value.(string); ok && choice != "" {
-			ctx := a.ctx
-			f := a.facade
-			a.busy = true
-			a.harnessChoice = choice
-			tick := a.startBusy()
-			m, _ := a.backToMenu(uistr.NoticeHarnessApplying)
-			return m, tea.Batch(tick, func() tea.Msg {
-				return harnessDoneMsg{err: f.ApplyHarness(ctx, choice)}
-			})
-		}
-	}
-	return a, popCmd
 }
 
 func (a App) startLaunch() (tea.Model, tea.Cmd) {
