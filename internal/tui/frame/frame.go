@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/AlexShchuka/mirabilis/internal/bus"
+	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/a11y"
 	"github.com/AlexShchuka/mirabilis/internal/tui/components/statusbar"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
@@ -72,6 +73,7 @@ type Item struct {
 type Model struct {
 	title       string
 	version     string
+	outdated    string
 	items       []Item
 	status      statusbar.Model
 	cursor      int
@@ -114,6 +116,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	case bus.StatusChanged:
 		m.status = m.status.Update(msg)
+		m.outdated = outdatedBadge(msg.Snapshot)
 		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
@@ -291,6 +294,18 @@ func (m Model) headerView() string {
 	return strings.Join(rows, "\n") + "\n" + sep
 }
 
+func outdatedBadge(snap obs.Snapshot) string {
+	st, ok := snap[uistr.VersionNode]
+	if !ok || st.State != obs.StateDegraded {
+		return ""
+	}
+	tag := st.Detail
+	if tag == "" {
+		tag = uistr.OutdatedDefault
+	}
+	return uistr.OutdatedPrefix + tag
+}
+
 func (m Model) headerRight() string {
 	right := ""
 	if m.busy != "" {
@@ -301,6 +316,12 @@ func (m Model) headerRight() string {
 			right += uistr.StatusSep
 		}
 		right += styles.HeaderRight.Render(m.version)
+	}
+	if m.outdated != "" {
+		if right != "" {
+			right += uistr.StatusSep
+		}
+		right += styles.Degraded.Render(m.outdated)
 	}
 	if sv := m.status.View(); sv != "" {
 		if right != "" {

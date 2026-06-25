@@ -32,6 +32,8 @@ components:
     in: internal/engine/authproxy
   engine-pipeline:
     in: internal/engine/pipeline
+  engine-release:
+    in: internal/engine/release
   engine-notify:
     in: internal/engine/notify
   engine-membackup:
@@ -113,6 +115,9 @@ deps:
     anyVendorDeps: true
     mayDependOn:
       - engine-exec
+
+  engine-release:
+    anyVendorDeps: true
 
   engine-notify:
     anyVendorDeps: true

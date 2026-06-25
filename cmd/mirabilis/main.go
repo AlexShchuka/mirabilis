@@ -17,6 +17,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/localllm"
 	"github.com/AlexShchuka/mirabilis/internal/engine/notify"
 	"github.com/AlexShchuka/mirabilis/internal/engine/provision"
+	"github.com/AlexShchuka/mirabilis/internal/engine/release"
 	"github.com/AlexShchuka/mirabilis/internal/engine/secrets"
 	"github.com/AlexShchuka/mirabilis/internal/engine/status"
 	"github.com/AlexShchuka/mirabilis/internal/hooks"
@@ -103,6 +104,7 @@ func runTUI() error {
 	}()
 
 	status.New(f.docker, f.obs).Start(ctx)
+	go release.NewChecker().Run(ctx, f.obs, effectiveVersion())
 
 	a := app.New(ctx, f)
 	p := tea.NewProgram(a, tea.WithOutput(os.Stderr), tea.WithContext(ctx))
