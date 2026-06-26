@@ -72,6 +72,7 @@ func TestHandoffRealExecRunsChildAndReturnsToMenu(t *testing.T) {
 	tm := newApp(t, f)
 
 	tm.Send(bus.MenuChosen{Action: "launch"})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
 		return bytes.Contains(bts, []byte("handoff-child-ok"))
@@ -97,6 +98,7 @@ func TestHandoffRunsThroughPipelineDespiteSatisfiedCheck(t *testing.T) {
 	tm := newApp(t, f)
 
 	tm.Send(bus.MenuChosen{Action: "launch"})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	teatest.WaitFor(t, tm.Output(), func(bts []byte) bool {
 		return bytes.Contains(bts, []byte("handoff-child-ok"))
@@ -200,6 +202,7 @@ func TestHandoffRealPTYChildSeesTTYAndTermiosRestored(t *testing.T) {
 		t.Errorf("alt-screen enter sequence %q not written at startup", altScreenEnter)
 	}
 	p.Send(bus.MenuChosen{Action: "launch"})
+	p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	waitContainsAfter(t, out, launchOffset, "in-child-tty")
 

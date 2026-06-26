@@ -6,6 +6,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/bus"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/steps"
+	"github.com/AlexShchuka/mirabilis/internal/obs"
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 	uistr "github.com/AlexShchuka/mirabilis/internal/tui/strings"
 )
@@ -16,7 +17,7 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Action {
 	case screens.ActionLaunch:
-		return a.pickRole()
+		return a.pushGate()
 	case screens.ActionQuit:
 		a.cancel()
 		return a, tea.Quit
@@ -29,15 +30,6 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(tick, func() tea.Msg {
 			return vscodeDoneMsg{err: f.OpenVSCode(ctx)}
 		})
-	case screens.ActionUpdate:
-		ctx := a.ctx
-		f := a.facade
-		a.busy = true
-		tick := a.startBusy()
-		m, _ := a.backToMenu(uistr.NoticeUpdateRunning)
-		return m, tea.Batch(tick, func() tea.Msg {
-			return updateDoneMsg{err: f.UpdateEcosystem(ctx)}
-		})
 	default:
 		return a, nil
 	}
@@ -46,6 +38,11 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPop{})
+	if a.awaitingGate {
+		a.awaitingGate = false
+		choice, _ := msg.Value.(string)
+		return a.runGate(choice)
+	}
 	if a.awaitingRole {
 		a.awaitingRole = false
 		name, ok := msg.Value.(string)
@@ -70,6 +67,62 @@ func screenResultValue(msg bus.ScreenResult) any {
 		return steps.WizardResult{Choices: msg.Values}
 	}
 	return msg.Value
+}
+
+func (a App) pushGate() (tea.Model, tea.Cmd) {
+	if a.pipe != nil {
+		return a, nil
+	}
+	a.awaitingGate = true
+	scr := screens.NewUpdateGate("app/launch/gate", a.facade.Version(), a.outdatedTag())
+	var rc tea.Cmd
+	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
+	if a.winW > 0 || a.winH > 0 {
+		mw, mh := a.frame.MainSize()
+		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
+	}
+	return a, tea.Batch(rc, scr.Init())
+}
+
+func (a App) outdatedTag() string {
+	st, ok := a.snap[uistr.VersionNode]
+	if !ok || st.State != obs.StateDegraded {
+		return ""
+	}
+	return st.Detail
+}
+
+func (a App) runGate(choice string) (tea.Model, tea.Cmd) {
+	ctx := a.ctx
+	f := a.facade
+	switch choice {
+	case screens.GateSelf:
+		a.gateAll = false
+		a.busy = true
+		tick := a.startBusy()
+		m, _ := a.backToMenu(uistr.NoticeSelfUpdateRunning)
+		return m, tea.Batch(tick, func() tea.Msg {
+			return selfUpdateDoneMsg{err: f.SelfUpdate(ctx)}
+		})
+	case screens.GatePacks:
+		a.gateAll = false
+		a.busy = true
+		tick := a.startBusy()
+		m, _ := a.backToMenu(uistr.NoticeUpdateRunning)
+		return m, tea.Batch(tick, func() tea.Msg {
+			return gatePacksDoneMsg{err: f.UpdateEcosystem(ctx)}
+		})
+	case screens.GateAll:
+		a.gateAll = true
+		a.busy = true
+		tick := a.startBusy()
+		m, _ := a.backToMenu(uistr.NoticeSelfUpdateRunning)
+		return m, tea.Batch(tick, func() tea.Msg {
+			return selfUpdateDoneMsg{err: f.SelfUpdate(ctx)}
+		})
+	default:
+		return a.pickRole()
+	}
 }
 
 func (a App) pickRole() (tea.Model, tea.Cmd) {

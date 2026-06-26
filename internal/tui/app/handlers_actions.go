@@ -20,13 +20,38 @@ func (a App) handleVSCodeDone(msg vscodeDoneMsg) (tea.Model, tea.Cmd) {
 	return a.backToMenu(uistr.NoticeVSCodeDone)
 }
 
-func (a App) handleUpdateDone(msg updateDoneMsg) (tea.Model, tea.Cmd) {
-	a.busy = false
+func (a App) handleSelfUpdateDone(msg selfUpdateDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		a.facade.Logger().Error(uistr.LogSelfUpdateFailed, "err", msg.err)
+		a.gateNotice = uistr.NoticeSelfUpdateDegraded + msg.err.Error()
+	} else {
+		a.gateNotice = uistr.NoticeSelfUpdateStaged
+	}
+	if a.gateAll {
+		ctx := a.ctx
+		f := a.facade
+		tick := a.startBusy()
+		return a, tea.Batch(tick, func() tea.Msg {
+			return gatePacksDoneMsg{err: f.UpdateEcosystem(ctx)}
+		})
+	}
+	return a.proceedAfterGate()
+}
+
+func (a App) handleGatePacksDone(msg gatePacksDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		a.facade.Logger().Error(uistr.LogUpdateFailed, "err", msg.err)
-		return a.failToMenu(uistr.NoticeUpdateErr + msg.err.Error())
 	}
-	return a.backToMenu(uistr.NoticeUpdateDone)
+	return a.proceedAfterGate()
+}
+
+func (a App) proceedAfterGate() (tea.Model, tea.Cmd) {
+	a.gateAll = false
+	a.busy = false
+	a.frame.SetBusy("")
+	a.resetMenu(a.gateNotice)
+	a.gateNotice = ""
+	return a.pickRole()
 }
 
 func (a App) handleCopyRequest(msg bus.CopyRequest) (tea.Model, tea.Cmd) {

@@ -184,6 +184,10 @@ func (f *facade) UpdateEcosystem(ctx context.Context) error {
 	return steps.UpdateEcosystem(ctx, f.deps)
 }
 
+func (f *facade) SelfUpdate(ctx context.Context) error {
+	return steps.SelfUpdate(ctx, f.deps, f.repo)
+}
+
 func (f *facade) OpenURL(ctx context.Context, url string) error {
 	return sandbox.OpenURL(ctx, f.runner, url)
 }

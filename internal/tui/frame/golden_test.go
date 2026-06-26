@@ -56,3 +56,12 @@ func TestRolePickerGolden(t *testing.T) {
 	box := styles.Overlay.Render(rp.View())
 	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
 }
+
+func TestUpdateGateGolden(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
+
+	gate := screens.NewUpdateGate("app/launch/gate", "abc1234", "v9.9.9")
+	box := styles.Overlay.Render(gate.View())
+	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
+}

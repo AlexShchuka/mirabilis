@@ -131,6 +131,11 @@ func (f *fakeFacade) UpdateEcosystem(_ context.Context) error {
 	return nil
 }
 
+func (f *fakeFacade) SelfUpdate(_ context.Context) error {
+	f.logCall("SelfUpdate")
+	return nil
+}
+
 func (f *fakeFacade) OpenURL(_ context.Context, _ string) error {
 	f.logCall("OpenURL")
 	return nil
@@ -197,6 +202,7 @@ func TestLatencyGolden(t *testing.T) {
 	tm := newApp(t, f)
 
 	tm.Send(bus.MenuChosen{Action: "launch"})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	select {
 	case <-started:
@@ -247,6 +253,7 @@ func TestTerminalClaudeAuth(t *testing.T) {
 	tm := newApp(t, f)
 
 	tm.Send(bus.MenuChosen{Action: "launch"})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	select {
 	case <-teeReady:
@@ -312,6 +319,7 @@ func TestNoLeakOnCancel(t *testing.T) {
 	t.Cleanup(func() { _ = tm.Quit() })
 
 	tm.Send(bus.MenuChosen{Action: "launch"})
+	tm.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	select {
 	case <-started:

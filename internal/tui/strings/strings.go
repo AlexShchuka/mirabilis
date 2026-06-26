@@ -87,14 +87,32 @@ const (
 
 	MenuActionLaunch = "Launch"
 	MenuActionVSCode = "VS Code"
-	MenuActionUpdate = "Update"
 	MenuActionQuit   = "Quit"
 
 	MenuDescLaunch = "setup pipeline + Claude in container"
 	MenuDescVSCode = "open container root in VS Code"
-	MenuDescUpdate = "fetch ecosystem repos and refresh the live harness"
 
 	WelcomeHint = "pick an action ←"
+
+	GateTitle          = "Update before launch?"
+	GateUpToDate       = "up to date"
+	GateOutdatedPrefix = "update "
+	GateOutdatedSuffix = " available"
+	GateCurrentPrefix  = "current "
+	GateHint           = "↑↓ move · enter select · esc skip"
+	GateOptionSkip     = "Skip"
+	GateOptionSelf     = "Self"
+	GateOptionPacks    = "Packs"
+	GateOptionAll      = "All"
+	GateDescSkip       = "launch as-is"
+	GateDescSelf       = "rebuild mirabilis (applies next start)"
+	GateDescPacks      = "refresh ecosystem repos + live harness"
+	GateDescAll        = "self then packs"
+
+	NoticeSelfUpdateRunning  = "rebuilding mirabilis…"
+	NoticeSelfUpdateStaged   = "update staged — restart mirabilis to apply"
+	NoticeSelfUpdateDegraded = "self-update failed — launching on current binary: "
+	LogSelfUpdateFailed      = "self-update failed"
 
 	TooSmall = "terminal too small"
 	SizeSep  = " < "
@@ -102,7 +120,6 @@ const (
 	BusyElapsedSep = " "
 
 	NoticeVSCodeErr = "VS Code: "
-	NoticeUpdateErr = "update: "
 
 	NoticeLaunchFailed     = "launch failed"
 	NoticeLaunchCanceled   = "launch canceled"
@@ -113,7 +130,6 @@ const (
 	NoticeBusy          = "busy — wait"
 	NoticeVSCodeDone    = "VS Code: opened"
 	NoticeUpdateRunning = "updating ecosystem and harness…"
-	NoticeUpdateDone    = "ecosystem and harness updated"
 	LogVSCodeFailed     = "vscode open failed"
 	LogUpdateFailed     = "ecosystem and harness update failed"
 )

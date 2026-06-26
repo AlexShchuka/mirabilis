@@ -123,6 +123,10 @@ func (a App) handleExecDone(msg execDoneMsg) (tea.Model, tea.Cmd) {
 func (a App) handleScreenPop() (tea.Model, tea.Cmd) {
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPop{})
+	if a.awaitingGate {
+		a.awaitingGate = false
+		return a.runGate(screens.GateSkip)
+	}
 	if a.awaitingRole {
 		a.awaitingRole = false
 		return a.backToMenu("")

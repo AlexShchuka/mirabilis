@@ -1,0 +1,11 @@
+╭──────────────────────────────────────────────────╮
+│  Update before launch?                           │
+│  current abc1234 · update v9.9.9 available       │
+│                                                  │
+│ ▸ Skip · launch as-is                            │
+│   Self · rebuild mirabilis (applies next start)  │
+│   Packs · refresh ecosystem repos + live harness │
+│   All · self then packs                          │
+│                                                  │
+│  ↑↓ move · enter select · esc skip               │
+╰──────────────────────────────────────────────────╯

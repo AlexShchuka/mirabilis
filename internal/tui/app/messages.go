@@ -26,7 +26,11 @@ type vscodeDoneMsg struct {
 	err error
 }
 
-type updateDoneMsg struct {
+type gatePacksDoneMsg struct {
+	err error
+}
+
+type selfUpdateDoneMsg struct {
 	err error
 }
 

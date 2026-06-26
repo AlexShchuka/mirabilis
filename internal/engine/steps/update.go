@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
+	"github.com/AlexShchuka/mirabilis/internal/obs"
 )
 
-const updateTimeout = 10 * time.Minute
+const (
+	updateTimeout     = 10 * time.Minute
+	selfUpdateTimeout = 10 * time.Minute
+	selfUpdateNode    = "selfupdate"
+)
 
-// UpdateEcosystem re-hydrates on demand by running the container-side update provision
-// phase, which fetches the ecosystem repos (clone-or-pull) and then refreshes the live
-// neuro-matrix harness plugin from that source. It is the menu UPDATE action's worker:
-// one command that refreshes both source and the running harness without a full launch pass.
 func UpdateEcosystem(ctx context.Context, d Deps) error {
 	ctx, cancel := context.WithTimeout(ctx, updateTimeout)
 	defer cancel()
@@ -22,4 +23,52 @@ func UpdateEcosystem(ctx context.Context, d Deps) error {
 		return fmt.Errorf("steps: update ecosystem: %w", err)
 	}
 	return nil
+}
+
+func SelfUpdate(ctx context.Context, d Deps, repo string) error {
+	ctx, cancel := context.WithTimeout(ctx, selfUpdateTimeout)
+	defer cancel()
+	cmds := [][]string{
+		{"git", "-C", repo, "pull", "--ff-only"},
+		{"make", "-C", repo, "install"},
+	}
+	for _, argv := range cmds {
+		if err := streamSelfUpdate(ctx, d, argv); err != nil {
+			d.Obs.Set(selfUpdateNode, obs.StateDegraded, err.Error())
+			return fmt.Errorf("steps: self-update: %w", err)
+		}
+	}
+	d.Obs.Set(selfUpdateNode, obs.StateOK, "")
+	return nil
+}
+
+func streamSelfUpdate(ctx context.Context, d Deps, argv []string) error {
+	log := d.Obs.Logger(selfUpdateNode)
+	var exitErr error
+	var tail []string
+	for ev := range d.Runner.Stream(ctx, exec.Spec{Argv: argv}) {
+		switch ev.Kind {
+		case exec.KindStarted:
+			log.Info("started", "argv", ev.Argv)
+		case exec.KindStdout, exec.KindStderr:
+			if line := ev.Line; line != "" {
+				log.Info("line", "line", line)
+				tail = appendTail(tail, line)
+			}
+		case exec.KindExited:
+			exitErr = ev.Err
+		}
+	}
+	if exitErr != nil && len(tail) > 0 {
+		return fmt.Errorf("%w: %s", exitErr, tail[len(tail)-1])
+	}
+	return exitErr
+}
+
+func appendTail(tail []string, line string) []string {
+	tail = append(tail, line)
+	if len(tail) > streamTailLines {
+		tail = tail[len(tail)-streamTailLines:]
+	}
+	return tail
 }

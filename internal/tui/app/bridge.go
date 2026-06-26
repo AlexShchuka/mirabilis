@@ -10,7 +10,7 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/tui/screens"
 )
 
-func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
+func (a *App) resetMenu(notice string) {
 	if !a.busy {
 		a.frame.SetBusy("")
 	}
@@ -22,6 +22,10 @@ func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
 		menu = menu.WithError(a.errNotice)
 	}
 	a.router = router.New(menu)
+}
+
+func (a App) backToMenu(notice string) (tea.Model, tea.Cmd) {
+	a.resetMenu(notice)
 	return a, nil
 }
 

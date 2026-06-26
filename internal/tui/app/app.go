@@ -37,6 +37,7 @@ type Facade interface {
 	NewTokenTee() (io.Writer, func() (string, bool))
 	OpenVSCode(ctx context.Context) error
 	UpdateEcosystem(ctx context.Context) error
+	SelfUpdate(ctx context.Context) error
 	OpenURL(ctx context.Context, url string) error
 	CopyText(ctx context.Context, text string) error
 }
@@ -54,6 +55,7 @@ type App struct {
 	cancel          context.CancelFunc
 	facade          Facade
 	statusCh        <-chan obs.Snapshot
+	snap            obs.Snapshot
 	frame           frame.Model
 	router          router.Model
 	pipe            *pipeline.Pipeline
@@ -61,7 +63,10 @@ type App struct {
 	winW            int
 	winH            int
 	launchCancelled bool
+	awaitingGate    bool
 	awaitingRole    bool
+	gateAll         bool
+	gateNotice      string
 	busy            bool
 	busyStarted     time.Time
 	busyFrame       int
@@ -123,6 +128,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusMsg:
 		var fc tea.Cmd
 		snap := obs.Snapshot(msg)
+		a.snap = snap
 		sc := bus.StatusChanged{Snapshot: snap}
 		a.frame, fc = a.frame.Update(sc)
 		return a, tea.Batch(fc, watchStatus(a.statusCh))
@@ -157,8 +163,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vscodeDoneMsg:
 		return a.handleVSCodeDone(msg)
 
-	case updateDoneMsg:
-		return a.handleUpdateDone(msg)
+	case gatePacksDoneMsg:
+		return a.handleGatePacksDone(msg)
+
+	case selfUpdateDoneMsg:
+		return a.handleSelfUpdateDone(msg)
 
 	case bus.CopyRequest:
 		return a.handleCopyRequest(msg)

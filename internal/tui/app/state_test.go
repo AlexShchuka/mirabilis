@@ -34,6 +34,8 @@ type stubFacade struct {
 	vscodeErr    error
 	updateCalls  int
 	updateErr    error
+	selfCalls    int
+	selfErr      error
 	statusSubs   int
 	openURLCalls []string
 }
@@ -101,6 +103,25 @@ func (f *stubFacade) UpdateEcosystem(context.Context) error {
 	return f.updateErr
 }
 
+func (f *stubFacade) SelfUpdate(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.selfCalls++
+	return f.selfErr
+}
+
+func (f *stubFacade) selfUpdates() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.selfCalls
+}
+
+func (f *stubFacade) updates() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.updateCalls
+}
+
 func (f *stubFacade) OpenURL(_ context.Context, url string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -142,6 +163,16 @@ func newStateApp(t *testing.T, f Facade) App {
 	t.Helper()
 	a := New(context.Background(), f)
 	t.Cleanup(a.cancel)
+	return a
+}
+
+func launchSkipGate(t *testing.T, a App) App {
+	t.Helper()
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if _, ok := a.router.Top().(screens.UpdateGate); !ok {
+		t.Fatalf("after ActionLaunch top screen is %T, want screens.UpdateGate", a.router.Top())
+	}
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.GateSkip})
 	return a
 }
 
@@ -246,6 +277,18 @@ func menuNotice(t *testing.T, a App) string {
 		t.Fatalf("top screen is %T, want screens.Menu", a.router.Top())
 	}
 	return m.Notice()
+}
+
+func baseMenuNotice(t *testing.T, a App) string {
+	t.Helper()
+	if m, ok := a.router.Top().(screens.Menu); ok {
+		return m.Notice()
+	}
+	if m, ok := a.router.Below().(screens.Menu); ok {
+		return m.Notice()
+	}
+	t.Fatalf("neither top (%T) nor below is screens.Menu", a.router.Top())
+	return ""
 }
 
 func waitingStep(name string, payload any, resumed chan pipeline.Result) *stateStep {
@@ -418,7 +461,7 @@ func TestLaunchScreenSizedToMainAreaNotFullTerminal(t *testing.T) {
 
 	const w, h = 120, 40
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: w, Height: h})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntil(t, a, func(_ App, ev pipeline.Event) bool { return ev.Kind == pipeline.EvLine })
 
 	mw, _ := a.frame.MainSize()
@@ -440,7 +483,7 @@ func TestLaunchFormCompositesOverSteplist(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 
 	if a.router.Depth() != 3 {
@@ -467,7 +510,7 @@ func TestLaunchFormCompositesAndClampsAtSmallSize(t *testing.T) {
 
 	const w, h = 50, 20
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: w, Height: h})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 
 	view := a.View().Content
@@ -498,17 +541,20 @@ func menuErrText(t *testing.T, a App) string {
 }
 
 func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
-	f := &stubFacade{updateErr: errors.New("gh not authed")}
+	f := &stubFacade{vscodeErr: errors.New("code missing")}
 	a := newStateApp(t, f)
 
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
 
-	wantErr := uistr.NoticeUpdateErr + "gh not authed"
+	wantErr := uistr.NoticeVSCodeErr + "code missing"
 	if got := menuErrText(t, a); got != wantErr {
 		t.Fatalf("error surface = %q, want %q right after failure", got, wantErr)
 	}
 
+	f.mu.Lock()
+	f.vscodeErr = nil
+	f.mu.Unlock()
 	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
 	if got := menuNotice(t, a); got != uistr.NoticeVSCodeDone {
@@ -525,19 +571,22 @@ func TestStateErrorSurfacePersistsAcrossBenignActionAndDismisses(t *testing.T) {
 }
 
 func TestStateErrorSurfaceReplacedByNextError(t *testing.T) {
-	f := &stubFacade{updateErr: errors.New("gh not authed"), vscodeErr: errors.New("code missing")}
+	f := &stubFacade{vscodeErr: errors.New("first boom")}
 	a := newStateApp(t, f)
 
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
+	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
-	wantFirst := uistr.NoticeUpdateErr + "gh not authed"
+	wantFirst := uistr.NoticeVSCodeErr + "first boom"
 	if got := menuErrText(t, a); got != wantFirst {
 		t.Fatalf("first error = %q, want %q", got, wantFirst)
 	}
 
+	f.mu.Lock()
+	f.vscodeErr = errors.New("second boom")
+	f.mu.Unlock()
 	a, cmd = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	a, _ = step(t, a, runWorkMsg(t, cmd))
-	want := uistr.NoticeVSCodeErr + "code missing"
+	want := uistr.NoticeVSCodeErr + "second boom"
 	if got := menuErrText(t, a); got != want {
 		t.Errorf("error surface = %q, want it replaced by the newer error %q", got, want)
 	}
@@ -571,34 +620,6 @@ func TestStateVSCodeFailure(t *testing.T) {
 	}
 }
 
-func TestStateUpdate(t *testing.T) {
-	f := &stubFacade{}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
-	if got := menuNotice(t, a); got != uistr.NoticeUpdateRunning {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeUpdateRunning)
-	}
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeUpdateDone {
-		t.Errorf("notice = %q, want %q", got, uistr.NoticeUpdateDone)
-	}
-	if f.updateCalls != 1 {
-		t.Errorf("UpdateEcosystem calls = %d, want 1", f.updateCalls)
-	}
-}
-
-func TestStateUpdateFailure(t *testing.T) {
-	f := &stubFacade{updateErr: errors.New("gh not authed")}
-	a := newStateApp(t, f)
-
-	a, cmd := step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
-	a, _ = step(t, a, runWorkMsg(t, cmd))
-	if got := menuNotice(t, a); got != uistr.NoticeUpdateErr+"gh not authed" {
-		t.Errorf("notice = %q", got)
-	}
-}
-
 func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
@@ -612,13 +633,16 @@ func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 	if got := menuNotice(t, a); got != uistr.NoticeBusy {
 		t.Errorf("notice = %q, want %q", got, uistr.NoticeBusy)
 	}
+	if a.awaitingGate {
+		t.Error("update-gate pushed while busy, want gated")
+	}
 	if f.launches() != 0 {
 		t.Errorf("LaunchSteps called %d times while busy, want 0", f.launches())
 	}
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionUpdate})
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionVSCode})
 	if got := menuNotice(t, a); got != uistr.NoticeBusy {
-		t.Errorf("update while busy: notice = %q, want %q", got, uistr.NoticeBusy)
+		t.Errorf("vscode while busy: notice = %q, want %q", got, uistr.NoticeBusy)
 	}
 
 	a, _ = step(t, a, runWorkMsg(t, vscodeCmd))
@@ -627,8 +651,12 @@ func TestStateBusyGateBlocksConcurrentActions(t *testing.T) {
 	}
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.awaitingGate {
+		t.Fatal("awaitingGate = false after launch when unbusy, want true")
+	}
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.GateSkip})
 	if f.launches() != 1 {
-		t.Errorf("LaunchSteps calls after unbusy = %d, want 1", f.launches())
+		t.Errorf("LaunchSteps calls after unbusy gate-skip = %d, want 1", f.launches())
 	}
 	a = driveUntilDone(t, a)
 	if a.pipe != nil {
@@ -659,8 +687,8 @@ func TestStateNavKeysDriveFrameCursorAtMenu(t *testing.T) {
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if got := frameSelected(t, a); got != screens.ActionUpdate {
-		t.Errorf("after j: selection = %q, want update", got)
+	if got := frameSelected(t, a); got != screens.ActionQuit {
+		t.Errorf("after j: selection = %q, want quit", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
@@ -692,7 +720,7 @@ func TestStateNavKeysIgnoredWhenOverlayUp(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 	if a.router.Depth() != 3 {
 		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
@@ -716,7 +744,7 @@ func TestOverlayCompositesOverBackground(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 100, Height: 30})
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 	if a.router.Depth() != 3 {
 		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
@@ -746,7 +774,7 @@ func TestViewIsAltScreen(t *testing.T) {
 	if a.View().Cursor != nil {
 		t.Error("menu view has a visible cursor; selection must be style-only (no caret)")
 	}
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 	if !a.View().AltScreen {
 		t.Error("View().AltScreen = false with overlay up, want true")
@@ -889,7 +917,7 @@ func TestMenuCursorSurvivesOverlay(t *testing.T) {
 		t.Fatalf("setup: selection = %q, want vscode", before)
 	}
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilFormUp(t, a)
 	if a.router.Depth() != 3 {
 		t.Fatalf("router depth = %d with form up, want 3", a.router.Depth())
@@ -944,7 +972,7 @@ func TestStateLaunchFailureShowsFailedNotice(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{boom, dependent}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilDone(t, a)
 
 	if a.pipe != nil {
@@ -960,7 +988,7 @@ func TestStateLaunchEscShowsCanceledNotice(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{waitingStep("wait", struct{ X int }{1}, resumed)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilWaiting(t, a)
 	if a.waiting != "wait" {
 		t.Fatalf("waiting = %q, want wait", a.waiting)
@@ -987,7 +1015,7 @@ func TestStateScreenResultResumesWaiting(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{waitingStep("telegram", nil, resumed)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilWaiting(t, a)
 
 	a, _ = step(t, a, bus.ScreenResult{Value: "tok"})
@@ -1011,7 +1039,7 @@ func TestStateGHAuthPushesScreenAndResumes(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{waitingStep("gh-auth", payload, resumed)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	// driveUntilGHAuthUp expands the nested batch and steps ScreenPush +
 	// openURLDoneMsg into the app, placing GHAuth on the router stack.
 	a = driveUntilGHAuthUp(t, a)
@@ -1081,7 +1109,7 @@ func TestStateAttachExecDonePipelineOwnsMenuReturn(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{attach}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilWaiting(t, a)
 
 	mu.Lock()
@@ -1128,7 +1156,7 @@ func TestStateSecondLaunchWhilePipelineRuns(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{waitingStep("wait", struct{}{}, resumed)}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a = driveUntilWaiting(t, a)
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
@@ -1147,7 +1175,7 @@ func TestStateLaunchPipelineNewError(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{dup1, dup2}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	if a.pipe != nil {
 		t.Error("pipe set despite pipeline.New error")
 	}
@@ -1193,7 +1221,7 @@ func TestStatePipelineEventBranchesForward(t *testing.T) {
 	f := &stubFacade{steps: []pipeline.Command{ok, boom, skipped}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	seen := map[pipeline.EventKind]bool{}
 	a = driveUntil(t, a, func(_ App, ev pipeline.Event) bool {
 		seen[ev.Kind] = true
@@ -1271,7 +1299,7 @@ func ghAuthApp(t *testing.T) (App, *stubFacade) {
 	payload := steps.GHAuth{Code: "ABCD-1234", URL: "https://github.com/login/device"}
 	f := &stubFacade{steps: []pipeline.Command{waitingStep("gh-auth", payload, resumed)}}
 	a := newStateApp(t, f)
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	// driveUntilGHAuthUp expands the nested batch (ScreenPush + openURLDoneMsg)
 	// and steps both into the app so GHAuth is on the router stack.
 	a = driveUntilGHAuthUp(t, a)
@@ -1307,9 +1335,9 @@ func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
 	}}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	if !a.busy {
-		t.Fatal("busy = false immediately after ActionLaunch, want true")
+		t.Fatal("busy = false after gate-skip starts the pipeline, want true")
 	}
 
 	a = driveUntilDone(t, a)
@@ -1332,9 +1360,9 @@ func TestLaunchPresentsRolePickerBeforePipeline(t *testing.T) {
 	f := &stubFacade{loadouts: roleLoadouts()}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	if !a.awaitingRole {
-		t.Fatal("awaitingRole = false after ActionLaunch, want true")
+		t.Fatal("awaitingRole = false after gate-skip, want true")
 	}
 	if a.pipe != nil {
 		t.Fatal("pipe created before role chosen")
@@ -1354,7 +1382,7 @@ func TestRoleSelectionPersistsLoadoutThenLaunches(t *testing.T) {
 	}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
 
 	if a.awaitingRole {
@@ -1380,7 +1408,7 @@ func TestRoleSelectionEnterDrivesFullFlow(t *testing.T) {
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyLeft})
 	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
 	res := runMsg(t, cmd)
@@ -1405,7 +1433,7 @@ func TestRoleSelectionCancelledReturnsToMenu(t *testing.T) {
 	}}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a, _ = step(t, a, bus.ScreenPop{})
 
 	if a.awaitingRole {
@@ -1427,7 +1455,7 @@ func TestRoleSelectionEscKeyCancelsToMenu(t *testing.T) {
 	a := newStateApp(t, f)
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if a.awaitingRole {
@@ -1447,7 +1475,7 @@ func TestLaunchSkipsRolePickerWhenNoLoadouts(t *testing.T) {
 	}}}
 	a := newStateApp(t, f)
 
-	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a = launchSkipGate(t, a)
 	if a.awaitingRole {
 		t.Error("awaitingRole = true with empty loadout catalog, want false")
 	}
@@ -1456,6 +1484,196 @@ func TestLaunchSkipsRolePickerWhenNoLoadouts(t *testing.T) {
 	}
 	if f.selectedLoadout() != "" {
 		t.Errorf("SelectLoadout called with empty catalog: %q", f.selectedLoadout())
+	}
+	a = driveUntilDone(t, a)
+}
+
+func noopSteps() []pipeline.Command {
+	return []pipeline.Command{&stateStep{meta: pipeline.Meta{Name: "noop", Title: "noop", Kind: pipeline.Auto}}}
+}
+
+func openGate(t *testing.T, a App, choice string) (App, tea.Cmd) {
+	t.Helper()
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.awaitingGate {
+		t.Fatal("awaitingGate = false after ActionLaunch, want true")
+	}
+	if _, ok := a.router.Top().(screens.UpdateGate); !ok {
+		t.Fatalf("top after launch is %T, want screens.UpdateGate", a.router.Top())
+	}
+	return step(t, a, bus.ScreenResult{Value: choice})
+}
+
+func TestLaunchPushesUpdateGateBeforeParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	if !a.awaitingGate {
+		t.Fatal("awaitingGate = false after ActionLaunch, want true")
+	}
+	if a.awaitingRole {
+		t.Error("awaitingRole = true before the gate is resolved")
+	}
+	if f.selfUpdates() != 0 || f.updates() != 0 {
+		t.Errorf("update ran before gate choice: self=%d packs=%d", f.selfUpdates(), f.updates())
+	}
+	if _, ok := a.router.Top().(screens.UpdateGate); !ok {
+		t.Fatalf("top screen is %T, want screens.UpdateGate", a.router.Top())
+	}
+}
+
+func TestGateCarriesVersionContextFromSnapshot(t *testing.T) {
+	f := &stubFacade{}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, statusMsg(obs.Snapshot{
+		uistr.VersionNode: {State: obs.StateDegraded, Detail: "v9.9.9"},
+	}))
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+
+	gate, ok := a.router.Top().(screens.UpdateGate)
+	if !ok {
+		t.Fatalf("top is %T, want screens.UpdateGate", a.router.Top())
+	}
+	view := plainState(gate.View())
+	if !strings.Contains(view, "v9.9.9") {
+		t.Errorf("gate view missing latest tag from snapshot:\n%s", view)
+	}
+	if !strings.Contains(view, f.Version()) {
+		t.Errorf("gate view missing current version %q:\n%s", f.Version(), view)
+	}
+}
+
+func TestGateSkipGoesStraightToParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, _ = openGate(t, a, screens.GateSkip)
+	if f.selfUpdates() != 0 || f.updates() != 0 {
+		t.Errorf("skip ran an update: self=%d packs=%d", f.selfUpdates(), f.updates())
+	}
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after gate skip, want true (party pick)")
+	}
+	if _, ok := a.router.Top().(screens.RolePicker); !ok {
+		t.Fatalf("top after skip is %T, want screens.RolePicker", a.router.Top())
+	}
+}
+
+func TestGatePacksRunsEcosystemThenParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, cmd := openGate(t, a, screens.GatePacks)
+	if !a.busy {
+		t.Fatal("busy = false while packs update runs, want true")
+	}
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	if f.updates() != 1 {
+		t.Errorf("UpdateEcosystem calls = %d, want 1", f.updates())
+	}
+	if f.selfUpdates() != 0 {
+		t.Errorf("SelfUpdate calls = %d, want 0 for packs", f.selfUpdates())
+	}
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after packs done, want true (party pick)")
+	}
+}
+
+func TestGateSelfStagesNoticeThenParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, cmd := openGate(t, a, screens.GateSelf)
+	if got := menuNotice(t, a); got != uistr.NoticeSelfUpdateRunning {
+		t.Errorf("running notice = %q, want %q", got, uistr.NoticeSelfUpdateRunning)
+	}
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	if f.selfUpdates() != 1 {
+		t.Errorf("SelfUpdate calls = %d, want 1", f.selfUpdates())
+	}
+	if f.updates() != 0 {
+		t.Errorf("UpdateEcosystem calls = %d, want 0 for self", f.updates())
+	}
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after self staged, want true (party pick)")
+	}
+	if got := baseMenuNotice(t, a); got != uistr.NoticeSelfUpdateStaged {
+		t.Errorf("staged notice = %q, want %q", got, uistr.NoticeSelfUpdateStaged)
+	}
+}
+
+func TestGateSelfFailureDegradesButProceeds(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), selfErr: errors.New("not a fast-forward")}
+	a := newStateApp(t, f)
+
+	a, cmd := openGate(t, a, screens.GateSelf)
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	if !a.awaitingRole {
+		t.Fatal("self-update failure blocked the launch; awaitingRole = false, want true (G6 degrade not block)")
+	}
+	notice := baseMenuNotice(t, a)
+	if !strings.HasPrefix(notice, uistr.NoticeSelfUpdateDegraded) {
+		t.Errorf("degraded notice = %q, want prefix %q", notice, uistr.NoticeSelfUpdateDegraded)
+	}
+	if !strings.Contains(notice, "not a fast-forward") {
+		t.Errorf("degraded notice = %q, want the underlying error surfaced", notice)
+	}
+}
+
+func TestGateAllRunsSelfThenPacksThenParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, cmd := openGate(t, a, screens.GateAll)
+	a, cmd = step(t, a, runWorkMsg(t, cmd))
+	if f.selfUpdates() != 1 {
+		t.Fatalf("after self phase: SelfUpdate calls = %d, want 1", f.selfUpdates())
+	}
+	if !a.busy {
+		t.Fatal("busy = false between self and packs phases, want true")
+	}
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	if f.updates() != 1 {
+		t.Errorf("UpdateEcosystem calls = %d, want 1 (packs phase of All)", f.updates())
+	}
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after All done, want true (party pick)")
+	}
+}
+
+func TestGateEscSkipsToParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts()}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if f.selfUpdates() != 0 || f.updates() != 0 {
+		t.Errorf("esc ran an update: self=%d packs=%d", f.selfUpdates(), f.updates())
+	}
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after esc on gate, want true (esc skips to party)")
+	}
+}
+
+func TestGatePacksWithNoLoadoutsLaunchesPipeline(t *testing.T) {
+	f := &stubFacade{steps: noopSteps()}
+	a := newStateApp(t, f)
+
+	a, cmd := openGate(t, a, screens.GatePacks)
+	a, _ = step(t, a, runWorkMsg(t, cmd))
+
+	if f.updates() != 1 {
+		t.Errorf("UpdateEcosystem calls = %d, want 1", f.updates())
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after packs with empty catalog, want direct launch")
 	}
 	a = driveUntilDone(t, a)
 }
