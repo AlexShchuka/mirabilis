@@ -25,17 +25,18 @@ import (
 )
 
 type facade struct {
-	obs    *obs.Obs
-	runner exec.Runner
-	docker sandbox.Docker
-	sb     *sandbox.Sandbox
-	store  secrets.Store
-	tokens authproxy.TokenSource
-	deps   steps.Deps
-	repo   string
-	port   int
-	mu     sync.RWMutex
-	key    string
+	obs        *obs.Obs
+	runner     exec.Runner
+	docker     sandbox.Docker
+	sb         *sandbox.Sandbox
+	store      secrets.Store
+	tokens     authproxy.TokenSource
+	deps       steps.Deps
+	repo       string
+	port       int
+	mu         sync.RWMutex
+	key        string
+	reviewMode bool
 }
 
 var _ app.Facade = (*facade)(nil)
@@ -170,7 +171,19 @@ func (f *facade) WillRecreateContainer(ctx context.Context) bool {
 	return f.sb.WillRecreate(ctx)
 }
 
+func (f *facade) SetReviewMode(on bool) {
+	f.mu.Lock()
+	f.reviewMode = on
+	f.mu.Unlock()
+}
+
 func (f *facade) LaunchSteps() []pipeline.Command {
+	f.mu.RLock()
+	review := f.reviewMode
+	f.mu.RUnlock()
+	if review {
+		return steps.Review(f.deps)
+	}
 	if config.LaunchBatched(f.repo) {
 		return steps.LaunchBatched(f.deps)
 	}

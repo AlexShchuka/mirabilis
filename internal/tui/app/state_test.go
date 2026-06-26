@@ -46,6 +46,8 @@ type stubFacade struct {
 	openURLCalls  []string
 	willRecreate  bool
 	recreateCalls int
+	reviewMode    bool
+	reviewSets    []bool
 }
 
 func (f *stubFacade) Loadouts() []LoadoutChoice {
@@ -119,6 +121,21 @@ func (f *stubFacade) recreateChecks() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.recreateCalls
+}
+
+func (f *stubFacade) SetReviewMode(on bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reviewMode = on
+	f.reviewSets = append(f.reviewSets, on)
+}
+
+func (f *stubFacade) reviewModeSets() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]bool, len(f.reviewSets))
+	copy(out, f.reviewSets)
+	return out
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -774,19 +791,25 @@ func TestStateNavKeysDriveFrameCursorAtMenu(t *testing.T) {
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
+	if got := frameSelected(t, a); got != screens.ActionReview {
+		t.Errorf("after down: selection = %q, want review", got)
+	}
+
+	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if got := frameSelected(t, a); got != screens.ActionVSCode {
-		t.Errorf("after down: selection = %q, want vscode", got)
+		t.Errorf("after j: selection = %q, want vscode", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if got := frameSelected(t, a); got != screens.ActionQuit {
-		t.Errorf("after j: selection = %q, want quit", got)
+		t.Errorf("after second j: selection = %q, want quit", got)
 	}
 
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: 'k', Text: "k"})
 	if got := frameSelected(t, a); got != screens.ActionLaunch {
-		t.Errorf("after up+k: selection = %q, want launch", got)
+		t.Errorf("after up+up+k: selection = %q, want launch", got)
 	}
 }
 
@@ -794,6 +817,7 @@ func TestStateEnterAtMenuEmitsMenuChosen(t *testing.T) {
 	f := &stubFacade{}
 	a := newStateApp(t, f)
 
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
 	msg := runMsg(t, cmd)
@@ -1005,8 +1029,8 @@ func TestMenuCursorSurvivesOverlay(t *testing.T) {
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 80, Height: 24})
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyDown})
 	before := frameSelected(t, a)
-	if before != screens.ActionVSCode {
-		t.Fatalf("setup: selection = %q, want vscode", before)
+	if before != screens.ActionReview {
+		t.Fatalf("setup: selection = %q, want review", before)
 	}
 
 	a = launchSkipGate(t, a)
@@ -2033,5 +2057,47 @@ func TestTuneRoleSelectErrorReturnsToMenu(t *testing.T) {
 	}
 	if a.pipe != nil {
 		t.Error("pipe created after select error, want none")
+	}
+}
+
+func TestStateReviewActionSetsReviewModeBeforeLaunch(t *testing.T) {
+	reviewStep := &stateStep{meta: pipeline.Meta{Name: "review-present", Title: "Review", Kind: pipeline.Terminal}}
+	f := &stubFacade{steps: []pipeline.Command{reviewStep}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionReview})
+
+	if got := f.reviewModeSets(); len(got) != 1 || !got[0] {
+		t.Fatalf("ActionReview SetReviewMode calls = %v, want exactly [true]", got)
+	}
+	if f.launches() != 1 {
+		t.Errorf("ActionReview LaunchSteps calls = %d, want 1", f.launches())
+	}
+	a = driveUntilDone(t, a)
+	if a.pipe != nil {
+		t.Error("pipe not nil after review run finished")
+	}
+}
+
+func TestStateNormalLaunchDoesNotSetReviewMode(t *testing.T) {
+	launchStep := &stateStep{meta: pipeline.Meta{Name: "attach", Title: "Attach", Kind: pipeline.Terminal}}
+	f := &stubFacade{steps: []pipeline.Command{launchStep}}
+	a := newStateApp(t, f)
+
+	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.GateSkip})
+
+	if f.launches() != 1 {
+		t.Fatalf("normal launch LaunchSteps calls = %d, want 1", f.launches())
+	}
+	for _, on := range f.reviewModeSets() {
+		if on {
+			t.Errorf("normal launch set review mode on: sets = %v, want no true", f.reviewModeSets())
+			break
+		}
+	}
+	a = driveUntilDone(t, a)
+	if a.pipe != nil {
+		t.Error("pipe not nil after normal launch finished")
 	}
 }

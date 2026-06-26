@@ -3,13 +3,13 @@
   ╱ ╵ ╲  ╩ ╩ ╩ ╩╚═ ╩ ╩ ╚═╝ ╩ ╩═╝ ╩ ╚═╝                                          
 ────────────────────────────────────────────────────────────────────────────────
   Launch         │ mirabilis                                                    
-  VS Code        │                                                              
-  Quit           │ pick an action ←                                             
+  Review         │                                                              
+  VS Code        │ pick an action ←                                             
+  Quit           │                                                              
                  │                                                              
 setup pipeline + │                                                              
 Claude in        │                                                              
 container        │                                                              
-                 │                                                              
                  │                                                              
                  │                                                              
                  │                                                              

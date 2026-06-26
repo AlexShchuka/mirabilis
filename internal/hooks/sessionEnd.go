@@ -12,48 +12,24 @@ import (
 )
 
 func SessionEnd() error {
-	_, _ = io.ReadAll(os.Stdin)
+	data, _ := io.ReadAll(os.Stdin)
+	in := parseStopInput(data)
 
 	ctx := context.Background()
-	committed, pushed := commitEcosystem(ctx)
-	if committed == 0 {
-		_, _ = fmt.Fprintln(os.Stdout, "[ecosystem] no local changes to commit")
-		return nil
+	timestamp := in.Timestamp
+	if timestamp == "" {
+		timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
-	_, _ = fmt.Fprintf(os.Stdout, "[ecosystem] committed changes in %d repo(s), pushed %d to main\n", committed, pushed)
-	return nil
-}
 
-// commitEcosystem commits and then pushes every dirty ecosystem repo, returning the
-// number committed and the number successfully pushed. Only repos that actually had a
-// commit this session are pushed. The push targets main non-force (HEAD:main); a
-// non-fast-forward rejection (or any push error) is logged and skipped — never forced —
-// so a diverged remote degrades the snapshot to local-only rather than clobbering it.
-func commitEcosystem(ctx context.Context) (committed, pushed int) {
-	root := ecosystemRoot()
-	entries, err := os.ReadDir(root)
+	m := harvest(ctx, in, timestamp)
+
+	path, err := writeManifest(m)
 	if err != nil {
-		return 0, 0
+		return fmt.Errorf("write manifest: %w", err)
 	}
-	stamp := time.Now().UTC().Format(time.RFC3339)
-	msg := "ecosystem auto-snapshot " + stamp
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		dir := filepath.Join(root, e.Name())
-		if !isGitRepo(ctx, dir) || !hasChanges(ctx, dir) {
-			continue
-		}
-		if !commitRepo(ctx, dir, msg) {
-			continue
-		}
-		committed++
-		if pushRepo(ctx, dir) {
-			pushed++
-		}
-	}
-	return committed, pushed
+
+	_, _ = fmt.Fprintf(os.Stdout, "[harvest] wrote changeset manifest for %d repo(s) to %s\n", len(m.Repos), path)
+	return nil
 }
 
 func isGitRepo(ctx context.Context, dir string) bool {
@@ -63,34 +39,4 @@ func isGitRepo(ctx context.Context, dir string) bool {
 	}
 	_, err = exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "rev-parse", "--git-dir"}})
 	return err == nil
-}
-
-func hasChanges(ctx context.Context, dir string) bool {
-	out, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "status", "--porcelain"}})
-	return err == nil && out != ""
-}
-
-func commitRepo(ctx context.Context, dir, msg string) bool {
-	if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "add", "-A"}}); err != nil {
-		fmt.Fprintf(os.Stderr, "[ecosystem] WARN: git add in %s: %v\n", dir, err)
-		return false
-	}
-	if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "commit", "-m", msg}}); err != nil {
-		fmt.Fprintf(os.Stderr, "[ecosystem] WARN: git commit in %s: %v\n", dir, err)
-		return false
-	}
-	return true
-}
-
-// pushRepo pushes the freshly committed HEAD to origin/main without force. A failed push
-// (most commonly a non-fast-forward rejection against a diverged remote) is logged and
-// skipped: the commit stays local and is never force-pushed. Returns true only on a clean
-// push.
-func pushRepo(ctx context.Context, dir string) bool {
-	if _, err := exec.Run(ctx, runner, exec.Spec{Argv: []string{"git", "-C", dir, "push", "origin", "HEAD:main"}}); err != nil {
-		fmt.Fprintf(os.Stderr, "[ecosystem] WARN: git push in %s skipped (not fast-forward or remote error): %v\n", dir, err)
-		return false
-	}
-	_, _ = fmt.Fprintf(os.Stdout, "[ecosystem] pushed %s to origin/main\n", dir)
-	return true
 }

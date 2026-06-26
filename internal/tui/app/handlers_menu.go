@@ -18,6 +18,8 @@ func (a App) handleMenuChosen(msg bus.MenuChosen) (tea.Model, tea.Cmd) {
 	switch msg.Action {
 	case screens.ActionLaunch:
 		return a.pushGate()
+	case screens.ActionReview:
+		return a.startReview()
 	case screens.ActionQuit:
 		a.cancel()
 		return a, tea.Quit
@@ -239,6 +241,14 @@ func (a App) startLaunch() (tea.Model, tea.Cmd) {
 	go func() { _ = p.Run(pipeCtx) }()
 
 	return a, tea.Batch(rc, ic, tick, pumpEvents(p.Events()))
+}
+
+func (a App) startReview() (tea.Model, tea.Cmd) {
+	if a.pipe != nil {
+		return a, nil
+	}
+	a.facade.SetReviewMode(true)
+	return a.startLaunch()
 }
 
 func (a App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

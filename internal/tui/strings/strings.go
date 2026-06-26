@@ -100,10 +100,12 @@ const (
 	EffortMax    = "max"
 
 	MenuActionLaunch = "Launch"
+	MenuActionReview = "Review"
 	MenuActionVSCode = "VS Code"
 	MenuActionQuit   = "Quit"
 
 	MenuDescLaunch = "setup pipeline + Claude in container"
+	MenuDescReview = "harvest ecosystem changes for co-review"
 	MenuDescVSCode = "open container root in VS Code"
 
 	WelcomeHint = "pick an action ←"

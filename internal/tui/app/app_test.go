@@ -82,6 +82,14 @@ func (f *fakeFacade) ClearTune() error { return nil }
 
 func (f *fakeFacade) WillRecreateContainer(context.Context) bool { return false }
 
+func (f *fakeFacade) SetReviewMode(on bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if on {
+		f.callLog = append(f.callLog, "SetReviewMode")
+	}
+}
+
 func (f *fakeFacade) LaunchSteps() []pipeline.Command {
 	f.mu.Lock()
 	defer f.mu.Unlock()

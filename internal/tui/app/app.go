@@ -33,6 +33,7 @@ type Facade interface {
 	WriteTune(effort string, fleet bool) error
 	ClearTune() error
 	WillRecreateContainer(ctx context.Context) bool
+	SetReviewMode(on bool)
 	LaunchSteps() []pipeline.Command
 	Version() string
 	Logger() *slog.Logger

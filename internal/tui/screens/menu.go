@@ -14,6 +14,7 @@ import (
 
 const (
 	ActionLaunch = "launch"
+	ActionReview = "review"
 	ActionVSCode = "vscode"
 	ActionQuit   = "quit"
 )
@@ -21,6 +22,7 @@ const (
 func MenuItems() []frame.Item {
 	return []frame.Item{
 		{Title: uistr.MenuActionLaunch, Desc: uistr.MenuDescLaunch, Action: ActionLaunch, Enabled: true},
+		{Title: uistr.MenuActionReview, Desc: uistr.MenuDescReview, Action: ActionReview, Enabled: true},
 		{Title: uistr.MenuActionVSCode, Desc: uistr.MenuDescVSCode, Action: ActionVSCode, Enabled: true},
 		{Title: uistr.MenuActionQuit, Action: ActionQuit, Enabled: true},
 	}
