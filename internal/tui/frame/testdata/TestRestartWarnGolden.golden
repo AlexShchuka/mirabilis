@@ -1,0 +1,11 @@
+╭──────────────────────────────────────────────╮
+│  ⚠ Restart running container?                │
+│  Launch will recreate the running container. │
+│  lost: live processes · /tmp                 │
+│  kept: /workspace · ~/.claude · ~/.config/gh │
+│                                              │
+│   Cancel · back to menu, change nothing      │
+│   Restart · recreate and launch              │
+│                                              │
+│  ↑↓ move · enter select · esc cancel         │
+╰──────────────────────────────────────────────╯

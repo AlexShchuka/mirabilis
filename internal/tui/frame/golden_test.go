@@ -65,3 +65,12 @@ func TestUpdateGateGolden(t *testing.T) {
 	box := styles.Overlay.Render(gate.View())
 	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
 }
+
+func TestRestartWarnGolden(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
+
+	warn := screens.NewRestartWarn("app/launch/restart")
+	box := styles.Overlay.Render(warn.View())
+	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
+}

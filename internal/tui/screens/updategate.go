@@ -97,11 +97,11 @@ func (g UpdateGate) View() string {
 	b.WriteString(" " + styles.Title.Render(uistr.GateTitle) + "\n")
 	b.WriteString(" " + g.freshness() + "\n\n")
 	for i, o := range g.options {
-		cursor, style := "  ", styles.NormTitle
+		style := styles.NormTitle
 		if i == g.cursor {
-			cursor, style = "▸ ", styles.SelTitle
+			style = styles.SelTitle
 		}
-		b.WriteString(cursor + style.Render(o.label) + styles.Hint.Render(uistr.StatusSep+o.desc) + "\n")
+		b.WriteString("  " + style.Render(o.label) + styles.Hint.Render(uistr.StatusSep+o.desc) + "\n")
 	}
 	b.WriteString("\n " + styles.Hint.Render(uistr.GateHint))
 	return b.String()

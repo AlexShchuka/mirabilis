@@ -131,6 +131,10 @@ func (a App) handleScreenPop() (tea.Model, tea.Cmd) {
 		a.awaitingRole = false
 		return a.backToMenu("")
 	}
+	if a.awaitingRestart {
+		a.awaitingRestart = false
+		return a.backToMenu("")
+	}
 	step := a.waiting
 	a.waiting = ""
 	if a.pipe != nil && step != "" {

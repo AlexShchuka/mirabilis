@@ -29,6 +29,7 @@ type LoadoutChoice struct {
 type Facade interface {
 	Loadouts() []LoadoutChoice
 	SelectLoadout(name string) error
+	WillRecreateContainer(ctx context.Context) bool
 	LaunchSteps() []pipeline.Command
 	Version() string
 	Logger() *slog.Logger
@@ -65,6 +66,7 @@ type App struct {
 	launchCancelled bool
 	awaitingGate    bool
 	awaitingRole    bool
+	awaitingRestart bool
 	gateAll         bool
 	gateNotice      string
 	busy            bool

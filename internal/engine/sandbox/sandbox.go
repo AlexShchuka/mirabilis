@@ -102,6 +102,10 @@ func (s *Sandbox) Stale(ctx context.Context) bool {
 	return running == "" || running != s.Desired(ctx)
 }
 
+func (s *Sandbox) WillRecreate(ctx context.Context) bool {
+	return s.Running(ctx) != "" && s.Stale(ctx)
+}
+
 func drain(events <-chan exec.Event) error {
 	var err error
 	for ev := range events {

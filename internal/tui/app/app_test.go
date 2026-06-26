@@ -74,6 +74,8 @@ func (f *fakeFacade) Loadouts() []app.LoadoutChoice {
 
 func (f *fakeFacade) SelectLoadout(string) error { return nil }
 
+func (f *fakeFacade) WillRecreateContainer(context.Context) bool { return false }
+
 func (f *fakeFacade) LaunchSteps() []pipeline.Command {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -52,7 +52,15 @@ func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 		if err := a.facade.SelectLoadout(name); err != nil {
 			return a.failToMenu(uistr.NoticeLoadoutErrPrefix + err.Error())
 		}
-		return a.startLaunch()
+		return a.maybeWarnRestart()
+	}
+	if a.awaitingRestart {
+		a.awaitingRestart = false
+		choice, _ := msg.Value.(string)
+		if choice == screens.RestartConfirm {
+			return a.startLaunch()
+		}
+		return a.backToMenu("")
 	}
 	step := a.waiting
 	a.waiting = ""
@@ -131,7 +139,7 @@ func (a App) pickRole() (tea.Model, tea.Cmd) {
 	}
 	choices := a.facade.Loadouts()
 	if len(choices) == 0 {
-		return a.startLaunch()
+		return a.maybeWarnRestart()
 	}
 	opts := make([]screens.RoleOption, 0, len(choices))
 	for _, c := range choices {
@@ -144,6 +152,28 @@ func (a App) pickRole() (tea.Model, tea.Cmd) {
 	}
 	a.awaitingRole = true
 	scr := screens.NewRolePicker("app/launch/role", opts)
+	var rc tea.Cmd
+	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
+	if a.winW > 0 || a.winH > 0 {
+		mw, mh := a.frame.MainSize()
+		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
+	}
+	return a, tea.Batch(rc, scr.Init())
+}
+
+func (a App) maybeWarnRestart() (tea.Model, tea.Cmd) {
+	if a.pipe != nil {
+		return a, nil
+	}
+	if !a.facade.WillRecreateContainer(a.ctx) {
+		return a.startLaunch()
+	}
+	return a.pushRestartWarn()
+}
+
+func (a App) pushRestartWarn() (tea.Model, tea.Cmd) {
+	a.awaitingRestart = true
+	scr := screens.NewRestartWarn("app/launch/restart")
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 	if a.winW > 0 || a.winH > 0 {

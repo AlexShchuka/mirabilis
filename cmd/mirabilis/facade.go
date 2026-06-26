@@ -148,6 +148,10 @@ func (f *facade) SelectLoadout(name string) error {
 	return config.WriteLoadout(f.repo, name)
 }
 
+func (f *facade) WillRecreateContainer(ctx context.Context) bool {
+	return f.sb.WillRecreate(ctx)
+}
+
 func (f *facade) LaunchSteps() []pipeline.Command {
 	if config.LaunchBatched(f.repo) {
 		return steps.LaunchBatched(f.deps)

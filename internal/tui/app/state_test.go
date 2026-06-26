@@ -24,20 +24,22 @@ import (
 )
 
 type stubFacade struct {
-	mu           sync.Mutex
-	steps        []pipeline.Command
-	loadouts     []LoadoutChoice
-	selectedRole string
-	selectErr    error
-	launchCalls  int
-	vscodeCalls  int
-	vscodeErr    error
-	updateCalls  int
-	updateErr    error
-	selfCalls    int
-	selfErr      error
-	statusSubs   int
-	openURLCalls []string
+	mu            sync.Mutex
+	steps         []pipeline.Command
+	loadouts      []LoadoutChoice
+	selectedRole  string
+	selectErr     error
+	launchCalls   int
+	vscodeCalls   int
+	vscodeErr     error
+	updateCalls   int
+	updateErr     error
+	selfCalls     int
+	selfErr       error
+	statusSubs    int
+	openURLCalls  []string
+	willRecreate  bool
+	recreateCalls int
 }
 
 func (f *stubFacade) Loadouts() []LoadoutChoice {
@@ -57,6 +59,19 @@ func (f *stubFacade) selectedLoadout() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.selectedRole
+}
+
+func (f *stubFacade) WillRecreateContainer(context.Context) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recreateCalls++
+	return f.willRecreate
+}
+
+func (f *stubFacade) recreateChecks() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.recreateCalls
 }
 
 func (f *stubFacade) LaunchSteps() []pipeline.Command {
@@ -1674,6 +1689,135 @@ func TestGatePacksWithNoLoadoutsLaunchesPipeline(t *testing.T) {
 	}
 	if a.pipe == nil {
 		t.Fatal("pipe nil after packs with empty catalog, want direct launch")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestRestartWarnShownBeforeDestructiveRecreateAfterParty(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	if !a.awaitingRole {
+		t.Fatal("awaitingRole = false after gate skip, want true (party pick)")
+	}
+
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	if a.pipe != nil {
+		t.Fatal("pipe created before the restart warning was answered, want destructive recreate gated")
+	}
+	if f.launches() != 0 {
+		t.Errorf("LaunchSteps called %d times before restart confirmed, want 0", f.launches())
+	}
+	if !a.awaitingRestart {
+		t.Fatal("awaitingRestart = false after a recreate-bound launch, want true")
+	}
+	if _, ok := a.router.Top().(screens.RestartWarn); !ok {
+		t.Fatalf("top screen is %T, want screens.RestartWarn", a.router.Top())
+	}
+}
+
+func TestRestartWarnConfirmProceedsToLaunch(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	if _, ok := a.router.Top().(screens.RestartWarn); !ok {
+		t.Fatalf("setup: top is %T, want screens.RestartWarn", a.router.Top())
+	}
+
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.RestartConfirm})
+	if a.awaitingRestart {
+		t.Error("awaitingRestart still true after confirm")
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after restart confirmed, want launch running")
+	}
+	if f.launches() != 1 {
+		t.Errorf("LaunchSteps calls after confirm = %d, want 1", f.launches())
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestRestartWarnCancelAbortsToMenu(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.RestartCancel})
+
+	if a.awaitingRestart {
+		t.Error("awaitingRestart still true after cancel")
+	}
+	if a.pipe != nil {
+		t.Error("pipe created after restart cancelled, want none (no recreate)")
+	}
+	if f.launches() != 0 {
+		t.Errorf("LaunchSteps called %d times after cancel, want 0 (clean abort, no recreate)", f.launches())
+	}
+	if _, ok := a.router.Top().(screens.Menu); !ok {
+		t.Fatalf("top screen after cancel is %T, want screens.Menu", a.router.Top())
+	}
+}
+
+func TestRestartWarnEscAbortsToMenu(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	a = launchSkipGate(t, a)
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if a.awaitingRestart {
+		t.Error("awaitingRestart still true after esc")
+	}
+	if a.pipe != nil {
+		t.Error("pipe created after esc on restart warning, want none")
+	}
+	if _, ok := a.router.Top().(screens.Menu); !ok {
+		t.Fatalf("top screen after esc is %T, want screens.Menu", a.router.Top())
+	}
+}
+
+func TestHealthyRelaunchSkipsRestartWarning(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: false}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+
+	if a.awaitingRestart {
+		t.Fatal("awaitingRestart = true on a healthy relaunch, want false (I9 zero questions)")
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil on a healthy relaunch, want direct launch (no warning)")
+	}
+	if f.recreateChecks() == 0 {
+		t.Error("WillRecreateContainer never consulted before launch")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestNoLoadoutsDestructiveRecreateStillWarns(t *testing.T) {
+	f := &stubFacade{steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	if a.pipe != nil {
+		t.Fatal("pipe created without the restart warning on the no-loadout path")
+	}
+	if !a.awaitingRestart {
+		t.Fatal("awaitingRestart = false on the no-loadout destructive path, want true")
+	}
+	if _, ok := a.router.Top().(screens.RestartWarn); !ok {
+		t.Fatalf("top screen is %T, want screens.RestartWarn", a.router.Top())
+	}
+	a, _ = step(t, a, bus.ScreenResult{Value: screens.RestartConfirm})
+	if a.pipe == nil {
+		t.Fatal("pipe nil after confirming no-loadout restart, want launch")
 	}
 	a = driveUntilDone(t, a)
 }

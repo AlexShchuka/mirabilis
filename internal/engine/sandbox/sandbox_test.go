@@ -254,6 +254,59 @@ func TestRunningAndStale(t *testing.T) {
 	})
 }
 
+func TestWillRecreate(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	if err := config.WriteStacks(repo, "go,python"); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	t.Run("running stale recreates", func(t *testing.T) {
+		t.Parallel()
+		fd := NewFakeDocker().StubInspect(Container{
+			Running: true,
+			Env:     map[string]string{"MIRABILIS_VERSION": "old0000-go,python"},
+		}, nil)
+		fake := exec.NewFake().Expect([]string{"git"}, "abc1234", nil)
+		s := New(fake, fd, repo)
+		if !s.WillRecreate(ctx) {
+			t.Fatal("WillRecreate = false for a running-but-stale container, want true (destructive recreate)")
+		}
+	})
+
+	t.Run("running healthy no recreate", func(t *testing.T) {
+		t.Parallel()
+		fd := NewFakeDocker().StubInspect(Container{
+			Running: true,
+			Env:     map[string]string{"MIRABILIS_VERSION": "abc1234-go,python"},
+		}, nil)
+		fake := exec.NewFake().Expect([]string{"git"}, "abc1234", nil)
+		s := New(fake, fd, repo)
+		if s.WillRecreate(ctx) {
+			t.Fatal("WillRecreate = true for a healthy up-to-date container, want false (idempotent relaunch)")
+		}
+	})
+
+	t.Run("nothing running first run", func(t *testing.T) {
+		t.Parallel()
+		fd := NewFakeDocker().StubInspect(Container{Running: false}, nil)
+		s := New(exec.NewFake(), fd, repo)
+		if s.WillRecreate(ctx) {
+			t.Fatal("WillRecreate = true with no running container, want false (first-run create is not destructive)")
+		}
+	})
+
+	t.Run("daemon down", func(t *testing.T) {
+		t.Parallel()
+		fd := NewFakeDocker().StubInspect(Container{}, errors.New("daemon down"))
+		s := New(exec.NewFake(), fd, repo)
+		if s.WillRecreate(ctx) {
+			t.Fatal("WillRecreate = true when the daemon is down, want false (nothing running to tear down)")
+		}
+	})
+}
+
 func TestImagePresent(t *testing.T) {
 	t.Parallel()
 	t.Run("present", func(t *testing.T) {

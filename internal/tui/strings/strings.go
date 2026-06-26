@@ -109,6 +109,16 @@ const (
 	GateDescPacks      = "refresh ecosystem repos + live harness"
 	GateDescAll        = "self then packs"
 
+	RestartWarnTitle    = "Restart running container?"
+	RestartWarnLead     = "Launch will recreate the running container."
+	RestartWarnLost     = "lost: live processes · /tmp"
+	RestartWarnKept     = "kept: /workspace · ~/.claude · ~/.config/gh"
+	RestartWarnConfirm  = "Restart"
+	RestartWarnCancel   = "Cancel"
+	RestartWarnConfirmD = "recreate and launch"
+	RestartWarnCancelD  = "back to menu, change nothing"
+	RestartWarnHint     = "↑↓ move · enter select · esc cancel"
+
 	NoticeSelfUpdateRunning  = "rebuilding mirabilis…"
 	NoticeSelfUpdateStaged   = "update staged — restart mirabilis to apply"
 	NoticeSelfUpdateDegraded = "self-update failed — launching on current binary: "
