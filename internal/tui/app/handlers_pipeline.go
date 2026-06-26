@@ -131,6 +131,13 @@ func (a App) handleScreenPop() (tea.Model, tea.Cmd) {
 		a.awaitingRole = false
 		return a.backToMenu("")
 	}
+	if a.awaitingTune {
+		a.awaitingTune = false
+		if err := a.facade.ClearTune(); err != nil {
+			return a.failToMenu(uistr.NoticeLoadoutErrPrefix + err.Error())
+		}
+		return a.maybeWarnRestart()
+	}
 	if a.awaitingRestart {
 		a.awaitingRestart = false
 		return a.backToMenu("")

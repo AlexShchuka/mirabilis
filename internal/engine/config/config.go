@@ -133,19 +133,76 @@ func ReadPackCatalog(repo string) map[string]Pack {
 
 func ReadLoadout(repo string) (string, bool) { return envRead(repo, "LOADOUT") }
 
-// LaunchBatched reports whether the active loadout opts the launch pipeline into
-// the concurrent batch fast-path. Default loadouts leave it off, so the sequential
-// launch path is unchanged unless a loadout sets "batch on".
-func LaunchBatched(repo string) bool {
+func activeLoadout(repo string) (Loadout, bool) {
 	name, ok := ReadLoadout(repo)
 	if !ok || name == "" {
 		name = DefaultLoadout
 	}
-	lo, ok := ReadLoadoutManifest(repo, name)
+	return ReadLoadoutManifest(repo, name)
+}
+
+// LaunchBatched reports whether the launch pipeline opts into the concurrent batch
+// fast-path. A persisted fleet override (the quick-tune "flasks" tweak) takes
+// precedence; otherwise it falls back to the active loadout's Batch. Default
+// loadouts leave it off, so the sequential launch path is unchanged unless a
+// loadout sets "batch on" or the tune turns the fleet on.
+func LaunchBatched(repo string) bool {
+	if v, ok := ReadBatchOverride(repo); ok {
+		return v
+	}
+	lo, ok := activeLoadout(repo)
 	return ok && lo.Batch
 }
 
 func WriteLoadout(repo, name string) error { return envWrite(repo, "LOADOUT", name) }
+
+// ReadEffortOverride returns the persisted quick-tune effort, if the owner set one.
+func ReadEffortOverride(repo string) (string, bool) {
+	v, ok := envRead(repo, "EFFORT")
+	if !ok || v == "" {
+		return "", false
+	}
+	return v, true
+}
+
+func WriteEffortOverride(repo, effort string) error { return envWrite(repo, "EFFORT", effort) }
+
+func ClearEffortOverride(repo string) error { return envClear(repo, "EFFORT") }
+
+// ReadBatchOverride returns the persisted quick-tune fleet toggle, if set.
+func ReadBatchOverride(repo string) (bool, bool) {
+	v, ok := envRead(repo, "BATCH")
+	if !ok || v == "" {
+		return false, false
+	}
+	return v == "1", true
+}
+
+func WriteBatchOverride(repo string, on bool) error {
+	v := "0"
+	if on {
+		v = "1"
+	}
+	return envWrite(repo, "BATCH", v)
+}
+
+func ClearBatchOverride(repo string) error { return envClear(repo, "BATCH") }
+
+// EffectiveEffort is the effort the next launch will apply: the persisted override
+// when present, else the active loadout's manifest effort. The quick-tune screen
+// pre-fills from this so it shows the current effective value.
+func EffectiveEffort(repo string) string {
+	if v, ok := ReadEffortOverride(repo); ok {
+		return v
+	}
+	lo, _ := activeLoadout(repo)
+	return lo.Effort
+}
+
+// EffectiveBatch is the fleet setting the next launch will apply: the persisted
+// override when present, else the active loadout's manifest batch. It mirrors
+// LaunchBatched and feeds the quick-tune pre-fill.
+func EffectiveBatch(repo string) bool { return LaunchBatched(repo) }
 
 func ReadLoadoutCatalog(repo string) []string {
 	ents, err := os.ReadDir(filepath.Join(repo, "config", "loadouts"))
@@ -398,6 +455,34 @@ func envWrite(repo, key, value string) error {
 		out += "\n"
 	}
 	out += key + "=" + value + "\n"
+	return os.WriteFile(path, []byte(out), 0o644)
+}
+
+func envClear(repo, key string) error {
+	path := filepath.Join(repo, ".env")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var keep []string
+	found := false
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, key+"=") {
+			found = true
+			continue
+		}
+		keep = append(keep, line)
+	}
+	if !found {
+		return nil
+	}
+	out := strings.TrimRight(strings.Join(keep, "\n"), "\n")
+	if out != "" {
+		out += "\n"
+	}
 	return os.WriteFile(path, []byte(out), 0o644)
 }
 

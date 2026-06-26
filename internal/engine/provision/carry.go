@@ -21,6 +21,7 @@ const (
 	harnessSkip         = "skip"
 	harnessInstall      = "install"
 	loadoutEnvVar       = "MIRABILIS_LOADOUT"
+	effortEnvVar        = "MIRABILIS_EFFORT"
 	carryTimeout        = 5 * time.Minute
 	installTimeout      = 15 * time.Minute
 )
@@ -31,6 +32,14 @@ func loadoutFromEnv() (string, bool) {
 		return "", false
 	}
 	return name, true
+}
+
+func effortFromEnv() (string, bool) {
+	ef := strings.TrimSpace(os.Getenv(effortEnvVar))
+	if ef == "" {
+		return "", false
+	}
+	return ef, true
 }
 
 func carryCreate(d Deps) []pipeline.Command {

@@ -29,6 +29,12 @@ type stubFacade struct {
 	loadouts      []LoadoutChoice
 	selectedRole  string
 	selectErr     error
+	tuneEffort    string
+	tuneFleet     bool
+	tuneWriteErr  error
+	tuneClearErr  error
+	tuneWrites    []screens.TuneResult
+	tuneClears    int
 	launchCalls   int
 	vscodeCalls   int
 	vscodeErr     error
@@ -59,6 +65,47 @@ func (f *stubFacade) selectedLoadout() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.selectedRole
+}
+
+func (f *stubFacade) EffectiveTune() (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tuneEffort, f.tuneFleet
+}
+
+func (f *stubFacade) WriteTune(effort string, fleet bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tuneWrites = append(f.tuneWrites, screens.TuneResult{Effort: effort, Fleet: fleet})
+	return f.tuneWriteErr
+}
+
+func (f *stubFacade) ClearTune() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tuneClears++
+	return f.tuneClearErr
+}
+
+func (f *stubFacade) tuneWriteCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.tuneWrites)
+}
+
+func (f *stubFacade) lastTuneWrite() (screens.TuneResult, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.tuneWrites) == 0 {
+		return screens.TuneResult{}, false
+	}
+	return f.tuneWrites[len(f.tuneWrites)-1], true
+}
+
+func (f *stubFacade) tuneClearCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tuneClears
 }
 
 func (f *stubFacade) WillRecreateContainer(context.Context) bool {
@@ -188,6 +235,36 @@ func launchSkipGate(t *testing.T, a App) App {
 		t.Fatalf("after ActionLaunch top screen is %T, want screens.UpdateGate", a.router.Top())
 	}
 	a, _ = step(t, a, bus.ScreenResult{Value: screens.GateSkip})
+	return a
+}
+
+func pickRoleThenTune(t *testing.T, a App, role string) App {
+	t.Helper()
+	a, _ = step(t, a, bus.ScreenResult{Value: role})
+	if !a.awaitingTune {
+		t.Fatalf("awaitingTune = false after role %q, want true (tune step before launch)", role)
+	}
+	if _, ok := a.router.Top().(screens.Tune); !ok {
+		t.Fatalf("top after role is %T, want screens.Tune", a.router.Top())
+	}
+	return a
+}
+
+func passTuneDefaults(t *testing.T, a App) App {
+	t.Helper()
+	a, _ = step(t, a, bus.ScreenPop{})
+	if a.awaitingTune {
+		t.Fatal("awaitingTune still true after esc, want false")
+	}
+	return a
+}
+
+func applyTune(t *testing.T, a App, res screens.TuneResult) App {
+	t.Helper()
+	a, _ = step(t, a, bus.ScreenResult{Value: res})
+	if a.awaitingTune {
+		t.Fatal("awaitingTune still true after apply, want false")
+	}
 	return a
 }
 
@@ -1398,7 +1475,8 @@ func TestRoleSelectionPersistsLoadoutThenLaunches(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a = launchSkipGate(t, a)
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 
 	if a.awaitingRole {
 		t.Error("awaitingRole still true after selection")
@@ -1432,6 +1510,10 @@ func TestRoleSelectionEnterDrivesFullFlow(t *testing.T) {
 		t.Fatalf("enter on role picker produced %T, want bus.ScreenResult", res)
 	}
 	a, _ = step(t, a, sr)
+	if !a.awaitingTune {
+		t.Fatal("awaitingTune = false after enter-selecting role, want true (tune step)")
+	}
+	a = passTuneDefaults(t, a)
 
 	if got := f.selectedLoadout(); got != "orbit" {
 		t.Errorf("SelectLoadout got %q, want orbit", got)
@@ -1702,7 +1784,8 @@ func TestRestartWarnShownBeforeDestructiveRecreateAfterParty(t *testing.T) {
 		t.Fatal("awaitingRole = false after gate skip, want true (party pick)")
 	}
 
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 	if a.pipe != nil {
 		t.Fatal("pipe created before the restart warning was answered, want destructive recreate gated")
 	}
@@ -1722,7 +1805,8 @@ func TestRestartWarnConfirmProceedsToLaunch(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a = launchSkipGate(t, a)
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 	if _, ok := a.router.Top().(screens.RestartWarn); !ok {
 		t.Fatalf("setup: top is %T, want screens.RestartWarn", a.router.Top())
 	}
@@ -1745,7 +1829,8 @@ func TestRestartWarnCancelAbortsToMenu(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a = launchSkipGate(t, a)
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 	a, _ = step(t, a, bus.ScreenResult{Value: screens.RestartCancel})
 
 	if a.awaitingRestart {
@@ -1768,7 +1853,8 @@ func TestRestartWarnEscAbortsToMenu(t *testing.T) {
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	a = launchSkipGate(t, a)
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if a.awaitingRestart {
@@ -1787,7 +1873,8 @@ func TestHealthyRelaunchSkipsRestartWarning(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a = launchSkipGate(t, a)
-	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
 
 	if a.awaitingRestart {
 		t.Fatal("awaitingRestart = true on a healthy relaunch, want false (I9 zero questions)")
@@ -1820,4 +1907,131 @@ func TestNoLoadoutsDestructiveRecreateStillWarns(t *testing.T) {
 		t.Fatal("pipe nil after confirming no-loadout restart, want launch")
 	}
 	a = driveUntilDone(t, a)
+}
+
+func TestTuneShownAfterPartyPick(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), tuneEffort: "high", tuneFleet: true}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	a = launchSkipGate(t, a)
+	a = pickRoleThenTune(t, a, "orbit")
+
+	if got := f.selectedLoadout(); got != "orbit" {
+		t.Errorf("SelectLoadout got %q, want orbit (party persisted before tune)", got)
+	}
+	if a.pipe != nil {
+		t.Fatal("pipe created before tune answered, want launch gated behind tune")
+	}
+	tune, ok := a.router.Top().(screens.Tune)
+	if !ok {
+		t.Fatalf("top is %T, want screens.Tune", a.router.Top())
+	}
+	view := plainState(tune.View())
+	if !strings.Contains(view, "high") {
+		t.Errorf("tune view missing pre-filled effort %q:\n%s", "high", view)
+	}
+	if !strings.Contains(view, uistr.TuneFleetOn) {
+		t.Errorf("tune view missing pre-filled fleet on:\n%s", view)
+	}
+}
+
+func TestTuneApplyWritesOverrideThenLaunches(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), tuneEffort: "medium"}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a = pickRoleThenTune(t, a, "orbit")
+	a = applyTune(t, a, screens.TuneResult{Effort: "max", Fleet: true})
+
+	if f.tuneWriteCount() != 1 {
+		t.Fatalf("WriteTune calls = %d, want 1", f.tuneWriteCount())
+	}
+	got, _ := f.lastTuneWrite()
+	if got.Effort != "max" || !got.Fleet {
+		t.Errorf("WriteTune got %+v, want {max true}", got)
+	}
+	if f.tuneClearCount() != 0 {
+		t.Errorf("ClearTune called %d times on apply, want 0", f.tuneClearCount())
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after applying tune, want launch running")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestTuneEscClearsOverrideThenLaunches(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps()}
+	a := newStateApp(t, f)
+	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	a = launchSkipGate(t, a)
+	a = pickRoleThenTune(t, a, "orbit")
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if a.awaitingTune {
+		t.Error("awaitingTune still true after esc")
+	}
+	if f.tuneClearCount() != 1 {
+		t.Fatalf("ClearTune calls = %d, want 1 (esc keeps party defaults)", f.tuneClearCount())
+	}
+	if f.tuneWriteCount() != 0 {
+		t.Errorf("WriteTune called %d times on esc, want 0", f.tuneWriteCount())
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil after esc on tune, want launch with party defaults")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestTuneEscWithDestructiveRecreateStillWarns(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), steps: noopSteps(), willRecreate: true}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a = pickRoleThenTune(t, a, "orbit")
+	a = passTuneDefaults(t, a)
+
+	if a.pipe != nil {
+		t.Fatal("pipe created on esc-tune before restart warning, want recreate gated")
+	}
+	if !a.awaitingRestart {
+		t.Fatal("awaitingRestart = false after esc-tune on destructive recreate, want true")
+	}
+}
+
+func TestLaunchWithNoLoadoutsSkipsTune(t *testing.T) {
+	f := &stubFacade{steps: noopSteps()}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+
+	if a.awaitingTune {
+		t.Error("awaitingTune = true with empty loadout catalog, want false (no party, no tune)")
+	}
+	if f.tuneWriteCount() != 0 || f.tuneClearCount() != 0 {
+		t.Errorf("tune store touched on the no-loadout path: writes=%d clears=%d", f.tuneWriteCount(), f.tuneClearCount())
+	}
+	if a.pipe == nil {
+		t.Fatal("pipe nil with empty catalog, want direct launch")
+	}
+	a = driveUntilDone(t, a)
+}
+
+func TestTuneRoleSelectErrorReturnsToMenu(t *testing.T) {
+	f := &stubFacade{loadouts: roleLoadouts(), selectErr: errors.New("disk full")}
+	a := newStateApp(t, f)
+
+	a = launchSkipGate(t, a)
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
+
+	if a.awaitingTune {
+		t.Error("awaitingTune = true after SelectLoadout error, want false")
+	}
+	if f.tuneWriteCount() != 0 {
+		t.Errorf("WriteTune called after select error: %d", f.tuneWriteCount())
+	}
+	if a.pipe != nil {
+		t.Error("pipe created after select error, want none")
+	}
 }

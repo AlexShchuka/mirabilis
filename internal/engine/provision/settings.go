@@ -120,6 +120,9 @@ func (s *effortStep) Meta() pipeline.Meta {
 }
 
 func (s *effortStep) effort() string {
+	if ef, ok := effortFromEnv(); ok {
+		return ef
+	}
 	lo, _ := s.d.loadout()
 	return lo.Effort
 }

@@ -92,6 +92,30 @@ func TestProvisionRunCarriesSelectedLoadout(t *testing.T) {
 	}
 }
 
+func TestProvisionRunCarriesEffortOverride(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []string{phaseCreate, phaseStart} {
+		t.Run(phase, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingRunner{inner: exec.NewFake().Expect([]string{"docker", "exec", "-i"}, "", nil)}
+			d := newTestDeps(t, rec, sandbox.NewFakeDocker(), newFakeStore())
+			if err := config.WriteEffortOverride(d.Repo, "max"); err != nil {
+				t.Fatalf("WriteEffortOverride: %v", err)
+			}
+			if _, err := runStep(t, newProvision(d, phase), nil); err != nil {
+				t.Fatalf("run: %v", err)
+			}
+			specs := rec.Specs()
+			if len(specs) != 1 {
+				t.Fatalf("got %d spawns, want 1", len(specs))
+			}
+			if !slices.Contains(specs[0].Argv, "MIRABILIS_EFFORT=max") {
+				t.Fatalf("argv = %v, want it to carry -e MIRABILIS_EFFORT=max", specs[0].Argv)
+			}
+		})
+	}
+}
+
 func TestProvisionCheckHonorsDeadline(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().ExpectHang([]string{"docker", "exec", "mirabilis", "cat"})
@@ -129,6 +153,7 @@ func TestProvisionRunArgvAndStdin(t *testing.T) {
 			want := []string{
 				"docker", "exec", "-i",
 				"-e", "MIRABILIS_LOADOUT=default",
+				"-e", "MIRABILIS_EFFORT=",
 				"mirabilis",
 				"mirabilis", "provision", "--phase", phase, "--proxy-addr", testProxyAddr,
 			}

@@ -29,6 +29,9 @@ type LoadoutChoice struct {
 type Facade interface {
 	Loadouts() []LoadoutChoice
 	SelectLoadout(name string) error
+	EffectiveTune() (effort string, fleet bool)
+	WriteTune(effort string, fleet bool) error
+	ClearTune() error
 	WillRecreateContainer(ctx context.Context) bool
 	LaunchSteps() []pipeline.Command
 	Version() string
@@ -66,6 +69,7 @@ type App struct {
 	launchCancelled bool
 	awaitingGate    bool
 	awaitingRole    bool
+	awaitingTune    bool
 	awaitingRestart bool
 	gateAll         bool
 	gateNotice      string

@@ -148,6 +148,24 @@ func (f *facade) SelectLoadout(name string) error {
 	return config.WriteLoadout(f.repo, name)
 }
 
+func (f *facade) EffectiveTune() (string, bool) {
+	return config.EffectiveEffort(f.repo), config.EffectiveBatch(f.repo)
+}
+
+func (f *facade) WriteTune(effort string, fleet bool) error {
+	if err := config.WriteEffortOverride(f.repo, effort); err != nil {
+		return err
+	}
+	return config.WriteBatchOverride(f.repo, fleet)
+}
+
+func (f *facade) ClearTune() error {
+	if err := config.ClearEffortOverride(f.repo); err != nil {
+		return err
+	}
+	return config.ClearBatchOverride(f.repo)
+}
+
 func (f *facade) WillRecreateContainer(ctx context.Context) bool {
 	return f.sb.WillRecreate(ctx)
 }

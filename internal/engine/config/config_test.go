@@ -571,6 +571,150 @@ func TestLaunchBatchedNovaIsBatched(t *testing.T) {
 	}
 }
 
+func TestEffortOverrideRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	if v, ok := ReadEffortOverride(dir); ok || v != "" {
+		t.Errorf("ReadEffortOverride with no .env = (%q,%v), want (\"\",false)", v, ok)
+	}
+	if err := WriteEffortOverride(dir, "max"); err != nil {
+		t.Fatalf("WriteEffortOverride: %v", err)
+	}
+	if v, ok := ReadEffortOverride(dir); !ok || v != "max" {
+		t.Errorf("ReadEffortOverride = (%q,%v), want (max,true)", v, ok)
+	}
+}
+
+func TestEffortOverrideEmptyValueIsNotSet(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, ".env"), "EFFORT=\n")
+	if v, ok := ReadEffortOverride(dir); ok || v != "" {
+		t.Errorf("empty EFFORT line = (%q,%v), want unset", v, ok)
+	}
+}
+
+func TestClearEffortOverrideRemovesLineAndIsIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteLoadout(dir, "forge"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteEffortOverride(dir, "high"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ClearEffortOverride(dir); err != nil {
+		t.Fatalf("ClearEffortOverride: %v", err)
+	}
+	if v, ok := ReadEffortOverride(dir); ok || v != "" {
+		t.Errorf("after clear, ReadEffortOverride = (%q,%v), want unset", v, ok)
+	}
+	if name, ok := ReadLoadout(dir); !ok || name != "forge" {
+		t.Errorf("clear removed unrelated LOADOUT line: (%q,%v)", name, ok)
+	}
+	before := readEnv(t, dir)
+	if err := ClearEffortOverride(dir); err != nil {
+		t.Fatalf("ClearEffortOverride second call: %v", err)
+	}
+	if after := readEnv(t, dir); after != before {
+		t.Errorf("clear on an absent key rewrote .env: %q -> %q", before, after)
+	}
+}
+
+func TestClearEffortOverrideNoEnvFileIsNoop(t *testing.T) {
+	dir := t.TempDir()
+	if err := ClearEffortOverride(dir); err != nil {
+		t.Fatalf("ClearEffortOverride with no .env: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".env")); !os.IsNotExist(err) {
+		t.Errorf(".env created by clear on missing file: err=%v", err)
+	}
+}
+
+func TestBatchOverrideRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	if v, ok := ReadBatchOverride(dir); ok || v {
+		t.Errorf("ReadBatchOverride with no .env = (%v,%v), want (false,false)", v, ok)
+	}
+	if err := WriteBatchOverride(dir, true); err != nil {
+		t.Fatalf("WriteBatchOverride: %v", err)
+	}
+	if v, ok := ReadBatchOverride(dir); !ok || !v {
+		t.Errorf("ReadBatchOverride = (%v,%v), want (true,true)", v, ok)
+	}
+	if err := WriteBatchOverride(dir, false); err != nil {
+		t.Fatalf("WriteBatchOverride off: %v", err)
+	}
+	if v, ok := ReadBatchOverride(dir); !ok || v {
+		t.Errorf("ReadBatchOverride after off = (%v,%v), want (false,true)", v, ok)
+	}
+}
+
+func TestLaunchBatchedPrefersFleetOverride(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "spark.txt"), "effort medium\npacks core\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "forge.txt"), "effort xhigh\nbatch on\n")
+	if err := WriteLoadout(dir, "spark"); err != nil {
+		t.Fatal(err)
+	}
+	if LaunchBatched(dir) {
+		t.Fatal("spark is solo; LaunchBatched should be false before override")
+	}
+	if err := WriteBatchOverride(dir, true); err != nil {
+		t.Fatal(err)
+	}
+	if !LaunchBatched(dir) {
+		t.Error("fleet override on must make LaunchBatched true even for a solo loadout")
+	}
+
+	if err := WriteLoadout(dir, "forge"); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteBatchOverride(dir, false); err != nil {
+		t.Fatal(err)
+	}
+	if LaunchBatched(dir) {
+		t.Error("fleet override off must make LaunchBatched false even for a batch loadout")
+	}
+	if err := ClearBatchOverride(dir); err != nil {
+		t.Fatal(err)
+	}
+	if !LaunchBatched(dir) {
+		t.Error("after clearing the override, forge (batch on) should drive LaunchBatched true again")
+	}
+}
+
+func TestEffectiveEffortPrefersOverrideElseLoadout(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "spark.txt"), "effort medium\npacks core\n")
+	if err := WriteLoadout(dir, "spark"); err != nil {
+		t.Fatal(err)
+	}
+	if got := EffectiveEffort(dir); got != "medium" {
+		t.Errorf("EffectiveEffort with no override = %q, want medium (loadout)", got)
+	}
+	if err := WriteEffortOverride(dir, "max"); err != nil {
+		t.Fatal(err)
+	}
+	if got := EffectiveEffort(dir); got != "max" {
+		t.Errorf("EffectiveEffort with override = %q, want max", got)
+	}
+}
+
+func TestEffectiveBatchMirrorsLaunchBatched(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "spark.txt"), "effort medium\npacks core\n")
+	if err := WriteLoadout(dir, "spark"); err != nil {
+		t.Fatal(err)
+	}
+	if EffectiveBatch(dir) {
+		t.Error("EffectiveBatch = true for solo loadout with no override, want false")
+	}
+	if err := WriteBatchOverride(dir, true); err != nil {
+		t.Fatal(err)
+	}
+	if !EffectiveBatch(dir) {
+		t.Error("EffectiveBatch = false after fleet override on, want true")
+	}
+}
+
 func TestReadPackCatalog(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "config", "packs.txt"),

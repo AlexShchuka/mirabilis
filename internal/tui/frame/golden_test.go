@@ -74,3 +74,12 @@ func TestRestartWarnGolden(t *testing.T) {
 	box := styles.Overlay.Render(warn.View())
 	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
 }
+
+func TestTuneGolden(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
+
+	tune := screens.NewTune("app/launch/tune", "xhigh", true)
+	box := styles.Overlay.Render(tune.View())
+	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))
+}

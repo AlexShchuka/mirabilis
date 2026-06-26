@@ -12,7 +12,10 @@ import (
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
 
-const loadoutEnvVar = "MIRABILIS_LOADOUT"
+const (
+	loadoutEnvVar = "MIRABILIS_LOADOUT"
+	effortEnvVar  = "MIRABILIS_EFFORT"
+)
 
 const provisionCheckTimeout = 30 * time.Second
 
@@ -77,10 +80,15 @@ func (s *provisionStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-
 	if name, ok := config.ReadLoadout(s.d.Repo); ok && name != "" {
 		loadout = name
 	}
+	effort := ""
+	if v, ok := config.ReadEffortOverride(s.d.Repo); ok {
+		effort = v
+	}
 	spec := exec.Spec{
 		Argv: []string{
 			"docker", "exec", "-i",
 			"-e", loadoutEnvVar + "=" + loadout,
+			"-e", effortEnvVar + "=" + effort,
 			sandbox.ContainerName,
 			"mirabilis", "provision", "--phase", s.phase, "--proxy-addr", s.d.ProxyAddr(),
 		},

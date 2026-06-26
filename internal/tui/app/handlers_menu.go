@@ -52,6 +52,17 @@ func (a App) handleScreenResult(msg bus.ScreenResult) (tea.Model, tea.Cmd) {
 		if err := a.facade.SelectLoadout(name); err != nil {
 			return a.failToMenu(uistr.NoticeLoadoutErrPrefix + err.Error())
 		}
+		return a.pushTune()
+	}
+	if a.awaitingTune {
+		a.awaitingTune = false
+		res, ok := msg.Value.(screens.TuneResult)
+		if !ok {
+			return a.backToMenu("")
+		}
+		if err := a.facade.WriteTune(res.Effort, res.Fleet); err != nil {
+			return a.failToMenu(uistr.NoticeLoadoutErrPrefix + err.Error())
+		}
 		return a.maybeWarnRestart()
 	}
 	if a.awaitingRestart {
@@ -152,6 +163,22 @@ func (a App) pickRole() (tea.Model, tea.Cmd) {
 	}
 	a.awaitingRole = true
 	scr := screens.NewRolePicker("app/launch/role", opts)
+	var rc tea.Cmd
+	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
+	if a.winW > 0 || a.winH > 0 {
+		mw, mh := a.frame.MainSize()
+		a.router, _ = a.router.Update(tea.WindowSizeMsg{Width: mw, Height: mh})
+	}
+	return a, tea.Batch(rc, scr.Init())
+}
+
+func (a App) pushTune() (tea.Model, tea.Cmd) {
+	if a.pipe != nil {
+		return a, nil
+	}
+	effort, fleet := a.facade.EffectiveTune()
+	a.awaitingTune = true
+	scr := screens.NewTune("app/launch/tune", effort, fleet)
 	var rc tea.Cmd
 	a.router, rc = a.router.Update(bus.ScreenPush{Model: scr})
 	if a.winW > 0 || a.winH > 0 {

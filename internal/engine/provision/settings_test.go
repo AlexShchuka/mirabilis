@@ -263,3 +263,63 @@ func TestThemeStepNoSettingsFile(t *testing.T) {
 		t.Error("run must not create settings.json")
 	}
 }
+
+func TestEffortStepUsesLoadoutEffortByDefault(t *testing.T) {
+	d, _ := testDeps(t)
+	writeLoadoutManifest(t, d.Repo, "spark", "effort medium\npacks core\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "spark\n")
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
+
+	step := &effortStep{d: d}
+	if got := step.effort(); got != "medium" {
+		t.Fatalf("effort() = %q, want medium (loadout manifest)", got)
+	}
+	if err := runStep(t, step); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadJSON(t, d.settingsPath())["effortLevel"]; got != "medium" {
+		t.Errorf("effortLevel = %v, want medium", got)
+	}
+}
+
+func TestEffortStepPrefersEnvOverride(t *testing.T) {
+	d, _ := testDeps(t)
+	writeLoadoutManifest(t, d.Repo, "spark", "effort medium\npacks core\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "spark\n")
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
+	t.Setenv(effortEnvVar, "max")
+
+	step := &effortStep{d: d}
+	if got := step.effort(); got != "max" {
+		t.Fatalf("effort() = %q, want max (env override beats loadout)", got)
+	}
+	if checkStep(t, step) {
+		t.Error("check should be false when settings effortLevel differs from the override")
+	}
+	if err := runStep(t, step); err != nil {
+		t.Fatal(err)
+	}
+	got := mustReadJSON(t, d.settingsPath())
+	if got["effortLevel"] != "max" {
+		t.Errorf("effortLevel = %v, want max from env override", got["effortLevel"])
+	}
+	if got["a"] != "1" {
+		t.Errorf("unrelated key lost: %v", got["a"])
+	}
+	if !checkStep(t, step) {
+		t.Error("check should be true after applying the env override")
+	}
+}
+
+func TestEffortStepEmptyEnvFallsBackToLoadout(t *testing.T) {
+	d, _ := testDeps(t)
+	writeLoadoutManifest(t, d.Repo, "drift", "effort high\npacks core\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "drift\n")
+	mustWriteJSON(t, d.settingsPath(), map[string]any{"a": "1"})
+	t.Setenv(effortEnvVar, "")
+
+	step := &effortStep{d: d}
+	if got := step.effort(); got != "high" {
+		t.Errorf("effort() = %q with empty env, want high (loadout fallback)", got)
+	}
+}

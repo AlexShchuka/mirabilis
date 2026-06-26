@@ -74,6 +74,12 @@ func (f *fakeFacade) Loadouts() []app.LoadoutChoice {
 
 func (f *fakeFacade) SelectLoadout(string) error { return nil }
 
+func (f *fakeFacade) EffectiveTune() (string, bool) { return "", false }
+
+func (f *fakeFacade) WriteTune(string, bool) error { return nil }
+
+func (f *fakeFacade) ClearTune() error { return nil }
+
 func (f *fakeFacade) WillRecreateContainer(context.Context) bool { return false }
 
 func (f *fakeFacade) LaunchSteps() []pipeline.Command {

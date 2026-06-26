@@ -85,6 +85,20 @@ const (
 	RoleFactSep       = " · "
 	RoleDefaultSuffix = " (default)"
 
+	TuneTitle       = "Quick tune"
+	TuneLead        = "tweak just this launch — or esc to keep the party defaults"
+	TuneEffortLabel = "effort"
+	TuneFleetLabel  = "fleet"
+	TuneFleetOn     = "on"
+	TuneFleetOff    = "off"
+	TuneHint        = "↑↓ row · ←→ change · enter apply · esc defaults"
+
+	EffortLow    = "low"
+	EffortMedium = "medium"
+	EffortHigh   = "high"
+	EffortXHigh  = "xhigh"
+	EffortMax    = "max"
+
 	MenuActionLaunch = "Launch"
 	MenuActionVSCode = "VS Code"
 	MenuActionQuit   = "Quit"
