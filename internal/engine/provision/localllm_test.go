@@ -2,13 +2,36 @@ package provision
 
 import (
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
 
 const testSelfPath = "/usr/local/bin/mirabilis"
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func reachableClient() *http.Client {
+	return &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"id":"local-model"}]}`)),
+			Header:     make(http.Header),
+		}, nil
+	})}
+}
+
+func unreachableClient() *http.Client {
+	return &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		return nil, errors.New("dial tcp: connection refused")
+	})}
+}
+
 func testLocalLLMStep(d Deps) *localLLMStep {
-	return &localLLMStep{d: d, selfPath: testSelfPath}
+	return &localLLMStep{d: d, selfPath: testSelfPath, client: reachableClient()}
 }
 
 func localLLMAddArgv() []string {
@@ -88,5 +111,29 @@ func TestLocalLLMRunIdempotentWhenAlreadyRegistered(t *testing.T) {
 	}
 	if r := f.Remaining(); r != 0 {
 		t.Errorf("unused stubs: %d", r)
+	}
+}
+
+func TestLocalLLMCheckTrueWhenHostUnreachable(t *testing.T) {
+	d, f := testDeps(t)
+	f.Expect(script(`command -v claude`), "", nil)
+	step := &localLLMStep{d: d, selfPath: testSelfPath, client: unreachableClient()}
+	if !checkStep(t, step) {
+		t.Error("check should be true (skip) when the local LLM host is unreachable")
+	}
+	if r := f.Remaining(); r != 0 {
+		t.Errorf("unreachable host must short-circuit before mcp get; unused stubs: %d", r)
+	}
+}
+
+func TestLocalLLMRunSkipsRegistrationWhenHostUnreachable(t *testing.T) {
+	d, f := testDeps(t)
+	f.Expect(script(`command -v claude`), "", nil)
+	step := &localLLMStep{d: d, selfPath: testSelfPath, client: unreachableClient()}
+	if err := runStep(t, step); err != nil {
+		t.Fatalf("run should be a no-op when host unreachable: %v", err)
+	}
+	if r := f.Remaining(); r != 0 {
+		t.Errorf("unreachable host must not register the MCP; unused stubs: %d", r)
 	}
 }

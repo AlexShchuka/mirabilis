@@ -2,7 +2,6 @@ package provision
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -43,24 +42,19 @@ func (s *settingsEnvStep) Check(_ context.Context) (bool, error) {
 
 func (s *settingsEnvStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pipeline.Result) error {
 	path := s.d.settingsPath()
-	m, err := readJSON(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("read settings: %w", err)
-		}
-		m = map[string]any{}
-	}
-	env, _ := m[settingsEnvKey].(map[string]any)
-	if env == nil {
-		env = map[string]any{}
-	}
-	env[settingsURLKey] = settingsBaseURL
-	if s.d.SessionKey != "" {
-		env[settingsTokenKey] = s.d.SessionKey
-	}
-	m[settingsEnvKey] = env
 	if err := os.MkdirAll(s.d.claudeDir(), 0o755); err != nil {
 		return err
 	}
-	return writeJSON(path, m)
+	return updateJSON(path, func(m map[string]any) error {
+		env, _ := m[settingsEnvKey].(map[string]any)
+		if env == nil {
+			env = map[string]any{}
+		}
+		env[settingsURLKey] = settingsBaseURL
+		if s.d.SessionKey != "" {
+			env[settingsTokenKey] = s.d.SessionKey
+		}
+		m[settingsEnvKey] = env
+		return nil
+	})
 }

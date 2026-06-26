@@ -103,6 +103,45 @@ func TestLoadoutStepIdempotent(t *testing.T) {
 	pipeline.Contract(t, step, nil)
 }
 
+func TestLoadoutDesiredPrefersEnv(t *testing.T) {
+	d, _ := testDeps(t)
+	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(loadoutEnvVar, "pvp")
+	step := &loadoutStep{d: d}
+	if got := step.desired(); got != "pvp" {
+		t.Errorf("desired() = %q, want pvp (env overrides .env LOADOUT)", got)
+	}
+}
+
+func TestLoadoutDesiredIgnoresDefaultEnv(t *testing.T) {
+	d, _ := testDeps(t)
+	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(loadoutEnvVar, "default")
+	step := &loadoutStep{d: d}
+	if got := step.desired(); got != "raid" {
+		t.Errorf("desired() = %q, want raid (env=default must not override)", got)
+	}
+}
+
+func TestDepsLoadoutPrefersEnvManifest(t *testing.T) {
+	d, _ := testDeps(t)
+	writeLoadoutManifest(t, d.Repo, "raid", "effort medium\nharness on\n")
+	writeLoadoutManifest(t, d.Repo, "pvp", "effort max\nharness off\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "raid\n")
+	t.Setenv(loadoutEnvVar, "pvp")
+	lo, ok := d.loadout()
+	if !ok {
+		t.Fatal("loadout() not ok")
+	}
+	if lo.Name != "pvp" || lo.Effort != "max" || lo.Harness {
+		t.Errorf("loadout() = %+v, want pvp/max/harness-off from env", lo)
+	}
+}
+
 func TestLoadoutStepSwitchLoadoutUpdatesHarness(t *testing.T) {
 	d, _ := testDeps(t)
 	writeLoadoutManifest(t, d.Repo, "raid", "effort max\nharness on\n")

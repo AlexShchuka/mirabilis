@@ -21,9 +21,18 @@ const (
 	fileLoadout         = ".mirabilis-loadout"
 	harnessSkip         = "skip"
 	harnessInstall      = "install"
+	loadoutEnvVar       = "MIRABILIS_LOADOUT"
 	carryTimeout        = 5 * time.Minute
 	installTimeout      = 15 * time.Minute
 )
+
+func loadoutFromEnv() (string, bool) {
+	name := strings.TrimSpace(os.Getenv(loadoutEnvVar))
+	if name == "" || name == "default" {
+		return "", false
+	}
+	return name, true
+}
 
 func carryCreate(d Deps) []pipeline.Command {
 	return []pipeline.Command{
@@ -101,15 +110,20 @@ func (d Deps) streamScript(ctx context.Context, step string, out chan<- pipeline
 }
 
 func (d Deps) loadout() (config.Loadout, bool) {
-	data, err := os.ReadFile(filepath.Join(d.claudeDir(), fileLoadout))
 	name := config.DefaultLoadout
-	if err == nil {
+	if env, ok := loadoutFromEnv(); ok {
+		name = env
+	} else if data, err := os.ReadFile(filepath.Join(d.claudeDir(), fileLoadout)); err == nil {
 		if s := strings.TrimSpace(string(data)); s != "" {
 			name = s
 		}
 	}
 	if lo, ok := config.ReadLoadoutManifest(d.Repo, name); ok {
 		return lo, true
+	}
+	if d.Log != nil && name != config.DefaultLoadout {
+		d.Log.Warn("loadout manifest missing, falling back to default",
+			"requested", name, "fallback", config.DefaultLoadout)
 	}
 	if lo, ok := config.ReadLoadoutManifest(d.Repo, config.DefaultLoadout); ok {
 		return lo, true
@@ -197,6 +211,9 @@ type loadoutStep struct {
 func (s *loadoutStep) Meta() pipeline.Meta { return carryMeta("loadout", "Sandbox loadout") }
 
 func (s *loadoutStep) desired() string {
+	if env, ok := loadoutFromEnv(); ok {
+		return env
+	}
 	name, ok := config.ReadLoadout(s.d.Repo)
 	if !ok || name == "" {
 		name = config.DefaultLoadout

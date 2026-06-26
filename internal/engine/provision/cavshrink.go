@@ -56,17 +56,20 @@ func (s *caveShrinkStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <
 		return err
 	}
 	path := s.d.claudeJSONPath()
-	m := map[string]any{}
+	alreadyApplied := map[string]bool{}
 	if existing, readErr := readJSON(path); readErr == nil {
-		m = existing
-	}
-	applied, _ := m["mcpShrinkApplied"].(map[string]any)
-	if applied == nil {
-		applied = map[string]any{}
+		if cur, _ := existing["mcpShrinkApplied"].(map[string]any); cur != nil {
+			for name, v := range cur {
+				if b, _ := v.(bool); b {
+					alreadyApplied[name] = true
+				}
+			}
+		}
 	}
 	var errs []error
+	freshlyApplied := map[string]bool{}
 	for _, e := range targets {
-		if v, _ := applied[e.Name].(bool); v {
+		if alreadyApplied[e.Name] {
 			continue
 		}
 		upstream := strings.Join(e.Args, " ")
@@ -74,10 +77,19 @@ func (s *caveShrinkStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <
 			errs = append(errs, fmt.Errorf("shrink %s: %w", e.Name, runErr))
 			continue
 		}
-		applied[e.Name] = true
+		freshlyApplied[e.Name] = true
 	}
-	m["mcpShrinkApplied"] = applied
-	if writeErr := writeJSON(path, m); writeErr != nil {
+	if writeErr := updateJSON(path, func(m map[string]any) error {
+		cur, _ := m["mcpShrinkApplied"].(map[string]any)
+		if cur == nil {
+			cur = map[string]any{}
+		}
+		for name := range freshlyApplied {
+			cur[name] = true
+		}
+		m["mcpShrinkApplied"] = cur
+		return nil
+	}); writeErr != nil {
 		errs = append(errs, fmt.Errorf("write sentinel: %w", writeErr))
 	}
 	return errors.Join(errs...)

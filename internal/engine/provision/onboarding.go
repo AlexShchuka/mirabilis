@@ -66,36 +66,33 @@ func (s *onboardingStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-cha
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("mkdir for .claude.json: %w", err)
 	}
-	m := map[string]any{}
-	if existing, err := readJSON(path); err == nil {
-		m = existing
-	}
-	for k, v := range onboardingBeltKeys {
-		m[k] = v
-	}
-	m["skipDangerousModePermissionPrompt"] = true
-	projects, _ := m["projects"].(map[string]any)
-	if projects == nil {
-		projects = map[string]any{}
-	}
-	proj, _ := projects[claudeWorkspaceDir].(map[string]any)
-	if proj == nil {
-		proj = map[string]any{}
-	}
-	proj["hasTrustDialogAccepted"] = true
-	projects[claudeWorkspaceDir] = proj
-	m["projects"] = projects
-	if err := writeJSON(path, m); err != nil {
+	err := updateJSON(path, func(m map[string]any) error {
+		for k, v := range onboardingBeltKeys {
+			m[k] = v
+		}
+		m["skipDangerousModePermissionPrompt"] = true
+		projects, _ := m["projects"].(map[string]any)
+		if projects == nil {
+			projects = map[string]any{}
+		}
+		proj, _ := projects[claudeWorkspaceDir].(map[string]any)
+		if proj == nil {
+			proj = map[string]any{}
+		}
+		proj["hasTrustDialogAccepted"] = true
+		projects[claudeWorkspaceDir] = proj
+		m["projects"] = projects
+		return nil
+	})
+	if err != nil {
 		return fmt.Errorf("write .claude.json: %w", err)
 	}
 	settingsPath := s.d.settingsPath()
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
 		return fmt.Errorf("mkdir for settings.json: %w", err)
 	}
-	sm := map[string]any{}
-	if existing, err := readJSON(settingsPath); err == nil {
-		sm = existing
-	}
-	sm["skipDangerousModePermissionPrompt"] = true
-	return writeJSON(settingsPath, sm)
+	return updateJSON(settingsPath, func(sm map[string]any) error {
+		sm["skipDangerousModePermissionPrompt"] = true
+		return nil
+	})
 }

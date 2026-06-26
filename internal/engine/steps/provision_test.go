@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
@@ -67,6 +68,30 @@ func TestProvisionStartCheck(t *testing.T) {
 	}
 }
 
+func TestProvisionRunCarriesSelectedLoadout(t *testing.T) {
+	t.Parallel()
+	for _, phase := range []string{phaseCreate, phaseStart} {
+		t.Run(phase, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingRunner{inner: exec.NewFake().Expect([]string{"docker", "exec", "-i"}, "", nil)}
+			d := newTestDeps(t, rec, sandbox.NewFakeDocker(), newFakeStore())
+			if err := config.WriteLoadout(d.Repo, "pvp"); err != nil {
+				t.Fatalf("WriteLoadout: %v", err)
+			}
+			if _, err := runStep(t, newProvision(d, phase), nil); err != nil {
+				t.Fatalf("run: %v", err)
+			}
+			specs := rec.Specs()
+			if len(specs) != 1 {
+				t.Fatalf("got %d spawns, want 1", len(specs))
+			}
+			if !slices.Contains(specs[0].Argv, "MIRABILIS_LOADOUT=pvp") {
+				t.Fatalf("argv = %v, want it to carry -e MIRABILIS_LOADOUT=pvp", specs[0].Argv)
+			}
+		})
+	}
+}
+
 func TestProvisionCheckHonorsDeadline(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().ExpectHang([]string{"docker", "exec", "mirabilis", "cat"})
@@ -102,7 +127,9 @@ func TestProvisionRunArgvAndStdin(t *testing.T) {
 				t.Fatalf("got %d spawns, want 1", len(specs))
 			}
 			want := []string{
-				"docker", "exec", "-i", "mirabilis",
+				"docker", "exec", "-i",
+				"-e", "MIRABILIS_LOADOUT=default",
+				"mirabilis",
 				"mirabilis", "provision", "--phase", phase, "--proxy-addr", testProxyAddr,
 			}
 			if !slices.Equal(specs[0].Argv, want) {

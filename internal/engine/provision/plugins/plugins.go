@@ -47,6 +47,7 @@ func BuildPlan(catalog []string, disabled map[string]bool, harnessSkip bool, mar
 type SettingsIO struct {
 	Read   func() (map[string]any, error)
 	Write  func(map[string]any) error
+	Update func(mutate func(map[string]any) error) error
 	Exists func() bool
 }
 
@@ -109,6 +110,12 @@ func (i Installer) Apply(ctx context.Context, out chan<- pipeline.Event, plan Pl
 func (i Installer) writeEnabled(enabled map[string]any) error {
 	if !i.Settings.Exists() {
 		return nil
+	}
+	if i.Settings.Update != nil {
+		return i.Settings.Update(func(m map[string]any) error {
+			m["enabledPlugins"] = enabled
+			return nil
+		})
 	}
 	m, err := i.Settings.Read()
 	if err != nil {

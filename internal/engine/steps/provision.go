@@ -5,11 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexShchuka/mirabilis/internal/engine/config"
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
 	"github.com/AlexShchuka/mirabilis/internal/engine/harness"
 	"github.com/AlexShchuka/mirabilis/internal/engine/pipeline"
 	"github.com/AlexShchuka/mirabilis/internal/engine/sandbox"
 )
+
+const loadoutEnvVar = "MIRABILIS_LOADOUT"
 
 const provisionCheckTimeout = 30 * time.Second
 
@@ -70,9 +73,15 @@ func (s *provisionStep) Check(ctx context.Context) (bool, error) {
 }
 
 func (s *provisionStep) Run(ctx context.Context, out chan<- pipeline.Event, _ <-chan pipeline.Result) error {
+	loadout := "default"
+	if name, ok := config.ReadLoadout(s.d.Repo); ok && name != "" {
+		loadout = name
+	}
 	spec := exec.Spec{
 		Argv: []string{
-			"docker", "exec", "-i", sandbox.ContainerName,
+			"docker", "exec", "-i",
+			"-e", loadoutEnvVar + "=" + loadout,
+			sandbox.ContainerName,
 			"mirabilis", "provision", "--phase", s.phase, "--proxy-addr", s.d.ProxyAddr(),
 		},
 		Stdin: strings.NewReader(s.d.SessionKey()),

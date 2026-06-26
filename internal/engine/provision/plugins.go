@@ -33,6 +33,7 @@ func (s *pluginsStep) installer() plugins.Installer {
 		Settings: plugins.SettingsIO{
 			Read:   func() (map[string]any, error) { return readJSON(dest) },
 			Write:  func(m map[string]any) error { return writeJSON(dest, m) },
+			Update: func(mutate func(map[string]any) error) error { return updateJSON(dest, mutate) },
 			Exists: func() bool { return exists(dest) },
 		},
 	}

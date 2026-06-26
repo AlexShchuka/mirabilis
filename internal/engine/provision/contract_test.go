@@ -256,6 +256,9 @@ func TestContractRegistries(t *testing.T) {
 					d, f := testDeps(t)
 					prep(t, &d, f)
 					step := findStep(t, reg.build(d), name)
+					if ls, ok := step.(*localLLMStep); ok {
+						ls.client = reachableClient()
+					}
 					pipeline.Contract(t, step, nil)
 					if n := f.Remaining(); n != 0 {
 						t.Errorf("unused stubs after contract: %d", n)

@@ -92,6 +92,9 @@ func (s *settingsStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan 
 		return nil
 	}
 	dest := s.d.settingsPath()
+	mu := pathMutex(dest)
+	mu.Lock()
+	defer mu.Unlock()
 	if exists(dest) {
 		dm, derr := readJSON(dest)
 		sm, serr := readJSON(seed)
@@ -146,12 +149,10 @@ func (s *effortStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pi
 	if !exists(dest) {
 		return nil
 	}
-	m, err := readJSON(dest)
-	if err != nil {
+	return updateJSON(dest, func(m map[string]any) error {
+		m["effortLevel"] = ef
 		return nil
-	}
-	m["effortLevel"] = ef
-	return writeJSON(dest, m)
+	})
 }
 
 type themeStep struct {
@@ -196,10 +197,8 @@ func (s *themeStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan pip
 	if !exists(dest) {
 		return nil
 	}
-	m, err := readJSON(dest)
-	if err != nil {
+	return updateJSON(dest, func(m map[string]any) error {
+		m["theme"] = th
 		return nil
-	}
-	m["theme"] = th
-	return writeJSON(dest, m)
+	})
 }

@@ -79,7 +79,7 @@ func TestLaunchContract(t *testing.T) {
 		"provision-create": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
 				f.Expect([]string{"docker", "exec", "mirabilis", "cat"}, "", errors.New("no such file")).
-					Expect([]string{"docker", "exec", "-i", "mirabilis"}, "", nil).
+					Expect([]string{"docker", "exec", "-i", "-e"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "cat"}, "ok\n", nil)
 			},
 		},
@@ -87,7 +87,7 @@ func TestLaunchContract(t *testing.T) {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
 				hash := harness.StartMarkerHash("abc-", testSessionKey)
 				f.Expect([]string{"docker", "exec", "mirabilis", "cat"}, "", errors.New("no such file")).
-					Expect([]string{"docker", "exec", "-i", "mirabilis"}, "", nil).
+					Expect([]string{"docker", "exec", "-i", "-e"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "cat"}, hash+"\n", nil).
 					Expect([]string{"git"}, "abc", nil)
 			},
