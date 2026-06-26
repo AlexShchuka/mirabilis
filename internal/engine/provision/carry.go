@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	fileHarness         = ".mirabilis-harness"
 	filePluginsDisabled = ".mirabilis-plugins-disabled"
 	fileTheme           = ".mirabilis-theme"
 	fileSkills          = ".mirabilis-skills"
@@ -132,14 +131,7 @@ func (d Deps) loadout() (config.Loadout, bool) {
 }
 
 func (d Deps) harnessChoice() string {
-	if lo, ok := d.loadout(); ok && !lo.Harness {
-		return harnessSkip
-	}
-	data, err := os.ReadFile(filepath.Join(d.claudeDir(), fileHarness))
-	if err != nil {
-		return harnessInstall
-	}
-	return strings.TrimSpace(string(data))
+	return harnessInstall
 }
 
 func (d Deps) themePath() string { return filepath.Join(d.claudeDir(), fileTheme) }
@@ -234,13 +226,5 @@ func (s *loadoutStep) Run(_ context.Context, _ chan<- pipeline.Event, _ <-chan p
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, fileLoadout), []byte(s.desired()+"\n"), 0o644); err != nil {
-		return err
-	}
-	lo, ok := s.d.loadout()
-	hpref := harnessInstall
-	if ok && !lo.Harness {
-		hpref = harnessSkip
-	}
-	return os.WriteFile(filepath.Join(dir, fileHarness), []byte(hpref+"\n"), 0o644)
+	return os.WriteFile(filepath.Join(dir, fileLoadout), []byte(s.desired()+"\n"), 0o644)
 }

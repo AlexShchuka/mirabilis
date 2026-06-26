@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -90,16 +91,44 @@ func ReadPluginCatalog(repo string) []string {
 	return readList(filepath.Join(repo, "config", "plugins.txt"))
 }
 
-const DefaultLoadout = "raid"
+const DefaultLoadout = "forge"
 
 type Loadout struct {
 	Name    string
 	Effort  string
-	Harness bool
 	Batch   bool
 	Plugins []string
 	MCP     []string
 	Tools   []string
+}
+
+type Pack struct {
+	Name  string
+	Kind  string
+	Items []string
+}
+
+const (
+	packKindPlugins = "plugins"
+	packKindMCP     = "mcp"
+	packKindTools   = "tools"
+)
+
+func ReadPackCatalog(repo string) map[string]Pack {
+	out := map[string]Pack{}
+	for _, line := range readList(filepath.Join(repo, "config", "packs.txt")) {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		switch fields[1] {
+		case packKindPlugins, packKindMCP, packKindTools:
+		default:
+			continue
+		}
+		out[fields[0]] = Pack{Name: fields[0], Kind: fields[1], Items: fields[2:]}
+	}
+	return out
 }
 
 func ReadLoadout(repo string) (string, bool) { return envRead(repo, "LOADOUT") }
@@ -137,6 +166,7 @@ func ReadLoadoutManifest(repo, name string) (Loadout, bool) {
 	if _, err := os.Stat(path); err != nil {
 		return Loadout{}, false
 	}
+	packs := ReadPackCatalog(repo)
 	lo := Loadout{Name: name}
 	for _, line := range readList(path) {
 		fields := strings.Fields(line)
@@ -148,19 +178,45 @@ func ReadLoadoutManifest(repo, name string) (Loadout, bool) {
 			if len(fields) > 1 {
 				lo.Effort = fields[1]
 			}
-		case "harness":
-			lo.Harness = len(fields) > 1 && fields[1] == "on"
 		case "batch":
 			lo.Batch = len(fields) > 1 && fields[1] == "on"
 		case "plugins":
-			lo.Plugins = fields[1:]
+			lo.Plugins = appendUnique(lo.Plugins, fields[1:]...)
 		case "mcp":
-			lo.MCP = fields[1:]
+			lo.MCP = appendUnique(lo.MCP, fields[1:]...)
 		case "tools":
-			lo.Tools = fields[1:]
+			lo.Tools = appendUnique(lo.Tools, fields[1:]...)
+		case "packs":
+			lo.expandPacks(packs, fields[1:])
 		}
 	}
 	return lo, true
+}
+
+func (lo *Loadout) expandPacks(packs map[string]Pack, names []string) {
+	for _, n := range names {
+		p, ok := packs[n]
+		if !ok {
+			continue
+		}
+		switch p.Kind {
+		case packKindPlugins:
+			lo.Plugins = appendUnique(lo.Plugins, p.Items...)
+		case packKindMCP:
+			lo.MCP = appendUnique(lo.MCP, p.Items...)
+		case packKindTools:
+			lo.Tools = appendUnique(lo.Tools, p.Items...)
+		}
+	}
+}
+
+func appendUnique(dst []string, items ...string) []string {
+	for _, it := range items {
+		if !slices.Contains(dst, it) {
+			dst = append(dst, it)
+		}
+	}
+	return dst
 }
 
 type SkillGroup struct {

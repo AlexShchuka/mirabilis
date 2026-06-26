@@ -18,15 +18,15 @@ func mathToolsScripts() map[string]string {
 	}
 }
 
-func writeRaidTools(t *testing.T, d Deps, tools string) {
+func writeForgeTools(t *testing.T, d Deps, tools string) {
 	t.Helper()
-	mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"),
-		"effort max\nharness on\ntools "+tools+"\n")
+	mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "forge.txt"),
+		"effort xhigh\nbatch on\ntools "+tools+"\n")
 }
 
 func TestMathToolsNoopWhenLoadoutHasNoTools(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "")
+	writeForgeTools(t, d, "")
 	step := &mathToolsStep{d: d}
 	if !checkStep(t, step) {
 		t.Error("check should be true (no-op) when no math tools are requested")
@@ -55,7 +55,7 @@ func TestMathToolsNoopWhenLoadoutMissing(t *testing.T) {
 
 func TestMathToolsInstallsAllWhenMissing(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "sympy z3 lean coq")
+	writeForgeTools(t, d, "sympy z3 lean coq")
 	sc := mathToolsScripts()
 	f.Expect(script(sc["venvProbe"]), "", errStub)
 	f.Expect(script(sc["venvMake"]), "", nil)
@@ -77,7 +77,7 @@ func TestMathToolsInstallsAllWhenMissing(t *testing.T) {
 
 func TestMathToolsSkipsInstalled(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "sympy z3 lean coq")
+	writeForgeTools(t, d, "sympy z3 lean coq")
 	sc := mathToolsScripts()
 	f.Expect(script(sc["venvProbe"]), "ok", nil)
 	f.Expect(script(sc["leanProbe"]), "ok", nil)
@@ -91,7 +91,7 @@ func TestMathToolsSkipsInstalled(t *testing.T) {
 
 func TestMathToolsCoqCheckFalseWhenMissing(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "coq")
+	writeForgeTools(t, d, "coq")
 	sc := mathToolsScripts()
 	f.Expect(script(sc["coqProbe"]), "", errStub)
 	step := &mathToolsStep{d: d}
@@ -102,7 +102,7 @@ func TestMathToolsCoqCheckFalseWhenMissing(t *testing.T) {
 
 func TestMathToolsCoqFailureTolerated(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "coq")
+	writeForgeTools(t, d, "coq")
 	sc := mathToolsScripts()
 	f.Expect(script(sc["coqProbe"]), "", errStub)
 	f.Expect(script(sc["coqInst"]), "", errStub)
@@ -117,7 +117,7 @@ func TestMathToolsCoqFailureTolerated(t *testing.T) {
 
 func TestMathToolsSympyOnlyInstallsVenv(t *testing.T) {
 	d, f := testDeps(t)
-	writeRaidTools(t, d, "sympy")
+	writeForgeTools(t, d, "sympy")
 	sc := mathToolsScripts()
 	f.Expect(script(sc["venvProbe"]), "", errStub)
 	f.Expect(script(sc["venvMake"]), "", nil)

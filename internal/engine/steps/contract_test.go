@@ -123,15 +123,13 @@ func TestLaunchContract(t *testing.T) {
 		},
 		"harness": {
 			setup: func(_ *testing.T, _ Deps, f *exec.Fake, _ *sandbox.FakeDocker, _ pipeline.Command) {
-				f.Expect(harnessBash(harnessPrefScript), "", nil).
-					Expect(harnessBash(harness.ProbeScript), "", errors.New("not installed")).
+				f.Expect(harnessBash(harness.ProbeScript), "", errors.New("not installed")).
 					Expect(harnessBash("command -v claude"), "/usr/bin/claude", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "marketplace", "add"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "install"}, "", nil).
 					Expect([]string{"docker", "exec", "mirabilis", "claude", "plugin", "update"}, "", nil).
 					Expect(harnessBash(harness.ProbeScript), "", nil).
 					Expect(harnessBash(harness.RelinkScript), "", nil).
-					Expect(harnessBash(harnessPrefScript), "", nil).
 					Expect(harnessBash(harness.ProbeScript), "", nil)
 			},
 		},

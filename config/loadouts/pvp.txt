@@ -1,4 +1,0 @@
-effort max
-harness off
-plugins caveman@caveman claude-hud@claude-hud code-review@claude-plugins-official commit-commands@claude-plugins-official security-guidance@claude-plugins-official pyright-lsp@claude-plugins-official typescript-lsp@claude-plugins-official
-mcp context7 sequential-thinking

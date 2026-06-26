@@ -1,0 +1,7 @@
+core plugins caveman@caveman claude-hud@claude-hud commit-commands@claude-plugins-official claude-md-management@claude-plugins-official
+review plugins code-review@claude-plugins-official security-guidance@claude-plugins-official
+lsp plugins pyright-lsp@claude-plugins-official typescript-lsp@claude-plugins-official
+frontend plugins frontend-design@claude-plugins-official
+research mcp arxiv-mcp-server docling context7
+reason mcp sequential-thinking
+formal tools sympy z3 lean coq

@@ -51,8 +51,8 @@ func TestSettingsWritersConcurrentNoLostUpdate(t *testing.T) {
 	d, _ := testDeps(t)
 	d.SessionKey = "sk-concurrent"
 
-	mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
-	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+	mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "forge.txt"), "effort max\nbatch on\n")
+	if err := config.WriteLoadout(d.Repo, "forge"); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, d.themePath(), "dark\n")

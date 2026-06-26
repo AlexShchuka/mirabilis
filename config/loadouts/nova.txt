@@ -1,0 +1,3 @@
+effort max
+packs core research reason review lsp frontend formal
+batch on

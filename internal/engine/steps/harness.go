@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/AlexShchuka/mirabilis/internal/engine/exec"
@@ -13,11 +12,6 @@ import (
 )
 
 const checkTimeout = 30 * time.Second
-
-const (
-	harnessPrefScript = `cat "$HOME/.claude/.mirabilis-harness" 2>/dev/null`
-	harnessSkip       = "skip"
-)
 
 var errHarnessContainer = errors.New("steps: harness: container claude unavailable — run Launch first")
 
@@ -39,10 +33,6 @@ func (s *harnessStep) Meta() pipeline.Meta {
 func (s *harnessStep) Check(ctx context.Context) (bool, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
-	pref, _ := exec.Run(checkCtx, s.d.Runner, exec.Spec{Argv: containerArgv("bash", "-lc", harnessPrefScript)})
-	if strings.TrimSpace(pref) == harnessSkip {
-		return true, nil
-	}
 	return scriptOK(checkCtx, s.d, harness.ProbeScript), nil
 }
 

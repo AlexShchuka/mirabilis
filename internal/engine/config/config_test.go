@@ -507,12 +507,12 @@ func TestSkillGroupsFromMissing(t *testing.T) {
 
 func TestReadLoadoutCatalog(t *testing.T) {
 	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
-	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "grind.txt"), "effort xhigh\nharness off\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "forge.txt"), "effort xhigh\nbatch on\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "spark.txt"), "effort medium\npacks core\n")
 	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "notes.md"), "ignored")
 
 	got := ReadLoadoutCatalog(dir)
-	want := map[string]bool{"raid": true, "grind": true}
+	want := map[string]bool{"forge": true, "spark": true}
 	if len(got) != len(want) {
 		t.Fatalf("catalog = %v, want keys %v", got, want)
 	}
@@ -531,28 +531,125 @@ func TestReadLoadoutCatalogMissingDir(t *testing.T) {
 
 func TestWriteLoadoutActivatesBatch(t *testing.T) {
 	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
-	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "blitz.txt"), "effort max\nbatch on\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "spark.txt"), "effort medium\npacks core\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "forge.txt"), "effort xhigh\nbatch on\n")
 
-	if LaunchBatched(dir) {
-		t.Fatal("default (raid, no batch) should not opt into batch path")
-	}
-
-	if err := WriteLoadout(dir, "blitz"); err != nil {
+	if err := WriteLoadout(dir, "spark"); err != nil {
 		t.Fatalf("WriteLoadout: %v", err)
 	}
-	if name, ok := ReadLoadout(dir); !ok || name != "blitz" {
-		t.Fatalf("ReadLoadout = %q,%v want blitz", name, ok)
+	if LaunchBatched(dir) {
+		t.Fatal("spark has no batch; LaunchBatched should be false")
+	}
+
+	if err := WriteLoadout(dir, "forge"); err != nil {
+		t.Fatalf("WriteLoadout: %v", err)
+	}
+	if name, ok := ReadLoadout(dir); !ok || name != "forge" {
+		t.Fatalf("ReadLoadout = %q,%v want forge", name, ok)
 	}
 	if !LaunchBatched(dir) {
-		t.Error("after selecting blitz (batch on), LaunchBatched should be true")
+		t.Error("after selecting forge (batch on), LaunchBatched should be true")
 	}
 }
 
-func TestLaunchBatchedDefaultsToRaidManifest(t *testing.T) {
+func TestLaunchBatchedDefaultForgeIsBatched(t *testing.T) {
 	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
-	if LaunchBatched(dir) {
-		t.Error("raid manifest has no batch; LaunchBatched should be false by default")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "forge.txt"), "effort xhigh\nbatch on\n")
+	if !LaunchBatched(dir) {
+		t.Error("default loadout forge has batch on; LaunchBatched should be true with no LOADOUT set")
+	}
+}
+
+func TestLaunchBatchedNovaIsBatched(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "nova.txt"), "effort max\nbatch on\n")
+	if err := WriteLoadout(dir, "nova"); err != nil {
+		t.Fatalf("WriteLoadout: %v", err)
+	}
+	if !LaunchBatched(dir) {
+		t.Error("nova has batch on; LaunchBatched should be true")
+	}
+}
+
+func TestReadPackCatalog(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "packs.txt"),
+		"core plugins caveman@caveman claude-hud@claude-hud\n"+
+			"research mcp arxiv-mcp-server docling\n"+
+			"formal tools sympy z3\n"+
+			"bogus weird a b\n")
+	packs := ReadPackCatalog(dir)
+	if len(packs) != 3 {
+		t.Fatalf("ReadPackCatalog = %d packs, want 3 (bogus kind dropped)", len(packs))
+	}
+	if got := packs["core"]; got.Kind != "plugins" || len(got.Items) != 2 {
+		t.Errorf("core pack = %+v, want plugins with 2 items", got)
+	}
+	if got := packs["research"]; got.Kind != "mcp" || got.Items[0] != "arxiv-mcp-server" {
+		t.Errorf("research pack = %+v, want mcp arxiv-mcp-server…", got)
+	}
+	if _, ok := packs["bogus"]; ok {
+		t.Error("pack with unknown kind must be dropped")
+	}
+}
+
+func TestLoadoutManifestExpandsPacks(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "packs.txt"),
+		"core plugins caveman@caveman claude-hud@claude-hud\n"+
+			"review plugins code-review@claude-plugins-official\n"+
+			"research mcp arxiv-mcp-server docling\n"+
+			"formal tools sympy z3\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "forge.txt"),
+		"effort xhigh\npacks core review formal\nbatch on\n")
+
+	lo, ok := ReadLoadoutManifest(dir, "forge")
+	if !ok {
+		t.Fatal("ReadLoadoutManifest forge not ok")
+	}
+	wantPlugins := []string{"caveman@caveman", "claude-hud@claude-hud", "code-review@claude-plugins-official"}
+	if !reflect.DeepEqual(lo.Plugins, wantPlugins) {
+		t.Errorf("plugins = %v, want %v", lo.Plugins, wantPlugins)
+	}
+	if !reflect.DeepEqual(lo.Tools, []string{"sympy", "z3"}) {
+		t.Errorf("tools = %v, want [sympy z3]", lo.Tools)
+	}
+	if len(lo.MCP) != 0 {
+		t.Errorf("mcp = %v, want empty (research pack not referenced)", lo.MCP)
+	}
+	if !lo.Batch {
+		t.Error("forge batch should be on")
+	}
+}
+
+func TestLoadoutManifestPacksMergeWithExplicitAndDedupe(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "packs.txt"),
+		"core plugins caveman@caveman claude-hud@claude-hud\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "mix.txt"),
+		"packs core\nplugins caveman@caveman extra@m\n")
+
+	lo, ok := ReadLoadoutManifest(dir, "mix")
+	if !ok {
+		t.Fatal("ReadLoadoutManifest mix not ok")
+	}
+	want := []string{"caveman@caveman", "claude-hud@claude-hud", "extra@m"}
+	if !reflect.DeepEqual(lo.Plugins, want) {
+		t.Errorf("plugins = %v, want %v (pack+explicit merged, caveman deduped)", lo.Plugins, want)
+	}
+}
+
+func TestLoadoutManifestUnknownPackIgnored(t *testing.T) {
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "config", "packs.txt"),
+		"core plugins caveman@caveman\n")
+	mustWriteFile(t, filepath.Join(dir, "config", "loadouts", "x.txt"),
+		"packs core nope\n")
+	lo, ok := ReadLoadoutManifest(dir, "x")
+	if !ok {
+		t.Fatal("not ok")
+	}
+	if !reflect.DeepEqual(lo.Plugins, []string{"caveman@caveman"}) {
+		t.Errorf("plugins = %v, want only caveman (unknown pack nope ignored)", lo.Plugins)
 	}
 }

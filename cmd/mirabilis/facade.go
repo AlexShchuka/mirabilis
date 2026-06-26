@@ -137,7 +137,7 @@ func (f *facade) Loadouts() []app.LoadoutChoice {
 		out = append(out, app.LoadoutChoice{
 			Key:     name,
 			Effort:  lo.Effort,
-			Harness: lo.Harness,
+			Harness: true,
 			Batch:   lo.Batch,
 			Default: name == active,
 		})

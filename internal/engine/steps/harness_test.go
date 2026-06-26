@@ -23,22 +23,15 @@ func newHarnessForTest(t *testing.T, fake *exec.Fake) *harnessStep {
 
 func TestHarnessCheck(t *testing.T) {
 	t.Parallel()
-	t.Run("skip preference", func(t *testing.T) {
-		t.Parallel()
-		fake := exec.NewFake().Expect(harnessBash(harnessPrefScript), "skip\n", nil)
-		mustCheck(t, newHarnessForTest(t, fake), true)
-	})
 	t.Run("installed", func(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().
-			Expect(harnessBash(harnessPrefScript), "", nil).
 			Expect(harnessBash(harness.ProbeScript), "", nil)
 		mustCheck(t, newHarnessForTest(t, fake), true)
 	})
 	t.Run("missing", func(t *testing.T) {
 		t.Parallel()
 		fake := exec.NewFake().
-			Expect(harnessBash(harnessPrefScript), "", nil).
 			Expect(harnessBash(harness.ProbeScript), "", errors.New("not found"))
 		mustCheck(t, newHarnessForTest(t, fake), false)
 	})
@@ -82,42 +75,19 @@ func TestHarnessRunFallsBackToMarketplaceUpdate(t *testing.T) {
 	}
 }
 
-func TestHarnessCheckSkipsInstallWhenLoadoutHarnessOff(t *testing.T) {
+func TestHarnessCheckAlwaysProbesNoSkipAxis(t *testing.T) {
 	t.Parallel()
-	t.Run("pvp loadout written skip by provision", func(t *testing.T) {
-		t.Parallel()
-		fake := exec.NewFake().
-			Expect(harnessBash(harnessPrefScript), "skip\n", nil)
-		mustCheck(t, newHarnessForTest(t, fake), true)
-		if fake.Remaining() != 0 {
-			t.Fatalf("unexpected exec calls after skip: %d remaining", fake.Remaining())
-		}
-	})
-	t.Run("grind loadout written skip by provision", func(t *testing.T) {
-		t.Parallel()
-		fake := exec.NewFake().
-			Expect(harnessBash(harnessPrefScript), "skip\n", nil)
-		mustCheck(t, newHarnessForTest(t, fake), true)
-		if fake.Remaining() != 0 {
-			t.Fatalf("unexpected exec calls after skip: %d remaining", fake.Remaining())
-		}
-	})
-	t.Run("raid loadout written install by provision falls through to probe", func(t *testing.T) {
-		t.Parallel()
-		fake := exec.NewFake().
-			Expect(harnessBash(harnessPrefScript), "install\n", nil).
-			Expect(harnessBash(harness.ProbeScript), "", nil)
-		mustCheck(t, newHarnessForTest(t, fake), true)
-		if fake.Remaining() != 0 {
-			t.Fatalf("unexpected exec calls: %d remaining", fake.Remaining())
-		}
-	})
+	fake := exec.NewFake().
+		Expect(harnessBash(harness.ProbeScript), "", nil)
+	mustCheck(t, newHarnessForTest(t, fake), true)
+	if fake.Remaining() != 0 {
+		t.Fatalf("Check probed more than the harness presence script: %d remaining", fake.Remaining())
+	}
 }
 
 func TestHarnessCheckHonorsDeadline(t *testing.T) {
 	t.Parallel()
 	fake := exec.NewFake().
-		Expect(harnessBash(harnessPrefScript), "", nil).
 		ExpectHang(harnessBash(harness.ProbeScript))
 	s := newHarnessForTest(t, fake)
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)

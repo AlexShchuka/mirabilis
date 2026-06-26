@@ -22,7 +22,7 @@ const (
 var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 	"loadout": func(_ *testing.T, _ *Deps, _ *exec.Fake) {},
 	"effort": func(t *testing.T, d *Deps, _ *exec.Fake) {
-		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"), "effort max\nharness on\n")
+		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "forge.txt"), "effort xhigh\nbatch on\n")
 		mustWriteJSON(t, d.settingsPath(), map[string]any{})
 	},
 	"settings": func(t *testing.T, d *Deps, _ *exec.Fake) {
@@ -185,8 +185,8 @@ var contractPrep = map[string]func(t *testing.T, d *Deps, f *exec.Fake){
 		f.Expect(get, "local-offload stdio "+self+" localllm serve", nil)
 	},
 	"mathtools": func(t *testing.T, d *Deps, f *exec.Fake) {
-		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "raid.txt"),
-			"effort max\nharness on\ntools sympy z3 lean coq\n")
+		mustWrite(t, filepath.Join(d.Repo, "config", "loadouts", "forge.txt"),
+			"effort xhigh\nbatch on\ntools sympy z3 lean coq\n")
 		sc := mathToolsScripts()
 		f.Expect(script(sc["venvProbe"]), "", errStub)
 		f.Expect(script(sc["venvProbe"]), "", errStub)

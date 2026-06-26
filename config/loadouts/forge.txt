@@ -1,0 +1,3 @@
+effort xhigh
+packs core review lsp formal
+batch on

@@ -15,15 +15,6 @@ func writeLoadoutManifest(t *testing.T, repo, name, content string) {
 	mustWrite(t, filepath.Join(repo, "config", "loadouts", name+".txt"), content)
 }
 
-func readHarnessPref(t *testing.T, d Deps) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(d.claudeDir(), fileHarness))
-	if err != nil {
-		t.Fatalf("read %s: %v", fileHarness, err)
-	}
-	return strings.TrimSpace(string(data))
-}
-
 func TestLoadoutStepDefaultFallback(t *testing.T) {
 	d, _ := testDeps(t)
 	step := &loadoutStep{d: d}
@@ -45,58 +36,36 @@ func TestLoadoutStepDefaultFallback(t *testing.T) {
 	}
 }
 
-func TestLoadoutStepHarnessOffWritesSkip(t *testing.T) {
+func TestLoadoutStepWritesNoHarnessFile(t *testing.T) {
 	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "pvp", "effort max\nharness off\n")
-	if err := config.WriteLoadout(d.Repo, "pvp"); err != nil {
+	writeLoadoutManifest(t, d.Repo, "forge", "effort xhigh\nbatch on\n")
+	if err := config.WriteLoadout(d.Repo, "forge"); err != nil {
 		t.Fatal(err)
 	}
 	step := &loadoutStep{d: d}
 	if err := runStep(t, step); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if got := readHarnessPref(t, d); got != harnessSkip {
-		t.Errorf(".mirabilis-harness = %q, want %q (pvp has harness off)", got, harnessSkip)
-	}
-	if !checkStep(t, step) {
-		t.Error("check should be true after run")
+	if _, err := os.Stat(filepath.Join(d.claudeDir(), ".mirabilis-harness")); !os.IsNotExist(err) {
+		t.Errorf(".mirabilis-harness should not be written (harness is no longer a loadout axis): err=%v", err)
 	}
 }
 
-func TestLoadoutStepHarnessOnWritesInstall(t *testing.T) {
+func TestHarnessChoiceAlwaysInstall(t *testing.T) {
 	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "raid", "effort max\nharness on\n")
-	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+	writeLoadoutManifest(t, d.Repo, "spark", "effort medium\npacks core\n")
+	if err := config.WriteLoadout(d.Repo, "spark"); err != nil {
 		t.Fatal(err)
 	}
-	step := &loadoutStep{d: d}
-	if err := runStep(t, step); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if got := readHarnessPref(t, d); got != harnessInstall {
-		t.Errorf(".mirabilis-harness = %q, want %q (raid has harness on)", got, harnessInstall)
-	}
-}
-
-func TestLoadoutStepGrindHarnessOff(t *testing.T) {
-	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "grind", "effort xhigh\nharness off\n")
-	if err := config.WriteLoadout(d.Repo, "grind"); err != nil {
-		t.Fatal(err)
-	}
-	step := &loadoutStep{d: d}
-	if err := runStep(t, step); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if got := readHarnessPref(t, d); got != harnessSkip {
-		t.Errorf(".mirabilis-harness = %q, want %q (grind has harness off)", got, harnessSkip)
+	if got := d.harnessChoice(); got != harnessInstall {
+		t.Errorf("harnessChoice() = %q, want %q (harness always installs)", got, harnessInstall)
 	}
 }
 
 func TestLoadoutStepIdempotent(t *testing.T) {
 	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "pvp", "effort max\nharness off\n")
-	if err := config.WriteLoadout(d.Repo, "pvp"); err != nil {
+	writeLoadoutManifest(t, d.Repo, "drift", "effort high\npacks core\n")
+	if err := config.WriteLoadout(d.Repo, "drift"); err != nil {
 		t.Fatal(err)
 	}
 	step := &loadoutStep{d: d}
@@ -105,70 +74,39 @@ func TestLoadoutStepIdempotent(t *testing.T) {
 
 func TestLoadoutDesiredPrefersEnv(t *testing.T) {
 	d, _ := testDeps(t)
-	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+	if err := config.WriteLoadout(d.Repo, "forge"); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(loadoutEnvVar, "pvp")
+	t.Setenv(loadoutEnvVar, "spark")
 	step := &loadoutStep{d: d}
-	if got := step.desired(); got != "pvp" {
-		t.Errorf("desired() = %q, want pvp (env overrides .env LOADOUT)", got)
+	if got := step.desired(); got != "spark" {
+		t.Errorf("desired() = %q, want spark (env overrides .env LOADOUT)", got)
 	}
 }
 
 func TestLoadoutDesiredIgnoresDefaultEnv(t *testing.T) {
 	d, _ := testDeps(t)
-	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
+	if err := config.WriteLoadout(d.Repo, "forge"); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv(loadoutEnvVar, "default")
 	step := &loadoutStep{d: d}
-	if got := step.desired(); got != "raid" {
-		t.Errorf("desired() = %q, want raid (env=default must not override)", got)
+	if got := step.desired(); got != "forge" {
+		t.Errorf("desired() = %q, want forge (env=default must not override)", got)
 	}
 }
 
 func TestDepsLoadoutPrefersEnvManifest(t *testing.T) {
 	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "raid", "effort medium\nharness on\n")
-	writeLoadoutManifest(t, d.Repo, "pvp", "effort max\nharness off\n")
-	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "raid\n")
-	t.Setenv(loadoutEnvVar, "pvp")
+	writeLoadoutManifest(t, d.Repo, "forge", "effort medium\nbatch on\n")
+	writeLoadoutManifest(t, d.Repo, "spark", "effort high\npacks core\n")
+	mustWrite(t, filepath.Join(d.claudeDir(), fileLoadout), "forge\n")
+	t.Setenv(loadoutEnvVar, "spark")
 	lo, ok := d.loadout()
 	if !ok {
 		t.Fatal("loadout() not ok")
 	}
-	if lo.Name != "pvp" || lo.Effort != "max" || lo.Harness {
-		t.Errorf("loadout() = %+v, want pvp/max/harness-off from env", lo)
-	}
-}
-
-func TestLoadoutStepSwitchLoadoutUpdatesHarness(t *testing.T) {
-	d, _ := testDeps(t)
-	writeLoadoutManifest(t, d.Repo, "raid", "effort max\nharness on\n")
-	writeLoadoutManifest(t, d.Repo, "pvp", "effort max\nharness off\n")
-
-	if err := config.WriteLoadout(d.Repo, "raid"); err != nil {
-		t.Fatal(err)
-	}
-	step := &loadoutStep{d: d}
-	if err := runStep(t, step); err != nil {
-		t.Fatalf("run raid: %v", err)
-	}
-	if got := readHarnessPref(t, d); got != harnessInstall {
-		t.Errorf("after raid: .mirabilis-harness = %q, want install", got)
-	}
-
-	if err := config.WriteLoadout(d.Repo, "pvp"); err != nil {
-		t.Fatal(err)
-	}
-	step2 := &loadoutStep{d: d}
-	if checkStep(t, step2) {
-		t.Error("check should be false after switching loadout to pvp")
-	}
-	if err := runStep(t, step2); err != nil {
-		t.Fatalf("run pvp: %v", err)
-	}
-	if got := readHarnessPref(t, d); got != harnessSkip {
-		t.Errorf("after pvp: .mirabilis-harness = %q, want skip", got)
+	if lo.Name != "spark" || lo.Effort != "high" {
+		t.Errorf("loadout() = %+v, want spark/high from env", lo)
 	}
 }
