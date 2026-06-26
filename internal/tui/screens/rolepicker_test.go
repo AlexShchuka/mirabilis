@@ -12,10 +12,17 @@ import (
 
 func roleOpts() []RoleOption {
 	return []RoleOption{
-		{Key: "grind", Effort: "xhigh", Harness: false},
-		{Key: "raid", Effort: "max", Harness: true, Default: true},
-		{Key: "pvp", Effort: "max", Harness: false},
+		{Key: "spark", Effort: "medium"},
+		{Key: "drift", Effort: "high"},
+		{Key: "orbit", Effort: "max"},
+		{Key: "forge", Effort: "xhigh", Batch: true, Default: true},
+		{Key: "nova", Effort: "max", Batch: true},
 	}
+}
+
+func sized(r RolePicker, w, h int) RolePicker {
+	scr, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	return scr.(RolePicker)
 }
 
 func TestRolePickerID(t *testing.T) {
@@ -30,57 +37,84 @@ func TestRolePickerID(t *testing.T) {
 
 func TestRolePickerCursorStartsOnDefault(t *testing.T) {
 	r := NewRolePicker("app/launch/role", roleOpts())
-	if r.cursor != 1 {
-		t.Errorf("cursor = %d, want 1 (raid is default)", r.cursor)
+	if r.cursor != 3 {
+		t.Errorf("cursor = %d, want 3 (forge is default)", r.cursor)
 	}
 }
 
 func TestRolePickerCursorStartsAtZeroWithoutDefault(t *testing.T) {
-	r := NewRolePicker("app/launch/role", []RoleOption{{Key: "grind"}, {Key: "raid"}})
+	r := NewRolePicker("app/launch/role", []RoleOption{{Key: "spark"}, {Key: "drift"}})
 	if r.cursor != 0 {
 		t.Errorf("cursor = %d, want 0", r.cursor)
 	}
 }
 
-func TestRolePickerNavigation(t *testing.T) {
-	r := NewRolePicker("app/launch/role", roleOpts())
+func TestRolePickerHorizontalNavigation(t *testing.T) {
+	r := sized(NewRolePicker("app/launch/role", roleOpts()), 100, 30)
+
+	scr, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r = scr.(RolePicker)
+	if r.cursor != 2 {
+		t.Errorf("after left: cursor = %d, want 2", r.cursor)
+	}
+
+	scr, _ = r.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	r = scr.(RolePicker)
+	scr, _ = r.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	r = scr.(RolePicker)
+	if r.cursor != 4 {
+		t.Errorf("after l l: cursor = %d, want 4", r.cursor)
+	}
+
+	scr, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = scr.(RolePicker)
+	if r.cursor != 4 {
+		t.Errorf("right at end: cursor = %d, want 4 (clamped)", r.cursor)
+	}
+}
+
+func TestRolePickerVerticalNavigationMovesByColumns(t *testing.T) {
+	r := sized(NewRolePicker("app/launch/role", roleOpts()), 60, 30)
+	if cols := r.columns(); cols != 2 {
+		t.Fatalf("columns() = %d, want 2 at width 60", cols)
+	}
 
 	scr, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	r = scr.(RolePicker)
-	if r.cursor != 0 {
-		t.Errorf("after up: cursor = %d, want 0", r.cursor)
+	if r.cursor != 1 {
+		t.Errorf("after up from 3: cursor = %d, want 1", r.cursor)
+	}
+
+	scr, _ = r.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	r = scr.(RolePicker)
+	if r.cursor != 3 {
+		t.Errorf("after down from 1: cursor = %d, want 3", r.cursor)
 	}
 
 	scr, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	r = scr.(RolePicker)
-	if r.cursor != 0 {
-		t.Errorf("up at top: cursor = %d, want 0 (clamped)", r.cursor)
-	}
-
-	scr, _ = r.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	r = scr.(RolePicker)
-	scr, _ = r.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	r = scr.(RolePicker)
-	if r.cursor != 2 {
-		t.Errorf("after j j: cursor = %d, want 2", r.cursor)
-	}
-
-	scr, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	r = scr.(RolePicker)
-	if r.cursor != 2 {
-		t.Errorf("down at bottom: cursor = %d, want 2 (clamped)", r.cursor)
-	}
-
 	scr, _ = r.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
 	r = scr.(RolePicker)
 	if r.cursor != 1 {
-		t.Errorf("after k: cursor = %d, want 1", r.cursor)
+		t.Errorf("up at top row clamps: cursor = %d, want 1", r.cursor)
+	}
+}
+
+func TestRolePickerFallsBackToSingleColumn(t *testing.T) {
+	r := sized(NewRolePicker("app/launch/role", roleOpts()), 10, 30)
+	if cols := r.columns(); cols != 1 {
+		t.Errorf("columns() = %d at narrow width, want 1", cols)
+	}
+	scr, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	r = scr.(RolePicker)
+	if r.cursor != 2 {
+		t.Errorf("up in single column from 3: cursor = %d, want 2", r.cursor)
 	}
 }
 
 func TestRolePickerEnterEmitsResultWithSelectedKey(t *testing.T) {
-	r := NewRolePicker("app/launch/role", roleOpts())
-	scr, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	r := sized(NewRolePicker("app/launch/role", roleOpts()), 100, 30)
+	scr, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	r = scr.(RolePicker)
 	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	msg := emit(cmd)
@@ -88,8 +122,8 @@ func TestRolePickerEnterEmitsResultWithSelectedKey(t *testing.T) {
 	if !ok {
 		t.Fatalf("enter: got %T, want bus.ScreenResult", msg)
 	}
-	if res.Value != "grind" {
-		t.Errorf("ScreenResult.Value = %v, want grind", res.Value)
+	if res.Value != "orbit" {
+		t.Errorf("ScreenResult.Value = %v, want orbit", res.Value)
 	}
 }
 
@@ -101,8 +135,8 @@ func TestRolePickerEnterOnDefaultEmitsDefaultKey(t *testing.T) {
 	if !ok {
 		t.Fatalf("enter: got %T, want bus.ScreenResult", msg)
 	}
-	if res.Value != "raid" {
-		t.Errorf("ScreenResult.Value = %v, want raid", res.Value)
+	if res.Value != "forge" {
+		t.Errorf("ScreenResult.Value = %v, want forge", res.Value)
 	}
 }
 
@@ -122,19 +156,22 @@ func TestRolePickerEnvelopeUnwrap(t *testing.T) {
 	}
 }
 
-func TestRolePickerRendersAllOptions(t *testing.T) {
-	r := NewRolePicker("app/launch/role", roleOpts())
+func TestRolePickerRendersAllParties(t *testing.T) {
+	r := sized(NewRolePicker("app/launch/role", roleOpts()), 100, 30)
 	view := plain(r.View())
-	for _, key := range []string{"grind", "raid", "pvp"} {
+	for _, key := range []string{"spark", "drift", "orbit", "forge", "nova"} {
 		if !strings.Contains(view, key) {
-			t.Errorf("view missing role %q: %q", key, view)
+			t.Errorf("view missing party %q: %q", key, view)
 		}
 	}
 	if !strings.Contains(view, uistr.RolePickerTitle) {
 		t.Errorf("view missing title: %q", view)
 	}
-	if !strings.Contains(view, uistr.RoleFactHarnessOn) {
-		t.Errorf("view missing harness fact: %q", view)
+	if !strings.Contains(view, uistr.RoleFactFleet) {
+		t.Errorf("view missing fleet fact: %q", view)
+	}
+	if !strings.Contains(view, uistr.RoleFactSolo) {
+		t.Errorf("view missing solo fact: %q", view)
 	}
 	if !strings.Contains(view, uistr.RoleDefaultSuffix) {
 		t.Errorf("view missing default marker: %q", view)

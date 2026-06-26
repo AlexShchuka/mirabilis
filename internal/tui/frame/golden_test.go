@@ -44,10 +44,14 @@ func TestRolePickerGolden(t *testing.T) {
 	t.Setenv("TERM", "dumb")
 
 	rp := screens.NewRolePicker("app/launch/role", []screens.RoleOption{
-		{Key: "grind", Effort: "xhigh", Harness: false},
-		{Key: "raid", Effort: "max", Harness: true, Default: true},
-		{Key: "pvp", Effort: "max", Harness: false},
+		{Key: "spark", Effort: "medium"},
+		{Key: "drift", Effort: "high"},
+		{Key: "orbit", Effort: "max"},
+		{Key: "forge", Effort: "xhigh", Batch: true, Default: true},
+		{Key: "nova", Effort: "max", Batch: true},
 	})
+	scr, _ := rp.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	rp = scr.(screens.RolePicker)
 
 	box := styles.Overlay.Render(rp.View())
 	teatest.RequireEqualOutput(t, stripANSI([]byte(box)))

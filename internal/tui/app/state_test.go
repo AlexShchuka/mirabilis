@@ -1320,9 +1320,11 @@ func TestStateLaunchSetsBusyAndClearsOnDone(t *testing.T) {
 
 func roleLoadouts() []LoadoutChoice {
 	return []LoadoutChoice{
-		{Key: "grind", Effort: "xhigh", Harness: false},
-		{Key: "raid", Effort: "max", Harness: true, Default: true},
-		{Key: "pvp", Effort: "max", Harness: false},
+		{Key: "spark", Effort: "medium"},
+		{Key: "drift", Effort: "high"},
+		{Key: "orbit", Effort: "max"},
+		{Key: "forge", Effort: "xhigh", Batch: true, Default: true},
+		{Key: "nova", Effort: "max", Batch: true},
 	}
 }
 
@@ -1353,13 +1355,13 @@ func TestRoleSelectionPersistsLoadoutThenLaunches(t *testing.T) {
 	a := newStateApp(t, f)
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
-	a, _ = step(t, a, bus.ScreenResult{Value: "pvp"})
+	a, _ = step(t, a, bus.ScreenResult{Value: "orbit"})
 
 	if a.awaitingRole {
 		t.Error("awaitingRole still true after selection")
 	}
-	if got := f.selectedLoadout(); got != "pvp" {
-		t.Errorf("SelectLoadout got %q, want pvp", got)
+	if got := f.selectedLoadout(); got != "orbit" {
+		t.Errorf("SelectLoadout got %q, want orbit", got)
 	}
 	if f.launches() != 1 {
 		t.Errorf("LaunchSteps calls = %d, want 1", f.launches())
@@ -1379,7 +1381,7 @@ func TestRoleSelectionEnterDrivesFullFlow(t *testing.T) {
 	a, _ = step(t, a, tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	a, _ = step(t, a, bus.MenuChosen{Action: screens.ActionLaunch})
-	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyUp})
+	a, _ = step(t, a, tea.KeyPressMsg{Code: tea.KeyLeft})
 	_, cmd := step(t, a, tea.KeyPressMsg{Code: tea.KeyEnter})
 	res := runMsg(t, cmd)
 	sr, ok := res.(bus.ScreenResult)
@@ -1388,8 +1390,8 @@ func TestRoleSelectionEnterDrivesFullFlow(t *testing.T) {
 	}
 	a, _ = step(t, a, sr)
 
-	if got := f.selectedLoadout(); got != "grind" {
-		t.Errorf("SelectLoadout got %q, want grind", got)
+	if got := f.selectedLoadout(); got != "orbit" {
+		t.Errorf("SelectLoadout got %q, want orbit", got)
 	}
 	if a.pipe == nil {
 		t.Fatal("pipe nil after enter-selecting role")

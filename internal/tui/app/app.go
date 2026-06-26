@@ -22,7 +22,6 @@ import (
 type LoadoutChoice struct {
 	Key     string
 	Effort  string
-	Harness bool
 	Batch   bool
 	Default bool
 }

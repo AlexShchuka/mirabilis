@@ -78,6 +78,16 @@ var (
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(resolvedMint()).
 		Padding(0, 1)
+
+	Tile = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(colMuted)).
+		Padding(0, 1)
+
+	TileActive = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(resolvedMint()).
+			Padding(0, 1)
 )
 
 func huhStyles(isDark bool) *huh.Styles {

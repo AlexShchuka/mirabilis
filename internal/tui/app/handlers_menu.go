@@ -85,7 +85,6 @@ func (a App) pickRole() (tea.Model, tea.Cmd) {
 		opts = append(opts, screens.RoleOption{
 			Key:     c.Key,
 			Effort:  c.Effort,
-			Harness: c.Harness,
 			Batch:   c.Batch,
 			Default: c.Default,
 		})
