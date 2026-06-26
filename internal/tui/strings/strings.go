@@ -4,9 +4,9 @@ const (
 	AppName = "mirabilis"
 
 	TitleBanner = "" +
-		"╔╦╗╦╦═╗╔═╗╔╗ ╦╦  ╦╔═╗\n" +
-		"║║║║╠╦╝╠═╣╠╩╗║║  ║╚═╗\n" +
-		"╩ ╩╩╩╚═╩ ╩╚═╝╩╩═╝╩╚═╝"
+		"╔╦╗ ╦ ╦═╗ ╔═╗ ╔╗  ╦ ╦   ╦ ╔═╗\n" +
+		"║║║ ║ ╠╦╝ ╠═╣ ╠╩╗ ║ ║   ║ ╚═╗\n" +
+		"╩ ╩ ╩ ╩╚═ ╩ ╩ ╚═╝ ╩ ╩═╝ ╩ ╚═╝"
 
 	LogoLargeFrameA = "   ·   \n · ✧ · \n   ·   "
 	LogoLargeFrameB = "   ╷   \n   ✦   \n   ╵   "
@@ -33,6 +33,9 @@ const (
 	VersionNode     = "version"
 	OutdatedPrefix  = "update "
 	OutdatedDefault = "available"
+	UpToDateMark    = "✓"
+	HealthSep       = " "
+	HealthCountSep  = ""
 
 	CmdlogTitle  = "commands"
 	CmdlogPrefix = "+ "

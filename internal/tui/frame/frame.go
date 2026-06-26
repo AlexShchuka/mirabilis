@@ -243,24 +243,13 @@ func (m Model) headerView() string {
 	if rightZone != "" {
 		rightZone += " "
 	}
-	rightW := lipgloss.Width(rightZone)
+	centerZone := m.centerZone()
 	w := max(m.width, 0)
 	sep := styles.Off.Render(strings.Repeat("─", w))
 
 	if m.breakpoint() != bpNormal {
-		centerZone := styles.SelTitle.Render(m.title)
-		centerW := lipgloss.Width(centerZone)
-		row := ""
-		switch {
-		case centerW+rightW <= m.width:
-			gap := max(m.width-centerW-rightW, 1)
-			row = centerZone + strings.Repeat(" ", gap) + rightZone
-		case rightW <= m.width:
-			row = strings.Repeat(" ", max(m.width-rightW, 0)) + rightZone
-		default:
-			row = rightZone
-		}
-		row = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+		left := styles.SelTitle.Render(m.title)
+		row := placeRow(left, centerZone, rightZone, m.width)
 		return row + "\n" + sep
 	}
 
@@ -281,17 +270,62 @@ func (m Model) headerView() string {
 			banner = styles.SelTitle.Render(bannerLines[i])
 		}
 		left := logo + banner
-		leftW := lipgloss.Width(left)
 
 		if i == 0 {
-			gap := max(m.width-leftW-rightW, 1)
-			row := left + strings.Repeat(" ", gap) + rightZone
-			rows[i] = lipgloss.NewStyle().MaxWidth(m.width).Render(row)
+			rows[i] = placeRow(left, centerZone, rightZone, m.width)
 		} else {
 			rows[i] = lipgloss.NewStyle().MaxWidth(m.width).Render(left)
 		}
 	}
 	return strings.Join(rows, "\n") + "\n" + sep
+}
+
+func placeRow(left, center, right string, width int) string {
+	leftW := lipgloss.Width(left)
+	centerW := lipgloss.Width(center)
+	rightW := lipgloss.Width(right)
+
+	if centerW == 0 {
+		gap := max(width-leftW-rightW, 1)
+		return lipgloss.NewStyle().MaxWidth(width).Render(left + strings.Repeat(" ", gap) + right)
+	}
+	if leftW+1+centerW+1+rightW > width {
+		if leftW+1+centerW <= width {
+			right, rightW = "", 0
+		} else {
+			left, leftW = "", 0
+		}
+	}
+
+	gapStart := leftW + 1
+	gapEnd := width - rightW - 1
+	target := gapStart + max(gapEnd-gapStart-centerW, 0)/2
+	if target < gapStart {
+		target = gapStart
+	}
+	if target+centerW > gapEnd {
+		target = gapEnd - centerW
+	}
+	leftPad := max(target-leftW, 1)
+	rightPad := max(width-leftW-leftPad-centerW-rightW, 1)
+	row := left + strings.Repeat(" ", leftPad) + center + strings.Repeat(" ", rightPad) + right
+	return lipgloss.NewStyle().MaxWidth(width).Render(row)
+}
+
+func (m Model) centerZone() string {
+	parts := make([]string, 0, 3)
+	if m.version != "" {
+		parts = append(parts, styles.HeaderRight.Render(m.version))
+	}
+	if m.outdated != "" {
+		parts = append(parts, styles.Degraded.Render(m.outdated))
+	} else if m.version != "" {
+		parts = append(parts, styles.OK.Render(uistr.UpToDateMark))
+	}
+	if health := m.status.Health(); health != "" {
+		parts = append(parts, health)
+	}
+	return strings.Join(parts, uistr.StatusSep)
 }
 
 func outdatedBadge(snap obs.Snapshot) string {
@@ -310,18 +344,6 @@ func (m Model) headerRight() string {
 	right := ""
 	if m.busy != "" {
 		right = styles.Spinner.Render(m.busy)
-	}
-	if m.version != "" {
-		if right != "" {
-			right += uistr.StatusSep
-		}
-		right += styles.HeaderRight.Render(m.version)
-	}
-	if m.outdated != "" {
-		if right != "" {
-			right += uistr.StatusSep
-		}
-		right += styles.Degraded.Render(m.outdated)
 	}
 	if sv := m.status.View(); sv != "" {
 		if right != "" {

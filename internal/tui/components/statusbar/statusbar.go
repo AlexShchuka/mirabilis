@@ -4,6 +4,7 @@ package statusbar
 import (
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,6 +28,42 @@ func (m Model) Update(msg tea.Msg) Model {
 		m.snap = sc.Snapshot
 	}
 	return m
+}
+
+func (m Model) Health() string {
+	var ok, degraded, off, unknown int
+	for node, st := range m.snap {
+		if node == uistr.VersionNode {
+			continue
+		}
+		switch st.State {
+		case obs.StateOK:
+			ok++
+		case obs.StateDegraded:
+			degraded++
+		case obs.StateOff:
+			off++
+		default:
+			unknown++
+		}
+	}
+	if ok+degraded+off+unknown == 0 {
+		return ""
+	}
+	parts := make([]string, 0, 4)
+	if ok > 0 {
+		parts = append(parts, styles.OK.Render(uistr.GlyphStatusOK+uistr.HealthCountSep+strconv.Itoa(ok)))
+	}
+	if degraded > 0 {
+		parts = append(parts, styles.Degraded.Render(uistr.GlyphStatusDegraded+uistr.HealthCountSep+strconv.Itoa(degraded)))
+	}
+	if off > 0 {
+		parts = append(parts, styles.Off.Render(uistr.GlyphStatusOff+uistr.HealthCountSep+strconv.Itoa(off)))
+	}
+	if unknown > 0 {
+		parts = append(parts, styles.HeaderRight.Render(uistr.GlyphStatusUnknown+uistr.HealthCountSep+strconv.Itoa(unknown)))
+	}
+	return strings.Join(parts, uistr.HealthSep)
 }
 
 func (m Model) View() string {

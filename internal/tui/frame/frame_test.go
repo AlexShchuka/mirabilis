@@ -281,7 +281,7 @@ func TestMenuDescShortBreakpointVisibleNarrowHidden(t *testing.T) {
 
 func TestHeaderShowsStatusAndDegraded(t *testing.T) {
 	m := frame.New("mirabilis", "v1.0.0", items())
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
 	m, _ = m.Update(bus.StatusChanged{Snapshot: obs.Snapshot{
 		"container": {State: obs.StateOK, Detail: "up"},
 		"notify":    {State: obs.StateDegraded},
@@ -292,6 +292,12 @@ func TestHeaderShowsStatusAndDegraded(t *testing.T) {
 		if !strings.Contains(header, want) {
 			t.Errorf("header = %q, missing %q", header, want)
 		}
+	}
+	row0 := lines[0]
+	versionAt := strings.Index(row0, "v1.0.0")
+	statusAt := strings.Index(row0, "container up")
+	if versionAt < 0 || statusAt < 0 || versionAt >= statusAt {
+		t.Errorf("version must sit in the center zone, left of the live status in the right zone; row0 = %q", row0)
 	}
 }
 
