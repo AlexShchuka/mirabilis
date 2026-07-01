@@ -69,7 +69,7 @@ func newFacade(repo string) (*facade, error) {
 	store := platformStore(repo, home)
 
 	tokens := authproxy.TokenSource(claudeauth.NewSource(store))
-	if envTok := os.Getenv("ANTHROPIC_API_KEY"); envTok != "" {
+	if envTok := config.AuthToken(repo); envTok != "" {
 		tokens = claudeauth.NewStaticSource(envTok)
 	}
 
