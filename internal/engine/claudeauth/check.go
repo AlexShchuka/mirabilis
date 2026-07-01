@@ -11,6 +11,6 @@ type tokenReader interface {
 }
 
 func Present(ctx context.Context, ts tokenReader) bool {
-	token, err := ts.Token(ctx)
-	return err == nil && strings.HasPrefix(token, tokenPrefix)
+      token, err := ts.Token(ctx)
+      return err == nil && token != ""
 }
