@@ -25,18 +25,19 @@ import (
 )
 
 type facade struct {
-	obs        *obs.Obs
-	runner     exec.Runner
-	docker     sandbox.Docker
-	sb         *sandbox.Sandbox
-	store      secrets.Store
-	tokens     authproxy.TokenSource
-	deps       steps.Deps
-	repo       string
-	port       int
-	mu         sync.RWMutex
-	key        string
-	reviewMode bool
+	obs            *obs.Obs
+	runner         exec.Runner
+	docker         sandbox.Docker
+	sb             *sandbox.Sandbox
+	store          secrets.Store
+	tokens         authproxy.TokenSource
+	deps           steps.Deps
+	repo           string
+	port           int
+	mu             sync.RWMutex
+	key            string
+	reviewMode     bool
+	upstreamAPIURL string
 }
 
 var _ app.Facade = (*facade)(nil)
@@ -67,7 +68,10 @@ func newFacade(repo string) (*facade, error) {
 
 	store := platformStore(repo, home)
 
-	tokens := claudeauth.NewSource(store)
+	tokens := authproxy.TokenSource(claudeauth.NewSource(store))
+	if envTok := os.Getenv("ANTHROPIC_API_KEY"); envTok != "" {
+		tokens = claudeauth.NewStaticSource(envTok)
+	}
 
 	port := config.AuthProxyPort(repo)
 
@@ -113,7 +117,7 @@ func (f *facade) sessionKey() string {
 }
 
 func (f *facade) newProxy(key string) *authproxy.Proxy {
-	p := authproxy.New(f.tokens, f.obs, f.port, key)
+	p := authproxy.New(f.tokens, f.obs, f.port, key, f.upstreamAPIURL)
 	f.mu.Lock()
 	f.key = p.Key()
 	f.mu.Unlock()
