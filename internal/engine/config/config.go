@@ -398,16 +398,6 @@ func HeadroomStatsURL() string {
 	return HeadroomBaseURL() + "/stats"
 }
 
-const defaultUpstreamURL = "https://api.anthropic.com"
-
-func UpstreamAPIURL(repo string) string {
-	u, _ := envRead(repo, "UPSTREAM_API_URL")
-	if u != "" {
-		return u
-	}
-	return defaultUpstreamURL
-}
-
 func AuthProxyPort(repo string) int {
 	v, ok := envRead(repo, "AUTH_PROXY_PORT")
 	if !ok {

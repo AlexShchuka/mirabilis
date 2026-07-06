@@ -75,7 +75,7 @@ func newTestObs(t *testing.T) (*obs.Obs, string) {
 
 func startProxy(t *testing.T, o *obs.Obs, upstream string) (*Proxy, context.CancelFunc) {
 	t.Helper()
-	p := New(staticToken{token: testToken}, o, 0, "", "")
+	p := New(staticToken{token: testToken}, o, 0, "")
 	u, err := url.Parse(upstream)
 	if err != nil {
 		t.Fatalf("parse upstream: %v", err)
@@ -124,7 +124,7 @@ func doRequest(t *testing.T, p *Proxy, auth, beta string) *http.Response {
 
 func TestKey(t *testing.T) {
 	o, _ := newTestObs(t)
-	p := New(staticToken{token: testToken}, o, 0, "", "")
+	p := New(staticToken{token: testToken}, o, 0, "")
 	key := p.Key()
 	if len(key) < 32 {
 		t.Fatalf("key length = %d, want >= 32", len(key))
@@ -135,7 +135,7 @@ func TestKey(t *testing.T) {
 	if p.Key() != key {
 		t.Fatal("Key() not stable across calls")
 	}
-	if New(staticToken{token: testToken}, o, 0, "", "").Key() == key {
+	if New(staticToken{token: testToken}, o, 0, "").Key() == key {
 		t.Fatal("two proxies share a session key")
 	}
 }
@@ -143,7 +143,7 @@ func TestKey(t *testing.T) {
 func TestKeyProvided(t *testing.T) {
 	o, _ := newTestObs(t)
 	const provided = "deadbeefdeadbeefdeadbeefdeadbeef"
-	p := New(staticToken{token: testToken}, o, 0, provided, "")
+	p := New(staticToken{token: testToken}, o, 0, provided)
 	if p.Key() != provided {
 		t.Fatalf("Key() = %q, want %q", p.Key(), provided)
 	}
@@ -154,7 +154,7 @@ func TestKeyProvidedServed(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
 	const provided = "feedfacefeedfacefeedfacefeedface"
-	p := New(staticToken{token: testToken}, o, 0, provided, "")
+	p := New(staticToken{token: testToken}, o, 0, provided)
 	u, err := url.Parse(upstream.URL)
 	if err != nil {
 		t.Fatalf("parse upstream: %v", err)
@@ -198,7 +198,7 @@ func TestStartSucceedsWithoutToken(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
 	ts := &switchableToken{}
-	p := New(ts, o, 0, "", "")
+	p := New(ts, o, 0, "")
 	u, err := url.Parse(upstream.URL)
 	if err != nil {
 		t.Fatalf("parse upstream: %v", err)
@@ -223,7 +223,7 @@ func TestTokenAbsentAtBootRequestGets503(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
 	ts := &switchableToken{}
-	p := New(ts, o, 0, "", "")
+	p := New(ts, o, 0, "")
 	u, _ := url.Parse(upstream.URL)
 	p.upstream = u
 	ctx, cancel := context.WithCancel(context.Background())
@@ -251,7 +251,7 @@ func TestTokenAppearsLaterSelfHeals(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
 	ts := &switchableToken{}
-	p := New(ts, o, 0, "", "")
+	p := New(ts, o, 0, "")
 	u, _ := url.Parse(upstream.URL)
 	p.upstream = u
 	ctx, cancel := context.WithCancel(context.Background())
@@ -283,7 +283,7 @@ func TestUpstream401InvalidatesToken(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	o, _ := newTestObs(t)
 	ts := &switchableToken{token: testToken}
-	p := New(ts, o, 0, "", "")
+	p := New(ts, o, 0, "")
 	u, _ := url.Parse(upstream.URL)
 	p.upstream = u
 	ctx, cancel := context.WithCancel(context.Background())

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"runtime"
 	"strconv"
 	"time"
@@ -41,7 +40,7 @@ type Proxy struct {
 	port     int
 }
 
-func New(ts TokenSource, o *obs.Obs, port int, key, upstreamURL string) *Proxy {
+func New(ts TokenSource, o *obs.Obs, port int, key string) *Proxy {
 	if key == "" {
 		buf := make([]byte, 32)
 		if _, err := rand.Read(buf); err != nil {
@@ -49,29 +48,15 @@ func New(ts TokenSource, o *obs.Obs, port int, key, upstreamURL string) *Proxy {
 		}
 		key = hex.EncodeToString(buf)
 	}
-	u := parseUpstream(upstreamURL)
 	return &Proxy{
 		ts:       ts,
 		obs:      o,
 		log:      o.Logger("authproxy"),
-		upstream: u,
+		upstream: &url.URL{Scheme: "https", Host: "api.anthropic.com"},
 		done:     make(chan struct{}),
 		key:      key,
 		port:     port,
 	}
-}
-
-func parseUpstream(raw string) *url.URL {
-	if raw != "" {
-		if u, err := url.Parse(raw); err == nil && u.Host != "" {
-			return u
-		}
-	}
-	u, _ := url.Parse(os.Getenv("ANTHROPIC_TARGET_API_URL"))
-	if u != nil && u.Host != "" {
-		return u
-	}
-	return &url.URL{Scheme: "https", Host: "api.anthropic.com"}
 }
 
 func (p *Proxy) Key() string { return p.key }

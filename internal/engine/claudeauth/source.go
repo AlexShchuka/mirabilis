@@ -58,18 +58,3 @@ func (s *CachedSource) Invalidate() {
 	s.token = ""
 	s.mu.Unlock()
 }
-
-type staticSource struct {
-	token string
-}
-
-func NewStaticSource(token string) *staticSource {
-	return &staticSource{token: token}
-}
-
-func (s *staticSource) Token(context.Context) (string, error) {
-	if s.token == "" {
-		return "", errors.New("claudeauth: static source has no token")
-	}
-	return s.token, nil
-}
