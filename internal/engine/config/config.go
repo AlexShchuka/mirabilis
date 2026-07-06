@@ -408,11 +408,6 @@ func UpstreamAPIURL(repo string) string {
 	return defaultUpstreamURL
 }
 
-func AuthToken(repo string) string {
-  t, _ := envRead(repo, "ANTHROPIC_AUTH_TOKEN")
-  return t
-}
-
 func AuthProxyPort(repo string) int {
 	v, ok := envRead(repo, "AUTH_PROXY_PORT")
 	if !ok {
