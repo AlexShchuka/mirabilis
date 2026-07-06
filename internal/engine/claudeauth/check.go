@@ -3,6 +3,7 @@ package claudeauth
 
 import (
 	"context"
+	"strings"
 )
 
 type tokenReader interface {
