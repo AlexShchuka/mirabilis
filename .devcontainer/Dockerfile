@@ -1,4 +1,4 @@
-FROM golang:1.26-trixie@sha256:bbf22ddccb3205344f2755ea8fa4fe39f7a8b2b77b9f7b764ec2aad31406f6fc AS build
+FROM golang:1.26-trixie@sha256:68b7145ec43d1820b9a56704554b53d1520aa2a15cb5233e374188a31b2a1bce AS build
 
 ARG MIRABILIS_VERSION=unknown
 
@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -ldflags "-X main.version=${MIRABILIS_VERSION}" -o /out/mirabilis ./cmd/mirabilis
 
-FROM node:26-trixie-slim@sha256:191ef878ecb351d68b78219593de18bd8942afd59af59f29960dc4b24805a3f1
+FROM node:26-trixie-slim@sha256:a1d9d671994fc2d26e297ac56b4b1522a8bc7fa71c43b14cd1b1fe6c5116f7dc
 
 ARG TZ=Etc/UTC
 ENV TZ="$TZ" \
